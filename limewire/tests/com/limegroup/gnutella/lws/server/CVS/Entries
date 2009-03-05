@@ -1,0 +1,25 @@
+/AbstractCommunicationSupportWithNoLocalServer.java/1.9/Mon Apr 28 18:45:00 2008//Tprod-4-18-8-java15
+/AbstractServer.java/1.4/Mon Apr 28 18:45:00 2008//Tprod-4-18-8-java15
+/AddURLEncodedArgumentsTest.java/1.1/Thu Oct 25 00:33:11 2007//Tprod-4-18-8-java15
+/AuthenticateTest.java/1.5/Wed Apr  2 08:50:21 2008//Tprod-4-18-8-java15
+/BadMessageBeforeAuthenticationTest.java/1.2/Wed Mar 19 00:13:36 2008//Tprod-4-18-8-java15
+/CommandSender.java/1.10/Wed Mar 26 15:21:08 2008//Tprod-4-18-8-java15
+/ConnectionListenerTest.java/1.2/Wed Mar 19 00:13:36 2008//Tprod-4-18-8-java15
+/FakeJavascriptCodeInTheWebpage.java/1.1/Thu Oct 25 00:33:11 2007//Tprod-4-18-8-java15
+/GetInfoTest.java/1.2/Wed Mar 19 00:13:36 2008//Tprod-4-18-8-java15
+/GiveKeyTest.java/1.2/Wed Mar 19 00:13:36 2008//Tprod-4-18-8-java15
+/LWSDownloadTest.java/1.4/Mon Apr 28 18:45:00 2008//Tprod-4-18-8-java15
+/LWSDownloadTestConstants.java/1.2/Wed Mar 19 00:13:36 2008//Tprod-4-18-8-java15
+/LWSManagerImplTest.java/1.6/Mon Apr 28 16:46:31 2008//Tprod-4-18-8-java15
+/ListenersAndHandlersTest.java/1.3/Wed Mar 19 00:13:36 2008//Tprod-4-18-8-java15
+/LocalServer.java/1.1/Thu Oct 25 00:33:11 2007//Tprod-4-18-8-java15
+/LocalServerDelegate.java/1.1/Thu Oct 25 00:33:11 2007//Tprod-4-18-8-java15
+/LocalServerImpl.java/1.1/Thu Oct 25 00:33:11 2007//Tprod-4-18-8-java15
+/LowLevelLWSDownloadTest.java/1.2/Wed Mar 19 00:13:36 2008//Tprod-4-18-8-java15
+/RemoteServer.java/1.1/Thu Oct 25 00:33:11 2007//Tprod-4-18-8-java15
+/RemoteServerImpl.java/1.4/Mon Apr 28 18:45:00 2008//Tprod-4-18-8-java15
+/SendingMessagesBeforeAuthenticatingTest.java/1.1/Wed Oct 24 22:50:54 2007//Tprod-4-18-8-java15
+/SimpleWebServer.java/1.2/Wed Mar 19 00:13:36 2008//Tprod-4-18-8-java15
+/StartComTest.java/1.1/Wed Oct 24 22:50:54 2007//Tprod-4-18-8-java15
+/package.html/1.1/Wed Oct 24 22:50:54 2007//Tprod-4-18-8-java15
+D

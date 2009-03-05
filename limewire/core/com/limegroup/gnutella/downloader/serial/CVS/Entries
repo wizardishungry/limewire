@@ -1,0 +1,23 @@
+/.cvsignore/1.2/Tue Jan 22 19:00:55 2008//Tprod-4-18-8-java15
+/BTDiskManagerMemento.java/1.1/Wed Jan 30 20:18:02 2008//Tprod-4-18-8-java15
+/BTDiskManagerMementoImpl.java/1.1/Wed Jan 30 20:18:02 2008//Tprod-4-18-8-java15
+/BTDownloadMemento.java/1.6/Wed Jan 30 20:18:02 2008//Tprod-4-18-8-java15
+/BTDownloadMementoImpl.java/1.5/Wed Jan 30 20:18:02 2008//Tprod-4-18-8-java15
+/BTMetaInfoMemento.java/1.3/Wed Jan 30 20:18:02 2008//Tprod-4-18-8-java15
+/BTMetaInfoMementoImpl.java/1.4/Wed Jan 30 20:18:02 2008//Tprod-4-18-8-java15
+/DownloadMemento.java/1.3/Wed Jan 23 23:00:25 2008//Tprod-4-18-8-java15
+/DownloadSerializeSettings.java/1.2/Tue Jan 22 19:00:55 2008//Tprod-4-18-8-java15
+/DownloadSerializeSettingsImpl.java/1.2/Tue Jan 22 19:00:55 2008//Tprod-4-18-8-java15
+/DownloadSerializer.java/1.2/Tue Jan 22 19:00:55 2008//Tprod-4-18-8-java15
+/DownloadSerializerImpl.java/1.2/Tue Jan 22 19:00:55 2008//Tprod-4-18-8-java15
+/GnutellaDownloadMemento.java/1.2/Tue Jan 22 19:00:55 2008//Tprod-4-18-8-java15
+/GnutellaDownloadMementoImpl.java/1.2/Tue Jan 22 19:00:55 2008//Tprod-4-18-8-java15
+/InNetworkDownloadMemento.java/1.2/Tue Jan 22 19:00:55 2008//Tprod-4-18-8-java15
+/InNetworkDownloadMementoImpl.java/1.2/Tue Jan 22 19:00:55 2008//Tprod-4-18-8-java15
+/MagnetDownloadMemento.java/1.2/Tue Jan 22 19:00:55 2008//Tprod-4-18-8-java15
+/MagnetDownloadMementoImpl.java/1.2/Tue Jan 22 19:00:55 2008//Tprod-4-18-8-java15
+/OldDownloadConverter.java/1.2/Tue Jan 22 19:00:55 2008//Tprod-4-18-8-java15
+/RemoteHostMemento.java/1.2/Tue Jan 22 19:00:55 2008//Tprod-4-18-8-java15
+/TorrentFileSystemMemento.java/1.1/Wed Jan 30 20:18:02 2008//Tprod-4-18-8-java15
+/TorrentFileSystemMementoImpl.java/1.1/Wed Jan 30 20:18:02 2008//Tprod-4-18-8-java15
+D

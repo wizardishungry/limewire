@@ -1,0 +1,20 @@
+/BasicQueueTest.java/1.11/Fri Nov  9 18:56:51 2007//Tprod-4-18-8-java15
+/BlockingConnection.java/1.8/Mon Apr 28 18:45:00 2008//Tprod-4-18-8-java15
+/BlockingConnectionFactory.java/1.2/Wed Oct 24 20:06:38 2007//Tprod-4-18-8-java15
+/BlockingConnectionFactoryImpl.java/1.3/Sat Feb  9 00:02:25 2008//Tprod-4-18-8-java15
+/CompositeQueueTest.java/1.12/Wed Feb  6 23:32:30 2008//Tprod-4-18-8-java15
+/ConnectionCapabilitiesDelegator.java/1.2/Tue Mar 11 17:12:58 2008//Tprod-4-18-8-java15
+/ConnectionCheckerManagerImplTest.java/1.7/Sat Feb  9 00:02:25 2008//Tprod-4-18-8-java15
+/ConnectionCheckerTest.java/1.14/Wed Oct 24 20:06:38 2007//Tprod-4-18-8-java15
+/ConnectionTest.java/1.5/Mon Apr 28 18:45:00 2008//Tprod-4-18-8-java15
+/CountingConnection.java/1.5/Mon Apr 28 18:45:00 2008//Tprod-4-18-8-java15
+/CountingConnectionFactory.java/1.3/Sat Feb  9 00:02:25 2008//Tprod-4-18-8-java15
+/MessageReaderTest.java/1.15/Mon Apr 28 18:45:00 2008//Tprod-4-18-8-java15
+/MessageWriterTest.java/1.11/Thu Dec  6 15:49:55 2007//Tprod-4-18-8-java15
+/PriorityMessageQueueTest.java/1.9/Thu Oct 25 21:41:06 2007//Tprod-4-18-8-java15
+/RoutedConnectionTest.java/1.5/Tue Mar 11 17:12:58 2008//Tprod-4-18-8-java15
+/StubMessageReceiver.java/1.6/Wed Jun 20 00:43:39 2007//Tprod-4-18-8-java15
+/StubQueue.java/1.4/Mon Apr 28 18:45:00 2008//Tprod-4-18-8-java15
+/StubSentHandler.java/1.5/Tue Oct 23 17:15:29 2007//Tprod-4-18-8-java15
+/TLSConnectionTest.java/1.4/Mon Apr 28 18:45:00 2008//Tprod-4-18-8-java15
+D

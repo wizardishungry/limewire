@@ -1,0 +1,24 @@
+/.cvsignore/1.1/Fri Nov  8 16:34:38 2002//Tprod-4-18-8-java15
+/LimeXMLDocument.java/1.98/Mon Apr 28 18:44:59 2008//Tprod-4-18-8-java15
+/LimeXMLDocumentFactory.java/1.1/Thu Aug 16 18:06:32 2007//Tprod-4-18-8-java15
+/LimeXMLDocumentFactoryImpl.java/1.2/Thu Aug 16 19:03:08 2007//Tprod-4-18-8-java15
+/LimeXMLDocumentHelper.java/1.35/Thu Aug 16 18:06:32 2007//Tprod-4-18-8-java15
+/LimeXMLNames.java/1.8/Tue Oct  9 20:31:18 2007//Tprod-4-18-8-java15
+/LimeXMLProperties.java/1.27/Thu Jan 10 17:18:01 2008//Tprod-4-18-8-java15
+/LimeXMLReplyCollection.java/1.88/Thu Mar 20 16:05:53 2008//Tprod-4-18-8-java15
+/LimeXMLReplyCollectionFactory.java/1.2/Tue Dec  4 18:17:18 2007//Tprod-4-18-8-java15
+/LimeXMLReplyCollectionFactoryImpl.java/1.4/Fri Feb  1 21:09:58 2008//Tprod-4-18-8-java15
+/LimeXMLSchema.java/1.32/Mon Apr 28 18:44:59 2008//Tprod-4-18-8-java15
+/LimeXMLSchemaFieldExtractor.java/1.19/Mon Apr 28 18:44:59 2008//Tprod-4-18-8-java15
+/LimeXMLSchemaRepository.java/1.23/Thu Jan 10 17:08:40 2008//Tprod-4-18-8-java15
+/LimeXMLUtils.java/1.63/Thu Feb  7 22:35:41 2008//Tprod-4-18-8-java15
+/MetaFileManager.java/1.98/Wed May 14 18:21:31 2008//Tprod-4-18-8-java15
+/SchemaFieldInfo.java/1.14/Thu Mar 20 16:05:53 2008//Tprod-4-18-8-java15
+/SchemaNotFoundException.java/1.1/Wed May  2 15:38:05 2001//Tprod-4-18-8-java15
+/SchemaReplyCollectionMapper.java/1.16/Tue Aug  7 03:27:24 2007//Tprod-4-18-8-java15
+/SerialXml.java/1.2/Tue Feb  5 17:32:30 2008//Tprod-4-18-8-java15
+/TypeConverter.java/1.7/Wed Jul 19 18:45:24 2006//Tprod-4-18-8-java15
+/XMLParsingUtils.java/1.13/Mon Apr 28 18:44:59 2008//Tprod-4-18-8-java15
+/XMLStringUtils.java/1.16/Thu Jun 29 23:35:02 2006//Tprod-4-18-8-java15
+/string_conventions.txt/1.1/Wed May  2 21:04:46 2001//Tprod-4-18-8-java15
+D

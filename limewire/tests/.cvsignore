@@ -1,0 +1,13 @@
+.classpath
+.project
+log.xml
+log.txt
+build
+clover
+directory
+Incomplete
+reports
+temp
+testData
+.settings
+target

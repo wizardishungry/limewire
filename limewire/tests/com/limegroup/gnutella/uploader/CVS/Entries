@@ -1,0 +1,19 @@
+/AltLocHeaderInterceptorTest.java/1.8/Mon Sep 24 18:11:26 2007//Tprod-4-18-8-java15
+/AltLocUploadTest.java/1.39/Wed May 14 16:11:40 2008//Tprod-4-18-8-java15
+/BrowseTest.java/1.18/Thu Mar 27 18:15:18 2008//Tprod-4-18-8-java15
+/FileRequestHandlerTest.java/1.21/Wed Dec 19 20:48:48 2007//Tprod-4-18-8-java15
+/HTTPHeaderUtilsTest.java/1.18/Sat Feb  9 16:29:37 2008//Tprod-4-18-8-java15
+/HTTPUploaderTest.java/1.22/Thu Mar 27 18:15:18 2008//Tprod-4-18-8-java15
+/HttpPushRequestHandlerTest.java/1.4/Wed May 21 19:59:22 2008//Tprod-4-18-8-java15
+/HttpUploadClient.java/1.4/Wed Oct  3 15:04:11 2007//Tprod-4-18-8-java15
+/MockHTTPUploadSessionManager.java/1.4/Tue Jun  5 21:30:22 2007//Tprod-4-18-8-java15
+/MockHTTPUploader.java/1.3/Wed Sep  5 17:02:14 2007//Tprod-4-18-8-java15
+/PushUploadTest.java/1.30/Thu Mar 27 18:15:18 2008//Tprod-4-18-8-java15
+/StubAltLocTracker.java/1.2/Thu Sep 20 17:26:14 2007//Tprod-4-18-8-java15
+/TLSBrowseTest.java/1.1/Tue Jul 17 04:32:13 2007//Tprod-4-18-8-java15
+/TLSUploadTest.java/1.2/Tue Jul 17 04:32:13 2007//Tprod-4-18-8-java15
+/UploadQueueingTest.java/1.25/Fri Jan 25 16:59:25 2008//Tprod-4-18-8-java15
+/UploadSlotManagerTest.java/1.6/Mon Apr 28 18:45:00 2008//Tprod-4-18-8-java15
+/UploadTest.java/1.128/Wed Apr 30 18:45:48 2008//Tprod-4-18-8-java15
+/UploadTestUtils.java/1.2/Thu May 31 18:27:17 2007//Tprod-4-18-8-java15
+D

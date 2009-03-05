@@ -1,0 +1,19 @@
+/CertificateProps.java/1.3/Fri Apr 18 19:40:02 2008//Tprod-4-18-8-java15
+/CertificateProvider.java/1.2/Thu Apr 17 12:00:33 2008//Tprod-4-18-8-java15
+/CertificateProviderImpl.java/1.2/Thu Apr 17 12:00:33 2008//Tprod-4-18-8-java15
+/CertificateTools.java/1.3/Mon May  5 15:50:24 2008//Tprod-4-18-8-java15
+/CertificateVerifier.java/1.2/Thu Apr 17 12:00:33 2008//Tprod-4-18-8-java15
+/CertificateVerifierImpl.java/1.2/Thu Apr 17 12:00:33 2008//Tprod-4-18-8-java15
+/CipherProvider.java/1.2/Thu Apr 17 12:00:33 2008//Tprod-4-18-8-java15
+/CipherProviderImpl.java/1.2/Thu Apr 17 12:00:33 2008//Tprod-4-18-8-java15
+/HashCalculator.java/1.2/Thu Apr 17 12:00:33 2008//Tprod-4-18-8-java15
+/HashCalculatorSHA1Impl.java/1.2/Thu Apr 17 12:00:33 2008//Tprod-4-18-8-java15
+/HashLookupProvider.java/1.2/Thu Apr 17 12:00:33 2008//Tprod-4-18-8-java15
+/HashLookupProviderDNSTXTImpl.java/1.2/Thu Apr 17 12:00:33 2008//Tprod-4-18-8-java15
+/KeyStoreProvider.java/1.2/Thu Apr 17 12:00:33 2008//Tprod-4-18-8-java15
+/KeyStoreProviderImpl.java/1.3/Mon May  5 15:50:24 2008//Tprod-4-18-8-java15
+/LimeWireSecurityCertificateModule.java/1.2/Thu Apr 17 12:00:33 2008//Tprod-4-18-8-java15
+/RootCAHashProvider.java/1.2/Thu Apr 17 12:00:33 2008//Tprod-4-18-8-java15
+/RootCAProvider.java/1.2/Thu Apr 17 12:00:33 2008//Tprod-4-18-8-java15
+/RootCAProviderImpl.java/1.2/Thu Apr 17 12:00:33 2008//Tprod-4-18-8-java15
+D
