@@ -15,10 +15,14 @@ import junit.framework.Test;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.limewire.core.settings.ConnectionSettings;
+import org.limewire.io.GUID;
 import org.limewire.security.AddressSecurityToken;
 import org.limewire.security.MACCalculatorRepositoryManager;
 
 import com.google.inject.Injector;
+import com.google.inject.Stage;
+import com.limegroup.gnutella.helpers.UrnHelper;
 import com.limegroup.gnutella.messages.BadPacketException;
 import com.limegroup.gnutella.messages.Message;
 import com.limegroup.gnutella.messages.MessageFactory;
@@ -30,7 +34,6 @@ import com.limegroup.gnutella.messages.QueryReplyFactory;
 import com.limegroup.gnutella.messages.QueryRequest;
 import com.limegroup.gnutella.messages.QueryRequestFactory;
 import com.limegroup.gnutella.messages.Message.Network;
-import com.limegroup.gnutella.settings.ConnectionSettings;
 
 @SuppressWarnings("unchecked")
 public class QueryUnicasterTest extends com.limegroup.gnutella.util.LimeTestCase {
@@ -87,7 +90,7 @@ public class QueryUnicasterTest extends com.limegroup.gnutella.util.LimeTestCase
         ConnectionSettings.DO_NOT_BOOTSTRAP.setValue(true);
         ConnectionSettings.CONNECT_ON_STARTUP.setValue(false);
 
-		Injector injector = LimeTestUtils.createInjector();
+		Injector injector = LimeTestUtils.createInjector(Stage.PRODUCTION);
 		queryUnicaster = injector.getInstance(QueryUnicaster.class);
 		lifecycleManager = injector.getInstance(LifecycleManager.class);
 		queryUnicaster = injector.getInstance(QueryUnicaster.class);
@@ -318,7 +321,7 @@ public class QueryUnicasterTest extends com.limegroup.gnutella.util.LimeTestCase
     private QueryReply generateFakeReply(byte[] guid, int numResponses) {
         Response[] resps = new Response[numResponses];
         for (int i = 0; i< resps.length; i++)
-            resps[i] = responseFactory.createResponse(i, i, ""+i);
+            resps[i] = responseFactory.createResponse(i, i, ""+i, UrnHelper.SHA1);
         byte[] ip = {(byte)127, (byte)0, (byte)0, (byte)1};
         QueryReply toReturn = queryReplyFactory.createQueryReply(guid, (byte) 2, 1,
                 ip, 0, resps, GUID.makeGuid(), false);

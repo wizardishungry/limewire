@@ -16,9 +16,8 @@ import javax.swing.JPanel;
 import javax.swing.KeyStroke;
 import javax.swing.text.Document;
 
-import com.limegroup.gnutella.FileDesc;
-import com.limegroup.gnutella.FileManager;
-import com.limegroup.gnutella.MediaType;
+import org.limewire.util.MediaType;
+
 import com.limegroup.gnutella.Response;
 import com.limegroup.gnutella.gui.AutoCompleteTextField;
 import com.limegroup.gnutella.gui.GUIMediator;
@@ -29,6 +28,9 @@ import com.limegroup.gnutella.gui.search.SearchField;
 import com.limegroup.gnutella.gui.search.SearchInformation;
 import com.limegroup.gnutella.gui.search.SearchMediator;
 import com.limegroup.gnutella.gui.util.BackgroundExecutorService;
+import com.limegroup.gnutella.library.FileDesc;
+import com.limegroup.gnutella.library.FileManager;
+import com.limegroup.gnutella.library.SharedFilesKeywordIndex;
 import com.limegroup.gnutella.messages.QueryRequest;
 import com.limegroup.gnutella.messages.QueryRequestFactory;
 
@@ -105,13 +107,14 @@ public class LibrarySearchPanel extends JPanel {
 			BackgroundExecutorService.schedule(new Runnable() {
 				public void run() {
 					QueryRequest request = queryRequestFactory.createQuery(info.getQuery());
-					FileManager fm = GuiCoreMediator.getFileManager();
-					Response[] resps = fm.query(request);
+					FileManager fileManager = GuiCoreMediator.getFileManager();
+					SharedFilesKeywordIndex keywordIndex = GuiCoreMediator.getSharedFilesKeywordIndex();
+					Response[] resps = keywordIndex.query(request);
 					ArrayList<File> files = new ArrayList<File>(resps.length);
 					for (Response response : resps) {
-						FileDesc f = fm.get((int)response.getIndex());
-						if (f != null) {
-							files.add(f.getFile());
+					    FileDesc fd = fileManager.getGnutellaFileList().getFileDescForIndex((int)response.getIndex());
+						if (fd != null) {
+							files.add(fd.getFile());
 						}
 					}
 					final File[] filesArray = files.toArray(new File[files.size()]);

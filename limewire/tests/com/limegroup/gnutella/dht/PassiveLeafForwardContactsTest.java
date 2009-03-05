@@ -10,6 +10,12 @@ import java.util.Set;
 
 import junit.framework.Test;
 
+import org.limewire.core.settings.ConnectionSettings;
+import org.limewire.core.settings.DHTSettings;
+import org.limewire.core.settings.FilterSettings;
+import org.limewire.core.settings.PingPongSettings;
+import org.limewire.core.settings.UltrapeerSettings;
+import org.limewire.io.GUID;
 import org.limewire.mojito.MojitoDHT;
 import org.limewire.mojito.routing.Contact;
 import org.limewire.mojito.settings.ContextSettings;
@@ -18,10 +24,10 @@ import org.limewire.mojito.util.MojitoUtils;
 
 import com.google.inject.AbstractModule;
 import com.google.inject.Injector;
+import com.google.inject.Stage;
 import com.limegroup.gnutella.BlockingConnectionUtils;
 import com.limegroup.gnutella.ConnectionManager;
 import com.limegroup.gnutella.ConnectionServices;
-import com.limegroup.gnutella.GUID;
 import com.limegroup.gnutella.HostCatcher;
 import com.limegroup.gnutella.LifecycleManager;
 import com.limegroup.gnutella.LimeTestUtils;
@@ -36,11 +42,6 @@ import com.limegroup.gnutella.messages.vendor.CapabilitiesVM;
 import com.limegroup.gnutella.messages.vendor.CapabilitiesVMFactory;
 import com.limegroup.gnutella.messages.vendor.DHTContactsMessage;
 import com.limegroup.gnutella.messages.vendor.PushProxyRequest;
-import com.limegroup.gnutella.settings.ConnectionSettings;
-import com.limegroup.gnutella.settings.DHTSettings;
-import com.limegroup.gnutella.settings.FilterSettings;
-import com.limegroup.gnutella.settings.PingPongSettings;
-import com.limegroup.gnutella.settings.UltrapeerSettings;
 import com.limegroup.gnutella.stubs.CapabilitiesVMFactoryImplStub;
 import com.limegroup.gnutella.util.EmptyResponder;
 import com.limegroup.gnutella.util.LimeTestCase;
@@ -83,7 +84,7 @@ public class PassiveLeafForwardContactsTest extends LimeTestCase {
         doSettings();
         
         final NodeAssigner na = new NodeAssignerStub();
-        injector = LimeTestUtils.createInjector(new AbstractModule() {
+        injector = LimeTestUtils.createInjector(Stage.PRODUCTION, new AbstractModule() {
             @Override
             protected void configure() {
                 bind(CapabilitiesVMFactory.class).to(CapabilitiesVMFactoryImplStub.class);
@@ -134,11 +135,11 @@ public class PassiveLeafForwardContactsTest extends LimeTestCase {
         FilterSettings.WHITE_LISTED_IP_ADDRESSES.setValue(
                 new String[] {"127.*.*.*"});
         
-        com.limegroup.gnutella.settings.NetworkSettings.PORT.setValue(PORT);
+        org.limewire.core.settings.NetworkSettings.PORT.setValue(PORT);
         ConnectionSettings.FORCED_PORT.setValue(PORT);
         
         assertEquals("unexpected port", PORT, 
-                 com.limegroup.gnutella.settings.NetworkSettings.PORT.getValue());
+                 org.limewire.core.settings.NetworkSettings.PORT.getValue());
         
         DHTSettings.DISABLE_DHT_USER.setValue(false);
         DHTSettings.DISABLE_DHT_NETWORK.setValue(false);

@@ -11,7 +11,13 @@ import java.net.InetAddress;
 
 import junit.framework.Test;
 
+import org.limewire.core.settings.ConnectionSettings;
+import org.limewire.core.settings.SearchSettings;
+import org.limewire.io.GUID;
+
 import com.google.inject.Injector;
+import com.google.inject.Stage;
+import com.limegroup.gnutella.helpers.UrnHelper;
 import com.limegroup.gnutella.messages.Message;
 import com.limegroup.gnutella.messages.MessageFactory;
 import com.limegroup.gnutella.messages.PingReplyFactory;
@@ -28,8 +34,6 @@ import com.limegroup.gnutella.messages.vendor.ReplyNumberVendorMessage;
 import com.limegroup.gnutella.messages.vendor.ReplyNumberVendorMessageFactory;
 import com.limegroup.gnutella.search.QueryHandler;
 import com.limegroup.gnutella.search.SearchResultHandler;
-import com.limegroup.gnutella.settings.ConnectionSettings;
-import com.limegroup.gnutella.settings.SearchSettings;
 import com.limegroup.gnutella.stubs.NetworkManagerStub;
 
 /**
@@ -84,7 +88,7 @@ public class ClientSideOutOfBandReplyTest extends ClientSideTestCase {
     @Override
     protected void setUp() throws Exception {
         networkManagerStub = new NetworkManagerStub();
-        Injector injector = LimeTestUtils.createInjector(new LimeTestUtils.NetworkManagerStubModule(networkManagerStub));
+        Injector injector = LimeTestUtils.createInjector(Stage.PRODUCTION, new LimeTestUtils.NetworkManagerStubModule(networkManagerStub));
         
         super.setUp(injector);
 
@@ -182,7 +186,7 @@ public class ClientSideOutOfBandReplyTest extends ClientSideTestCase {
         // now send back some results - they should be accepted.
         Response[] res = new Response[10];
         for (int j = 0; j < res.length; j++)
-            res[j] = responseFactory.createResponse(10, 10, "susheel"+j);
+            res[j] = responseFactory.createResponse(10, 10, "susheel"+j, UrnHelper.SHA1);
         Message m = 
             queryReplyFactory.createQueryReply(queryGuid.bytes(), (byte) 1, 6355,
                 myIP(), 0, res, GUID.makeGuid(), new byte[0], false, false,
@@ -358,7 +362,7 @@ public class ClientSideOutOfBandReplyTest extends ClientSideTestCase {
         for (int i = 0; i < testUP.length; i++) {
             Response[] res = new Response[respsPerUP];
             for (int j = 0; j < res.length; j++)
-                res[j] = responseFactory.createResponse(10, 10, "susheel"+i+j);
+                res[j] = responseFactory.createResponse(10, 10, "susheel"+i+j, UrnHelper.SHA1);
             Message m = 
                 queryReplyFactory.createQueryReply(queryGuid.bytes(), (byte) 1, 6355,
                     myIP(), 0, res, GUID.makeGuid(), new byte[0], false, false,
@@ -497,7 +501,7 @@ public class ClientSideOutOfBandReplyTest extends ClientSideTestCase {
         // now, do not send an RNVM and send a reply directly
         Response[] res = new Response[10];
         for (int j = 0; j < res.length; j++)
-            res[j] = responseFactory.createResponse(10, 10, "susheel"+j);
+            res[j] = responseFactory.createResponse(10, 10, "susheel"+j, UrnHelper.SHA1);
         Message m = 
             queryReplyFactory.createQueryReply(queryGuid.bytes(), (byte) 1, 6355,
                 myIP(), 0, res, GUID.makeGuid(), new byte[0], false, false,

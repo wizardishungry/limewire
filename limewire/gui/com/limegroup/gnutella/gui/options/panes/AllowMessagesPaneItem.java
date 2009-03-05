@@ -9,12 +9,12 @@ import java.util.Vector;
 import javax.swing.event.ListDataEvent;
 import javax.swing.event.ListDataListener;
 
+import org.limewire.core.settings.FilterSettings;
 import org.limewire.io.IP;
 
 import com.limegroup.gnutella.gui.GuiCoreMediator;
 import com.limegroup.gnutella.gui.I18n;
 import com.limegroup.gnutella.gui.ListEditor;
-import com.limegroup.gnutella.settings.FilterSettings;
 
 /**
  * This class defines the panel in the options window that allows the user

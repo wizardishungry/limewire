@@ -3,12 +3,13 @@ package com.limegroup.gnutella.gui.tabs;
 import javax.swing.JComponent;
 import javax.swing.JSplitPane;
 
+import org.limewire.core.settings.ApplicationSettings;
+import org.limewire.core.settings.UISettings;
+
 import com.limegroup.gnutella.gui.I18n;
 import com.limegroup.gnutella.gui.MonitorView;
 import com.limegroup.gnutella.gui.tables.ComponentMediator;
 import com.limegroup.gnutella.gui.util.DividerLocationSettingUpdater;
-import com.limegroup.gnutella.settings.ApplicationSettings;
-import com.limegroup.gnutella.settings.UISettings;
 
 /**
  * This class contains all elements of the tab for the monitor and upload

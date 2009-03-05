@@ -19,16 +19,19 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import org.limewire.core.settings.SharingSettings;
+import org.limewire.io.GUID;
 import org.limewire.io.IOUtils;
+import org.limewire.security.SHA1;
 import org.limewire.util.Base32;
 import org.limewire.util.SystemUtils;
 
 import com.limegroup.gnutella.http.HTTPConstants;
 import com.limegroup.gnutella.http.HTTPHeaderValue;
+import com.limegroup.gnutella.library.FileDesc;
+import com.limegroup.gnutella.library.UrnCache;
 import com.limegroup.gnutella.security.MerkleTree;
-import com.limegroup.gnutella.security.SHA1;
 import com.limegroup.gnutella.security.Tiger;
-import com.limegroup.gnutella.settings.SharingSettings;
 
 /**
  * This class represents an individual Uniform Resource Name (URN), as
@@ -376,8 +379,6 @@ public final class URN implements HTTPHeaderValue, Serializable {
 	 *
 	 * @return a new <tt>URN</tt> instance from the specified request, or 
 	 *  <tt>null</tt> if no <tt>URN</tt> could be created
-	 *
-	 * @see com.limegroup.gnutella.AcceptorImpl
 	 */
 	public static URN createSHA1UrnFromHttpRequest(final String requestLine) 
 		throws IOException {
@@ -421,7 +422,7 @@ public final class URN implements HTTPHeaderValue, Serializable {
 	 * @return a new <tt>URN</tt> built from the specified string
 	 * @throws <tt>IOException</tt> if there is an error
 	 */
-	private static URN createUrnFromString(final String urnString) 
+	public static URN createUrnFromString(final String urnString) 
 		throws IOException {
 		if(!URN.isValidUrn(urnString)) {
 			throw new IOException("invalid urn string: "+urnString);

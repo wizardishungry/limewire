@@ -9,6 +9,9 @@ import java.util.Set;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
+import org.limewire.core.settings.MessageSettings;
+import org.limewire.i18n.I18nMarker;
+import org.limewire.io.GUID;
 import org.limewire.lifecycle.Service;
 import org.limewire.security.SecurityToken;
 
@@ -16,7 +19,6 @@ import com.google.inject.Inject;
 import com.google.inject.Provider;
 import com.google.inject.Singleton;
 import com.google.inject.name.Named;
-import com.limegroup.gnutella.GUID;
 import com.limegroup.gnutella.MessageRouter;
 import com.limegroup.gnutella.ReplyHandler;
 import com.limegroup.gnutella.Response;
@@ -25,7 +27,6 @@ import com.limegroup.gnutella.messages.Message;
 import com.limegroup.gnutella.messages.QueryReply;
 import com.limegroup.gnutella.messages.QueryRequest;
 import com.limegroup.gnutella.messages.vendor.LimeACKVendorMessage;
-import com.limegroup.gnutella.settings.MessageSettings;
 
 import static com.limegroup.gnutella.MessageRouter.CLEAR_TIME;
 
@@ -61,6 +62,10 @@ public class LimeACKHandler implements MessageHandler, Service {
     }
     
     public void stop() {}
+    
+    public String getServiceName() {
+        return I18nMarker.marktr("OOB Query Handler");
+    }
     
     /**
      * Keeps track of QueryReplies to be sent after recieving LimeAcks (sent

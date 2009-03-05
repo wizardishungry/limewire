@@ -23,9 +23,10 @@ import javax.swing.JPanel;
 import javax.swing.JRadioButton;
 import javax.swing.JScrollPane;
 
+import org.limewire.core.settings.ConnectionSettings;
+
 import com.limegroup.gnutella.gui.BoxPanel;
 import com.limegroup.gnutella.gui.I18n;
-import com.limegroup.gnutella.settings.ConnectionSettings;
 
 /** Allows the user to pick a custom interface/address to bind to. */
 public class NetworkInterfacePaneItem extends AbstractPaneItem {

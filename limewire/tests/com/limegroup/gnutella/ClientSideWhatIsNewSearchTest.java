@@ -6,16 +6,20 @@ import java.util.Set;
 
 import junit.framework.Test;
 
-import com.limegroup.gnutella.connection.BlockingConnection;
+import org.limewire.core.settings.FilterSettings;
+import org.limewire.io.GUID;
+import org.limewire.util.MediaType;
+
 import com.google.inject.Injector;
 import com.google.inject.Singleton;
+import com.google.inject.Stage;
+import com.limegroup.gnutella.connection.BlockingConnection;
 import com.limegroup.gnutella.filters.XMLDocFilterTest;
+import com.limegroup.gnutella.helpers.UrnHelper;
 import com.limegroup.gnutella.messages.BadPacketException;
 import com.limegroup.gnutella.messages.QueryReply;
 import com.limegroup.gnutella.messages.QueryReplyFactory;
 import com.limegroup.gnutella.messages.QueryRequest;
-import com.limegroup.gnutella.search.HostData;
-import com.limegroup.gnutella.settings.FilterSettings;
 import com.limegroup.gnutella.stubs.ActivityCallbackStub;
 import com.limegroup.gnutella.util.DataUtils;
 import com.limegroup.gnutella.xml.LimeXMLDocumentFactory;
@@ -44,7 +48,7 @@ public class ClientSideWhatIsNewSearchTest extends ClientSideTestCase {
 
     @Override
     protected void setUp() throws Exception {
-        Injector injector = LimeTestUtils.createInjector(StoreRepliesActivityCallback.class);
+        Injector injector = LimeTestUtils.createInjector(Stage.PRODUCTION, StoreRepliesActivityCallback.class);
         super.setUp(injector);
         
         callback = (StoreRepliesActivityCallback) injector.getInstance(ActivityCallback.class);
@@ -85,7 +89,7 @@ public class ClientSideWhatIsNewSearchTest extends ClientSideTestCase {
         assertQuery(testUP[0], guid);
         
         // send back a result that will be filtered
-        Response resp = responseFactory.createResponse(101, 1019, "sex");
+        Response resp = responseFactory.createResponse(101, 1019, "sex", UrnHelper.SHA1);
         sendAndAssertResponse(resp, guid, enabled);
         
         resp = XMLDocFilterTest.createXMLResponse("filename", LimeXMLNames.VIDEO_TYPE, "adult", responseFactory, limeXMLDocumentFactory);
@@ -94,7 +98,7 @@ public class ClientSideWhatIsNewSearchTest extends ClientSideTestCase {
         resp = XMLDocFilterTest.createXMLResponse("filename", LimeXMLNames.VIDEO_RATING, "NC-17", responseFactory, limeXMLDocumentFactory);
         sendAndAssertResponse(resp, guid, enabled);
         
-        resp = responseFactory.createResponse(105, 345, "harmless");
+        resp = responseFactory.createResponse(105, 345, "harmless", UrnHelper.SHA1);
         sendAndAssertResponse(resp, guid, false);
     }
     
@@ -131,8 +135,8 @@ public class ClientSideWhatIsNewSearchTest extends ClientSideTestCase {
         byte[] guid = null;
         
         @Override
-        public synchronized void handleQueryResult(RemoteFileDesc rfd, HostData data, Set alts) {
-            if (Arrays.equals(data.getClientGUID(), guid)) {
+        public synchronized void handleQueryResult(RemoteFileDesc rfd, QueryReply queryReply, Set alts) {
+            if (Arrays.equals(queryReply.getClientGUID(), guid)) {
                 desc = rfd;
                 notify();
             }

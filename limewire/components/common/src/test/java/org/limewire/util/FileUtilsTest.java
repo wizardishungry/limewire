@@ -39,11 +39,11 @@ public final class FileUtilsTest extends BaseTestCase {
           new File("standard."+EXT),  
           new File("a.little.weird."+EXT), 
           new File(".ext."+EXT), 
-        };   
-        
-        for(int i=0; i<testFiles.length; i++)  {
-            assertEquals("unexpected extension extracted", 
-                EXT, FileUtils.getFileExtension(testFiles[i]));
+        };
+
+        for (File testFile : testFiles) {
+            assertEquals("unexpected extension extracted",
+                    EXT, FileUtils.getFileExtension(testFile));
         }
         
         // test files that should return null
@@ -52,11 +52,11 @@ public final class FileUtilsTest extends BaseTestCase {
           new File("."+EXT), 
           new File("noextension"), 
         };
-        
-        for(int i=0; i<nullFiles.length; i++)  {
-            assertNull("extension should be null", 
-                FileUtils.getFileExtension(nullFiles[i]));
-        };
+
+        for (File nullFile : nullFiles) {
+            assertEquals("extension should be empty string","",
+                    FileUtils.getFileExtension(nullFile));
+        }
     }
 
 	public void testGetFilesRecursive() throws Exception {
@@ -137,9 +137,9 @@ public final class FileUtilsTest extends BaseTestCase {
         testFile.setReadOnly();
 		assertTrue(testFile.exists());
 		assertTrue(testFile.isFile());
-        assertTrue(!testFile.canWrite());
+        assertTrue(!FileUtils.canWrite(testFile));
         assertTrue("Cannot set file writable: "+testFile, FileUtils.setWriteable(testFile));
-        assertTrue(testFile.canWrite());
+        assertTrue(FileUtils.canWrite(testFile));
 		SystemUtils.setWriteable(testFile.getPath());
 		assertTrue(FileUtils.setWriteable(testFile));
         File testDir = new File("directory");
@@ -148,7 +148,7 @@ public final class FileUtilsTest extends BaseTestCase {
 		assertTrue(testDir.exists());
 		assertTrue(testDir.isDirectory());
         testDir.setReadOnly();
-        assertTrue(!testDir.canWrite());
+        assertTrue(!FileUtils.canWrite(testDir));
 		File testInTestDir = new File(testDir, "testDirTest");
 		testInTestDir.deleteOnExit();
 		try {
@@ -159,12 +159,12 @@ public final class FileUtilsTest extends BaseTestCase {
         assertTrue(FileUtils.setWriteable(testDir));
         testInTestDir.delete();
 		assertTrue(testInTestDir.createNewFile());
-        assertTrue(testDir.canWrite());
+        assertTrue(FileUtils.canWrite(testDir));
         // Make sure it doesn't die if called on a file that doesn't exist
         File nowhere = new File("m'kay");
 		assertTrue(!nowhere.exists());
         assertTrue(FileUtils.setWriteable(nowhere));
-        assertTrue(!nowhere.canWrite()); // doesn't exist, can't write.
+        assertTrue(!FileUtils.canWrite(nowhere)); // doesn't exist, can't write.
     }
     
     public void testIsReallyParent() throws Exception {
@@ -478,6 +478,20 @@ public final class FileUtilsTest extends BaseTestCase {
             copyDirectoryClean();
         }
     }
+    
+//  Don't use tests as reminders for TODOs, use JIRA.
+//  Otherwise people stop looking at failures as "things gone wrong"
+//  and failures stop being things that are bad (and become things
+//  that are expected and thus ignored).
+//    public void testCopyNonExistingFile() {
+//        File nonexistent = new File("dkfdnslkdfa");
+//        File tmpDir = new File(System.getProperty("java.io.tmpdir"));
+//        assertTrue(tmpDir.isDirectory());
+//        assertTrue(!nonexistent.exists());
+//        // TODO: what's the expected API behavior? return false if file to copy does not exist
+//        // check usage of return value
+//        assertFalse(FileUtils.copy(nonexistent, new File(tmpDir, nonexistent.getName()))); 
+//    }
     
     private void copyDirectoryClean() throws Exception {
         (new File("testfolder/test.props")).delete();

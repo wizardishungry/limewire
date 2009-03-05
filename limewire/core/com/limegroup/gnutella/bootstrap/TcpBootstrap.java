@@ -15,8 +15,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.apache.http.HttpResponse;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpUriRequest;
@@ -27,6 +25,8 @@ import org.apache.http.params.HttpParams;
 import org.limewire.collection.Cancellable;
 import org.limewire.collection.FixedSizeExpiringSet;
 import org.limewire.concurrent.ExecutorsHelper;
+import org.limewire.logging.Log;
+import org.limewire.logging.LogFactory;
 
 import com.google.inject.Inject;
 import com.google.inject.Provider;
@@ -92,7 +92,6 @@ public class TcpBootstrap {
         this.httpExecutor = httpExecutor;
         this.defaultParams = defaultParams;
         this.connectionServices = connectionServices;
-        
         this.attemptedHosts = new FixedSizeExpiringSet<URI>(100, expiryTime);
     }
     
@@ -107,7 +106,7 @@ public class TcpBootstrap {
      * Erases the attempted hosts & decrements the failure counts.
      */
     public synchronized void resetData() {
-        LOG.debug("Clearing attempted host caches");
+        LOG.debug("Clearing attempted TCP host caches");
         attemptedHosts.clear();
     }
     
@@ -115,8 +114,9 @@ public class TcpBootstrap {
      * Attempts to contact a host cache to retrieve endpoints.
      */
     public synchronized boolean fetchHosts(TcpBootstrapListener listener) {
-        // If the order has possibly changed, resort.
+        // If the hosts have been used, shuffle them
         if(dirty) {
+            LOG.debug("Shuffling TCP host caches");
             Collections.shuffle(hosts);
             dirty = false;
         }
@@ -128,15 +128,18 @@ public class TcpBootstrap {
         List<HttpUriRequest> requests = new ArrayList<HttpUriRequest>();
         Map<HttpUriRequest, URI> requestToHost = new HashMap<HttpUriRequest, URI>();
         for(URI host : hosts) {
-            if(attemptedHosts.contains(host))
-                continue;
-            
+            if(attemptedHosts.contains(host)) {
+                if(LOG.isDebugEnabled())
+                    LOG.debug("Already attempted " + host);
+                continue;            
+            }
             HttpUriRequest request = newRequest(host);
             requests.add(request);
             requestToHost.put(request, host);
         }
         
         if(requests.isEmpty()) {
+            LOG.debug("No TCP host caches to try");
             return false;
         }
         
@@ -144,6 +147,9 @@ public class TcpBootstrap {
         HttpConnectionParams.setConnectionTimeout(params, 5000);
         HttpConnectionParams.setSoTimeout(params, 5000);
         params = new DefaultedHttpParams(params, defaultParams.get());
+        
+        if(LOG.isDebugEnabled())
+            LOG.debug("Trying 1 of " + requests.size() + " TCP host caches");
         
         httpExecutor.executeAny(new Listener(requestToHost, listener),
                 bootstrapQueue,
@@ -154,7 +160,6 @@ public class TcpBootstrap {
                           return connectionServices.isConnected();
                       }
                 });
-        
         return true;        
     }
     
@@ -192,6 +197,7 @@ public class TcpBootstrap {
         if(!endpoints.isEmpty()) {
             return listener.handleHosts(endpoints);
         } else {
+            LOG.debug("no endpoints sent");
             return 0;
         }
 
@@ -207,6 +213,7 @@ public class TcpBootstrap {
             this.listener = listener;
         }
         
+        @Override
         public boolean requestComplete(HttpUriRequest request, HttpResponse response) {
             if(LOG.isDebugEnabled())
                 LOG.debug("Completed request: " + request.getRequestLine());
@@ -218,6 +225,7 @@ public class TcpBootstrap {
             return totalAdded < WANTED_HOSTS;
         }
         
+        @Override
         public boolean requestFailed(HttpUriRequest request, HttpResponse response, IOException exc) {
             if(LOG.isDebugEnabled())
                 LOG.debug("Failed request: " + request.getRequestLine());
@@ -228,6 +236,7 @@ public class TcpBootstrap {
             return true;
         }
 
+        @Override
         public boolean allowRequest(HttpUriRequest request) {
             // Do not allow the request if we don't know about it or it was already attempted.
             synchronized(TcpBootstrap.this) {
@@ -240,13 +249,14 @@ public class TcpBootstrap {
      * Adds a new hostcache to this.
      */
     public synchronized boolean add(URI e) {
-        if (hostsSet.contains(e))
+        if(hostsSet.contains(e)) {
+            LOG.debugf("Not adding known TCP host cache {0}", e);
             return false;
-        
-        // just insert.  we'll sort later.
+        }        
+        LOG.debugf("Adding TCP host cache {0}", e);
         hosts.add(e);
         hostsSet.add(e);
-        dirty = true;
+        dirty = true; // Shuffle before using
         return true;
     }
     

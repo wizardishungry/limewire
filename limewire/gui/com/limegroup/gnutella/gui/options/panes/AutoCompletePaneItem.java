@@ -4,11 +4,11 @@ import java.io.IOException;
 
 import javax.swing.JCheckBox;
 
+import org.limewire.core.settings.UISettings;
 import org.limewire.i18n.I18nMarker;
 
 import com.limegroup.gnutella.gui.I18n;
 import com.limegroup.gnutella.gui.LabeledComponent;
-import com.limegroup.gnutella.settings.UISettings;
 
 /**
  * Class defineing the options panel that allows the user to enable

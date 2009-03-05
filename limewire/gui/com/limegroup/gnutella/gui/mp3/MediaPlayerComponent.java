@@ -19,6 +19,7 @@ import javax.swing.event.ChangeListener;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.limewire.concurrent.ExecutorsHelper;
+import org.limewire.core.settings.LWSSettings;
 import org.limewire.lws.server.LWSDispatcherSupport;
 import org.limewire.lws.server.LWSServerUtil;
 import org.limewire.service.ErrorService;
@@ -38,7 +39,6 @@ import com.limegroup.gnutella.gui.themes.ThemeObserver;
 import com.limegroup.gnutella.lws.server.LWSManager;
 import com.limegroup.gnutella.lws.server.LWSManagerCommandResponseHandlerWithCallback;
 import com.limegroup.gnutella.lws.server.LWSUtil;
-import com.limegroup.gnutella.settings.LWSSettings;
 import com.limegroup.gnutella.util.Tagged;
 import com.limegroup.gnutella.util.URLDecoder;
 
@@ -392,7 +392,7 @@ public final class MediaPlayerComponent implements AudioPlayerListener, RefreshL
         //
         lwsManager.registerHandler("GetPlaylist", new LWSManagerCommandResponseHandlerWithCallback("GetPlaylist") {
             @Override
-            protected String handleRest(Map<String, String> args) {System.out.println(args);
+            protected String handleRest(Map<String, String> args) {
                 return getSongs();
             }            
         });  

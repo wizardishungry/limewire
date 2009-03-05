@@ -3,19 +3,21 @@ package com.limegroup.gnutella.stubs;
 import java.io.File;
 import java.util.Set;
 
+import org.limewire.core.api.download.DownloadAction;
+import org.limewire.core.api.download.SaveLocationException;
+import org.limewire.io.GUID;
+
 import com.google.inject.Singleton;
+import com.limegroup.bittorrent.ManagedTorrent;
 import com.limegroup.gnutella.ActivityCallback;
 import com.limegroup.gnutella.Downloader;
 import com.limegroup.gnutella.Endpoint;
-import com.limegroup.gnutella.FileDesc;
-import com.limegroup.gnutella.FileManagerEvent;
-import com.limegroup.gnutella.GUID;
 import com.limegroup.gnutella.RemoteFileDesc;
 import com.limegroup.gnutella.Uploader;
 import com.limegroup.gnutella.browser.MagnetOptions;
-import com.limegroup.gnutella.chat.InstantMessenger;
 import com.limegroup.gnutella.connection.ConnectionLifecycleEvent;
-import com.limegroup.gnutella.search.HostData;
+import com.limegroup.gnutella.library.FileDesc;
+import com.limegroup.gnutella.messages.QueryReply;
 import com.limegroup.gnutella.version.UpdateInformation;
 
 /**
@@ -29,7 +31,7 @@ public class ActivityCallbackStub implements ActivityCallback {
     //if corruptness was queried
     public boolean corruptChecked = false;
 
-    public void componentLoading(String component) {}
+    public void componentLoading(String state, String component) {}
     public void handleConnectionLifecycleEvent(ConnectionLifecycleEvent evt) {}
     public void knownHost(Endpoint e) { }
     public void handleNoInternetConnection() { }
@@ -37,17 +39,13 @@ public class ActivityCallbackStub implements ActivityCallback {
     //public void handleQueryReply( QueryReply qr ) { }
 
 	public void handleQueryResult(RemoteFileDesc rfd, 
-	                              HostData data,
+	                              QueryReply queryReply,
 	                              Set alts) {}
     public void handleQueryString( String query ) { }    
     public void addDownload(Downloader d) { }    
-    public void removeDownload(Downloader d) { }    
+    public void downloadCompleted(Downloader d) { }    
     public void addUpload(Uploader u) { }
     public void removeUpload(Uploader u) { }    	
-	public void acceptChat(InstantMessenger ctr) { }
-	public void receiveMessage(InstantMessenger chr, String message) { }	
-	public void chatUnavailable(InstantMessenger chatter) { }	
-	public void chatErrorMessage(InstantMessenger chatter, String str) { }
     public void addSharedDirectory(final File directory, final File parent) { }
     public void addSharedFile(final FileDesc file, final File parent) { }
     public boolean warnAboutSharingSensitiveDirectory(final File dir) { return false; }
@@ -64,22 +62,29 @@ public class ActivityCallbackStub implements ActivityCallback {
     public void browseHostFailed(GUID guid) {}
 	public void restoreApplication() {}
 	public void showDownloads() {}
-    public void setAnnotateEnabled(boolean enabled) {}
     public String getHostValue(String key) { return null;}
     public void handleSharedFileUpdate(File file) { }
-    public void handleFileEvent(FileManagerEvent evt) {}
-    public void fileManagerLoaded() {}
     public void updateAvailable(UpdateInformation uc) {}
     public void showError(String message, String messageKey) {}
     public boolean isQueryAlive(GUID guid) {
         return false;
     }
     public void handleAddressStateChanged() {}
-    public void fileManagerLoading() {}
-	public boolean handleMagnets(final MagnetOptions[] magnets) {
-		return false;
+	public void handleMagnets(final MagnetOptions[] magnets) {
 	}
-	public void acceptedIncomingChanged(boolean status) { }
-	public void handleTorrent(File torrentFile) {
+
+    public void handleTorrent(File torrentFile) {
 	}
+    public void handleDAAPConnectionError(Throwable t) {  }
+    public String translate(String s) { return s;}
+
+    @Override
+    public void handleSaveLocationException(DownloadAction downLoadAction,
+            SaveLocationException sle, boolean supportsNewSaveDir) {
+    }
+
+    @Override
+    public void promptTorrentUploadCancel(ManagedTorrent torrent) {
+        
+    }
 }

@@ -14,6 +14,9 @@ import java.util.concurrent.ScheduledExecutorService;
 import junit.framework.Test;
 
 import org.limewire.collection.Range;
+import org.limewire.core.settings.NetworkSettings;
+import org.limewire.io.ConnectableImpl;
+import org.limewire.io.GUID;
 import org.limewire.io.LocalSocketAddressProvider;
 import org.limewire.net.SocketsManager;
 import org.limewire.security.MACCalculatorRepositoryManager;
@@ -32,9 +35,7 @@ import com.limegroup.gnutella.ConnectionServices;
 import com.limegroup.gnutella.DownloadManager;
 import com.limegroup.gnutella.DownloadManagerImpl;
 import com.limegroup.gnutella.Downloader;
-import com.limegroup.gnutella.FileManager;
 import com.limegroup.gnutella.ForMeReplyHandler;
-import com.limegroup.gnutella.GUID;
 import com.limegroup.gnutella.GuidMapManager;
 import com.limegroup.gnutella.HostCatcher;
 import com.limegroup.gnutella.LimeTestUtils;
@@ -60,11 +61,15 @@ import com.limegroup.gnutella.Downloader.DownloadStatus;
 import com.limegroup.gnutella.auth.ContentManager;
 import com.limegroup.gnutella.connection.RoutedConnectionFactory;
 import com.limegroup.gnutella.dht.DHTManager;
+import com.limegroup.gnutella.filters.URNFilter;
 import com.limegroup.gnutella.guess.OnDemandUnicaster;
+import com.limegroup.gnutella.library.FileManager;
+import com.limegroup.gnutella.library.SharedFilesKeywordIndex;
 import com.limegroup.gnutella.messagehandlers.InspectionRequestHandler;
 import com.limegroup.gnutella.messagehandlers.LimeACKHandler;
 import com.limegroup.gnutella.messagehandlers.OOBHandler;
 import com.limegroup.gnutella.messagehandlers.UDPCrawlerPingHandler;
+import com.limegroup.gnutella.messages.OutgoingQueryReplyFactory;
 import com.limegroup.gnutella.messages.PingReplyFactory;
 import com.limegroup.gnutella.messages.PingRequestFactory;
 import com.limegroup.gnutella.messages.QueryReply;
@@ -74,10 +79,10 @@ import com.limegroup.gnutella.messages.QueryRequestFactory;
 import com.limegroup.gnutella.messages.StaticMessages;
 import com.limegroup.gnutella.messages.vendor.HeadPongFactory;
 import com.limegroup.gnutella.messages.vendor.ReplyNumberVendorMessageFactory;
+import com.limegroup.gnutella.routing.QRPUpdater;
 import com.limegroup.gnutella.search.QueryDispatcher;
 import com.limegroup.gnutella.search.QueryHandlerFactory;
 import com.limegroup.gnutella.search.SearchResultHandler;
-import com.limegroup.gnutella.settings.NetworkSettings;
 import com.limegroup.gnutella.simpp.SimppManager;
 import com.limegroup.gnutella.stubs.ConnectionManagerStub;
 import com.limegroup.gnutella.stubs.LocalSocketAddressProviderStub;
@@ -156,7 +161,7 @@ public class RequeryDownloadTest extends LimeTestCase {
 
         initializeIncompleteFileManager();
         downloadManager = (DownloadManagerImpl)injector.getInstance(DownloadManager.class);
-        downloadManager.initialize();
+        downloadManager.start();
         downloadManager.scheduleWaitingPump();
         testUploader = injector.getInstance(TestUploader.class);
         testUploader.start("uploader 6666", 6666, false);
@@ -173,8 +178,8 @@ public class RequeryDownloadTest extends LimeTestCase {
        IncompleteFileManager ifm= injector.getInstance(IncompleteFileManager.class);
        Set<URN> urns=new HashSet<URN>(1);
        urns.add(hash);
-       RemoteFileDesc rfd = injector.getInstance(RemoteFileDescFactory.class).createRemoteFileDesc("1.2.3.4", PORT, 13l, filename, TestFile.length(),
-            new byte[16], 56, false, 4, true, null, urns, false, false, "", null, -1, false);
+       RemoteFileDesc rfd = injector.getInstance(RemoteFileDescFactory.class).createRemoteFileDesc(new ConnectableImpl("1.2.3.4", PORT, false), 13l, filename, TestFile.length(),
+            new byte[16], 56, false, 4, true, null, urns, false, "", -1);
 
        //Create incompleteFile, write a few bytes
        incompleteFile=ifm.getFile(rfd);
@@ -336,7 +341,7 @@ public class RequeryDownloadTest extends LimeTestCase {
             //b) No match: keep waiting for results
             assertEquals("downloader should wait for user", 
                     DownloadStatus.WAITING_FOR_GNET_RESULTS, downloader.getState());
-            downloader.stop();
+            downloader.stop(false);
         }
     }
     
@@ -374,11 +379,30 @@ public class RequeryDownloadTest extends LimeTestCase {
                 Provider<UDPCrawlerPingHandler> udpCrawlerPingHandlerFactory,
                 Statistics statistics,
                 ReplyNumberVendorMessageFactory replyNumberVendorMessageFactory,
-                PingRequestFactory pingRequestFactory, MessageHandlerBinder messageHandlerBinder,
+                PingRequestFactory pingRequestFactory,
+                MessageHandlerBinder messageHandlerBinder,
                 Provider<OOBHandler> oobHandlerFactory,
                 Provider<MACCalculatorRepositoryManager> macManager,
-                Provider<LimeACKHandler> limeACKHandler) {
-            super(networkManager, queryRequestFactory, queryHandlerFactory, onDemandUnicaster, headPongFactory, pingReplyFactory, connectionManager, forMeReplyHandler, queryUnicaster, fileManager, contentManager, dhtManager, uploadManager, downloadManager, udpService, searchResultHandler, socketsManager, hostCatcher, queryReplyFactory, staticMessages, messageDispatcher, multicastService, queryDispatcher, activityCallback, connectionServices, applicationServices, backgroundExecutor, pongCacher, simppManager, updateHandler, guidMapManager, udpReplyHandlerCache, inspectionRequestHandlerFactory, udpCrawlerPingHandlerFactory, statistics, replyNumberVendorMessageFactory, pingRequestFactory, messageHandlerBinder, oobHandlerFactory, macManager,limeACKHandler);
+                Provider<LimeACKHandler> limeACKHandler,
+                OutgoingQueryReplyFactory outgoingQueryReplyFactory,
+                SharedFilesKeywordIndex sharedFilesKeywordIndex,
+                QRPUpdater qrpUpdater, URNFilter urnFilter) {
+            super(networkManager, queryRequestFactory, queryHandlerFactory,
+                    onDemandUnicaster, headPongFactory, pingReplyFactory,
+                    connectionManager, forMeReplyHandler, queryUnicaster,
+                    fileManager, contentManager, dhtManager, uploadManager,
+                    downloadManager, udpService, searchResultHandler,
+                    socketsManager, hostCatcher, queryReplyFactory,
+                    staticMessages, messageDispatcher, multicastService,
+                    queryDispatcher, activityCallback, connectionServices,
+                    applicationServices, backgroundExecutor, pongCacher,
+                    simppManager, updateHandler, guidMapManager,
+                    udpReplyHandlerCache, inspectionRequestHandlerFactory,
+                    udpCrawlerPingHandlerFactory, statistics,
+                    replyNumberVendorMessageFactory, pingRequestFactory,
+                    messageHandlerBinder, oobHandlerFactory, macManager,
+                    limeACKHandler, outgoingQueryReplyFactory,
+                    sharedFilesKeywordIndex, qrpUpdater, urnFilter);
         } 
         
         @Override

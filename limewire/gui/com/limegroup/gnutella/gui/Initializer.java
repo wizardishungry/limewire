@@ -1,7 +1,10 @@
 package com.limegroup.gnutella.gui;
 
 import java.awt.Frame;
+import java.io.BufferedInputStream;
+import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
 import java.lang.reflect.InvocationTargetException;
 
 import javax.swing.JLabel;
@@ -12,15 +15,27 @@ import javax.swing.plaf.basic.BasicHTML;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.limewire.core.settings.ConnectionSettings;
+import org.limewire.core.settings.StartupSettings;
 import org.limewire.i18n.I18nMarker;
+import org.limewire.io.Expand;
+import org.limewire.io.IOUtils;
+import org.limewire.lifecycle.Service;
+import org.limewire.lifecycle.ServiceRegistry;
+import org.limewire.lifecycle.ServiceRegistryListener;
 import org.limewire.service.ErrorService;
+import org.limewire.util.CommonUtils;
 import org.limewire.util.I18NConvert;
 import org.limewire.util.OSUtils;
 import org.limewire.util.Stopwatch;
 import org.limewire.util.SystemUtils;
+import org.mozilla.browser.MozillaConfig;
+import org.mozilla.browser.MozillaInitialization;
+import org.mozilla.browser.MozillaPanel;
 
 import com.google.inject.Guice;
 import com.google.inject.Injector;
+import com.google.inject.Stage;
 import com.limegroup.gnutella.ActiveLimeWireCheck;
 import com.limegroup.gnutella.LimeCoreGlue;
 import com.limegroup.gnutella.LimeWireCore;
@@ -29,11 +44,9 @@ import com.limegroup.gnutella.browser.ExternalControl;
 import com.limegroup.gnutella.bugs.BugManager;
 import com.limegroup.gnutella.gui.init.SetupManager;
 import com.limegroup.gnutella.gui.notify.NotifyUserProxy;
+import com.limegroup.gnutella.gui.swingbrowser.WinCreatorHook;
 import com.limegroup.gnutella.gui.themes.ThemeSettings;
-import com.limegroup.gnutella.settings.ApplicationSettings;
-import com.limegroup.gnutella.settings.ConnectionSettings;
-import com.limegroup.gnutella.settings.DaapSettings;
-import com.limegroup.gnutella.settings.StartupSettings;
+import com.limegroup.gnutella.gui.wizard.Wizard;
 import com.limegroup.gnutella.util.LimeWireUtils;
 import com.limegroup.gnutella.util.LogUtils;
 
@@ -106,7 +119,7 @@ public final class Initializer {
         installResources();
         
         // Construct the SetupManager, which may or may not be shown.
-        final SetupManager setupManager = new SetupManager();
+        final SetupManager setupManager = new SetupManager(limeWireCore.getFirewallService());
         stopwatch.resetAndLog("construct SetupManager");
 
         // Move from the AWT splash to the Swing splash & start early core.
@@ -132,7 +145,6 @@ public final class Initializer {
         // Start the core & run any queued control requests, and load DAAP.
         startCore(limeWireCore);
         runQueuedRequests(limeWireCore);
-        startDAAP();
         
         // Run any after-init tasks.
         postinit();
@@ -231,7 +243,7 @@ public final class Initializer {
     /** Wires together LimeWire. */
     private LimeWireGUI createLimeWire() {
         stopwatch.reset();
-        Injector injector = Guice.createInjector(new LimeWireModule());
+        Injector injector = Guice.createInjector(Stage.PRODUCTION, new LimeWireModule());
         stopwatch.resetAndLog("Create injector");
         LimeWireGUI limeWireGUI = injector.getInstance(LimeWireGUI.class);
         stopwatch.resetAndLog("Get LimeWireGUI");
@@ -242,6 +254,22 @@ public final class Initializer {
     private void glueCore(LimeWireCore limeWireCore) {
         limeWireCore.getLimeCoreGlue().install();
         stopwatch.resetAndLog("Install core glue");
+
+        ServiceRegistry registry = limeWireCore.getServiceRegistry();
+        registry.addListener(new ServiceRegistryListener() {
+            public void initializing(final Service service) {}
+            
+            public void starting(final Service service) {
+                SwingUtilities.invokeLater(new Runnable() {
+                    public void run() {
+                        GUIMediator.setSplashScreenString(I18n.tr("Starting {0}", I18n.tr(service.getServiceName())));
+                    }
+                });
+            }
+            
+            public void stopping(final Service service) {}
+        });
+        stopwatch.resetAndLog("add service registry listener");
     }
     
     /** Tasks that can be done after core is created, before it's started. */
@@ -305,7 +333,7 @@ public final class Initializer {
     /** Starts any early core-related functionality. */
     private void startEarlyCore(SetupManager setupManager, LimeWireCore limeWireCore) {        
         // Add this running program to the Windows Firewall Exceptions list
-        boolean inFirewallException = FirewallUtils.addToFirewall();
+        boolean inFirewallException = limeWireCore.getFirewallService().addToFirewall();
         stopwatch.resetAndLog("add firewall exception");
         
         if(!inFirewallException && !setupManager.shouldShowFirewallWindow()) {
@@ -358,17 +386,35 @@ public final class Initializer {
         // Initialize the bug manager
         BugManager.instance();
         stopwatch.resetAndLog("BugManager instance");
+        
+        GUIMediator.setSplashScreenString(I18n.tr("Loading Browser..."));
+        // Not pretty but Mozilla initialization errors should not crash the
+        // program
+        try {
+            setupXulLibraryPath();
+        } catch (Exception e) {
+            LOG.error("Mozilla initialization failed");
+        }
+        stopwatch.resetAndLog("Load XUL Library Path");
+        GUIMediator.safeInvokeAndWait(new Runnable() {
+            public void run() {
+                stopwatch.resetAndLog("enter evt queue");
+                new MozillaPanel();
+                stopwatch.resetAndLog("Load MozillaPanel");
+            }
+        });
+        stopwatch.resetAndLog("return from evt queue");
     }
     
     /** Starts the SetupManager, if necessary. */
-    private void startSetupManager(final SetupManager setupManager) {        
+    private void startSetupManager(final Wizard setupManager) {
         // Run through the initialization sequence -- this must always be
         // called before GUIMediator constructs the LibraryTree!
         GUIMediator.safeInvokeAndWait(new Runnable() {
             public void run() {
                 stopwatch.resetAndLog("event evt queue");
                 // Then create the setup manager if needed.
-                setupManager.createIfNeeded();     
+                setupManager.launchWizard();
                 stopwatch.resetAndLog("create setupManager if needed");
             }
         });
@@ -420,12 +466,12 @@ public final class Initializer {
                     NotifyUserProxy.instance();
                     stopwatch.resetAndLog("NotifYUserProxy instance");
                     
-                    if (!ApplicationSettings.DISPLAY_TRAY_ICON.getValue())
-                        NotifyUserProxy.instance().hideTrayIcon();
-                    
-                    SettingsWarningManager.checkTemporaryDirectoryUsage();
-                    SettingsWarningManager.checkSettingsLoadSaveFailure();
-                    
+//                    if (!ApplicationSettings.DISPLAY_TRAY_ICON.getValue())
+//                        NotifyUserProxy.instance().hideTrayIcon();
+//                    
+//                    SettingsWarningManager.checkTemporaryDirectoryUsage();
+//                    SettingsWarningManager.checkSettingsLoadSaveFailure();
+//                    
                     stopwatch.resetAndLog("end notify runner");
                 }
         });
@@ -472,11 +518,12 @@ public final class Initializer {
     
     /** Sets up any listeners for the UI. */
     private void installListenersForUI(LimeWireCore limeWireCore) {        
-        limeWireCore.getFileManager().addFileEventListener(new FileManagerWarningManager(NotifyUserProxy.instance()));
+//        limeWireCore.getFileManager().addFileEventListener(new FileManagerWarningManager(NotifyUserProxy.instance()));
+//        limeWireCore.getFileManager().addFileEventListener(LibraryMediator.instance());
     }
     
     /** Starts the core. */
-    private void startCore(LimeWireCore limeWireCore) {        
+    private void startCore(LimeWireCore limeWireCore) {
         // Start the backend threads.  Note that the GUI is not yet visible,
         // but it needs to be constructed at this point  
         limeWireCore.getLifecycleManager().start();
@@ -498,22 +545,6 @@ public final class Initializer {
         // Activate a download for magnet URL locally if one exists
         limeWireCore.getExternalControl().runQueuedControlRequest();
         stopwatch.resetAndLog("run queued control req");
-    }
-
-    /** Starts DAAP. */
-    private void startDAAP() {
-        if (DaapSettings.DAAP_ENABLED.getValue()) {
-            try {
-                GUIMediator.setSplashScreenString(I18n.tr("Loading Digital Audio Access Protocol..."));
-                DaapManager.instance().start();
-                stopwatch.resetAndLog("daap start");
-                DaapManager.instance().init();
-                stopwatch.resetAndLog("daap init");
-            } catch (IOException err) {
-                GUIMediator.showError(I18n.tr("LimeWire was unable to start the Digital Audio Access Protocol Service (for sharing files in iTunes). This feature will be turned off. You can turn it back on in options, under iTunes -> Sharing."));
-                DaapSettings.DAAP_ENABLED.setValue(false);
-            }
-        }
     }
     
     /** Runs post initialization tasks. */
@@ -582,4 +613,44 @@ public final class Initializer {
         }
         System.exit(1);
     }
+
+    /**
+     * Adds absolute xulrunner path to java.library.path. This is necessary for MozSwing.
+     */
+    private void setupXulLibraryPath() {
+        if (OSUtils.isWindows()) {
+            File xulInstallPath = new File(CommonUtils.getUserSettingsDir(), "/browser");
+            File xulFile = new File(xulInstallPath + "/xulrunner/xulrunner.exe");
+            // xulrunner.zip needs to be uncompressed if xulFile doesn't exist
+            if (!xulFile.exists()) {
+                if (LOG.isDebugEnabled())
+                    LOG.debug("unzip xulrunner to " + xulInstallPath);
+                InputStream in = null;
+                try {
+                    in = new BufferedInputStream(CommonUtils.getResourceStream("xulrunner.zip"));
+                    Expand.expandFile(in, xulInstallPath, true, null);
+                } catch (IOException e) {
+                    ErrorService.error(e);
+                } finally {
+                    IOUtils.close(in);
+                }
+            }
+
+            String newLibraryPath = System.getProperty("java.library.path") + File.pathSeparator
+                    + xulInstallPath.getAbsolutePath();
+            System.setProperty("java.library.path", newLibraryPath);
+            
+            MozillaConfig.setXULRunnerHome(xulInstallPath);
+            File profileDir = new File(CommonUtils.getUserSettingsDir(), "/mozilla-profile");
+            profileDir.mkdirs();
+            MozillaConfig.setProfileDir(profileDir);            
+            MozillaInitialization.initialize();
+            WinCreatorHook.addHook();
+            
+            if(LOG.isDebugEnabled())
+                LOG.debug("Moz Summary: " + MozillaConfig.getConfigSummary());
+        }
+    }  
+    
+    
 }

@@ -39,11 +39,6 @@
     </dependency>
     <dependency>
       <groupId>org.limewire</groupId>
-      <artifactId>daap</artifactId>
-      <version>1.1</version>
-    </dependency>
-    <dependency>
-      <groupId>org.limewire</groupId>
       <artifactId>mojito-ui</artifactId>
       <version>1.0-SNAPSHOT</version>
     </dependency>
@@ -94,12 +89,7 @@
       <artifactId>mrjadapter</artifactId>
       <version>1.0.9</version>
     </dependency>
-	<!-- Ibiblio Jars --> 
-    <dependency>
-      <groupId>jmdns</groupId>
-      <artifactId>jmdns</artifactId>
-      <version>1.0</version>
-    </dependency>	
+	<!-- Ibiblio Jars --> 	
     <dependency>
       <groupId>foxtrot</groupId>
       <artifactId>foxtrot</artifactId>
@@ -121,6 +111,42 @@
       <artifactId>gettext-commons</artifactId>
       <version>0.9.1</version>
     </dependency>	
+	<!-- Mozilla Jars--> 
+    <dependency>
+      <groupId>org.mozilla</groupId>
+      <artifactId>mozswing</artifactId>
+      <version>2008-08-26</version>
+    </dependency>
+    <dependency>
+      <groupId>mozilla</groupId>
+      <artifactId>mozdom4java</artifactId>
+      <version>mozswing1.9-06242008</version>
+    </dependency>
+    <dependency>
+      <groupId>mozilla</groupId>
+      <artifactId>mozswing-interfaces</artifactId>
+      <version>1.9</version>
+    </dependency>
+    <dependency>
+      <groupId>mozilla</groupId>
+      <artifactId>mozilla-glue</artifactId>
+      <version>mozswing1.9-06242008</version>
+    </dependency>
+    <dependency>
+      <groupId>mozilla</groupId>
+      <artifactId>jna</artifactId>
+      <version>mozswing1.9-06242008</version>
+    </dependency>
+   	<dependency> 
+      <groupId>net.sf.jacob-project</groupId> 
+      <artifactId>jacob</artifactId>
+      <version>1.14.1</version>
+    </dependency>
+    <dependency>
+      <groupId>iTunes</groupId>
+      <artifactId>iTunes</artifactId>
+      <version>0.0.1</version>
+    </dependency>
   </dependencies>
 
   <build>

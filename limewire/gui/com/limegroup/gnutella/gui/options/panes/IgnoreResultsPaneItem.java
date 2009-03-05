@@ -5,10 +5,11 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Vector;
 
+import org.limewire.core.settings.FilterSettings;
+
 import com.limegroup.gnutella.gui.GuiCoreMediator;
 import com.limegroup.gnutella.gui.I18n;
 import com.limegroup.gnutella.gui.ListEditor;
-import com.limegroup.gnutella.settings.FilterSettings;
 
 /**
  * This class defines the panel in the options window that allows the user

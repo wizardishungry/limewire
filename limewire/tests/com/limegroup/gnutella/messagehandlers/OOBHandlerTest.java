@@ -8,6 +8,9 @@ import java.util.Set;
 
 import junit.framework.Test;
 
+import org.limewire.core.settings.MessageSettings;
+import org.limewire.core.settings.SearchSettings;
+import org.limewire.io.GUID;
 import org.limewire.io.IpPort;
 import org.limewire.security.AddressSecurityToken;
 import org.limewire.security.InvalidSecurityTokenException;
@@ -18,13 +21,14 @@ import org.limewire.util.BaseTestCase;
 import com.google.inject.AbstractModule;
 import com.google.inject.Injector;
 import com.google.inject.Module;
-import com.limegroup.gnutella.GUID;
+
 import com.limegroup.gnutella.LimeTestUtils;
 import com.limegroup.gnutella.MessageListener;
 import com.limegroup.gnutella.MessageRouter;
 import com.limegroup.gnutella.ReplyHandler;
 import com.limegroup.gnutella.Response;
 import com.limegroup.gnutella.ResponseFactory;
+import com.limegroup.gnutella.URN;
 import com.limegroup.gnutella.connection.RoutedConnection;
 import com.limegroup.gnutella.guess.GUESSEndpoint;
 import com.limegroup.gnutella.messages.Message;
@@ -39,8 +43,6 @@ import com.limegroup.gnutella.messages.vendor.ReplyNumberVendorMessage;
 import com.limegroup.gnutella.messages.vendor.ReplyNumberVendorMessageFactory;
 import com.limegroup.gnutella.messages.vendor.ReplyNumberVendorMessageFactoryImpl;
 import com.limegroup.gnutella.routing.QueryRouteTable;
-import com.limegroup.gnutella.settings.MessageSettings;
-import com.limegroup.gnutella.settings.SearchSettings;
 import com.limegroup.gnutella.stubs.NetworkManagerStub;
 import com.limegroup.gnutella.stubs.ReplyHandlerStub;
 
@@ -54,6 +56,7 @@ public class OOBHandlerTest extends BaseTestCase {
         return buildTestSuite(OOBHandlerTest.class);
     }
 
+    private Random random = new Random();
     private MyMessageRouter router;
     private OOBHandler handler;
     private GUID g;
@@ -290,7 +293,7 @@ public class OOBHandlerTest extends BaseTestCase {
         assertACKSent(replyHandler, 10);
 
         byte[] bytes = new byte[8];
-        new Random().nextBytes(bytes);
+        random.nextBytes(bytes);
         SecurityToken tokenFake = new AddressSecurityToken(bytes, macManager);
 
         // send back messages with fake token
@@ -364,22 +367,22 @@ public class OOBHandlerTest extends BaseTestCase {
         router.reply = null;
 
         // send reply, only then session objects are created
-        QueryReply reply = getReplyWithResults(g.bytes(), 5, address
-                .getAddress(), token);
+        QueryReply reply = getReplyWithResults(g.bytes(), 5,
+                address.getAddress(), token);
         handler.handleMessage(reply, null, replyHandler);
         assertNotNull(router.reply);
 
         router.reply = null;
-        reply = getReplyWithResults(g.bytes(), 5, address.getAddress(), token,
-                5);
+        reply = getReplyWithResults(g.bytes(), 5,
+                address.getAddress(), token, 5);
         handler.handleMessage(reply, null, replyHandler);
         assertNotNull(router.reply);
 
         // the next ones should be ignored since there is a full session for
         // them
         router.reply = null;
-        reply = getReplyWithResults(g.bytes(), 5, address.getAddress(), token,
-                10);
+        reply = getReplyWithResults(g.bytes(), 5,
+                address.getAddress(), token, 10);
         handler.handleMessage(reply, null, replyHandler);
         assertNull(router.reply);
 
@@ -718,8 +721,15 @@ public class OOBHandlerTest extends BaseTestCase {
     private QueryReply getReplyWithResults(byte[] guid, int numResults,
             byte[] addr, SecurityToken token, int offset, boolean needsPush) {
         Response[] res = new Response[numResults];
-        for (int j = 0; j < res.length; j++)
-            res[j] = responseFactory.createResponse(10, 10, "susheel" + j + offset);
+        byte[] randomBytes = new byte[20];
+        try {
+            for(int i = 0; i < res.length; i++) {
+                random.nextBytes(randomBytes);
+                URN urn = URN.createSHA1UrnFromBytes(randomBytes);
+                res[i] = responseFactory.createResponse(10, 10,
+                        "susheel" + i + offset, urn);
+            }
+        } catch(IOException misused) {}
 
         return queryReplyFactory.createQueryReply(guid, (byte) 1, 1,
                 addr, 0, res, GUID.makeGuid(), new byte[0], needsPush, false,
@@ -909,6 +919,11 @@ public class OOBHandlerTest extends BaseTestCase {
         }
         
         public void initialize() {
+        }
+        
+        public String getServiceName() {
+            // TODO Auto-generated method stub
+            return null;
         }
     }
     

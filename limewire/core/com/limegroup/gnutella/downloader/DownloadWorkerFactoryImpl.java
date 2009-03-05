@@ -4,12 +4,12 @@ import java.util.concurrent.ScheduledExecutorService;
 
 import org.limewire.inspection.InspectionPoint;
 import org.limewire.net.SocketsManager;
+import org.limewire.net.TLSManager;
 
 import com.google.inject.Inject;
 import com.google.inject.Provider;
 import com.google.inject.Singleton;
 import com.google.inject.name.Named;
-import com.limegroup.gnutella.RemoteFileDesc;
 
 @Singleton
 class DownloadWorkerFactoryImpl implements DownloadWorkerFactory {
@@ -21,21 +21,23 @@ class DownloadWorkerFactoryImpl implements DownloadWorkerFactory {
     private final SocketsManager socketsManager;
     @InspectionPoint("download connection stats")
     private final DownloadStatsTracker statsTracker;
+    private final TLSManager TLSManager;
 
     @Inject
     public DownloadWorkerFactoryImpl(
             HTTPDownloaderFactory httpDownloaderFactory,
-            @Named("backgroundExecutor") ScheduledExecutorService backgroundExecutor,
-            @Named("nioExecutor") ScheduledExecutorService nioExecutor,
+            @Named("backgroundExecutor")ScheduledExecutorService backgroundExecutor,
+            @Named("nioExecutor")ScheduledExecutorService nioExecutor,
             Provider<PushDownloadManager> pushDownloadManager,
             SocketsManager socketsManager,
-            DownloadStatsTracker statsTracker) {
+            DownloadStatsTracker statsTracker, TLSManager TLSManager) {
         this.httpDownloaderFactory = httpDownloaderFactory;
         this.backgroundExecutor = backgroundExecutor;
         this.nioExecutor = nioExecutor;
         this.pushDownloadManager = pushDownloadManager;
         this.socketsManager = socketsManager;
         this.statsTracker = statsTracker;
+        this.TLSManager = TLSManager;
     }
     
 
@@ -43,10 +45,10 @@ class DownloadWorkerFactoryImpl implements DownloadWorkerFactory {
      * @see com.limegroup.gnutella.downloader.DownloadWorkerFactory#create(com.limegroup.gnutella.downloader.ManagedDownloader, com.limegroup.gnutella.RemoteFileDesc, com.limegroup.gnutella.downloader.VerifyingFile)
      */
     public DownloadWorker create(DownloadWorkerSupport manager,
-            RemoteFileDesc rfd, VerifyingFile vf) {
-        return new DownloadWorker(manager, rfd, vf, httpDownloaderFactory,
+            RemoteFileDescContext rfdContext, VerifyingFile vf) {
+        return new DownloadWorker(manager, rfdContext, vf, httpDownloaderFactory,
                 backgroundExecutor, nioExecutor, pushDownloadManager,
-                socketsManager, statsTracker);
+                socketsManager, statsTracker, TLSManager);
     }
 
 }

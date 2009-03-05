@@ -3,20 +3,25 @@ package com.limegroup.gnutella.gui.actions;
 import java.awt.Toolkit;
 import java.awt.datatransfer.StringSelection;
 import java.awt.event.ActionEvent;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.net.UnknownHostException;
 
 import javax.swing.AbstractAction;
 import javax.swing.Action;
 
-import com.limegroup.gnutella.FileDesc;
+import com.limegroup.gnutella.ApplicationServices;
 import com.limegroup.gnutella.FileDetails;
+import com.limegroup.gnutella.NetworkManager;
 import com.limegroup.gnutella.browser.MagnetOptions;
 import com.limegroup.gnutella.gui.FileDetailsProvider;
+import com.limegroup.gnutella.gui.GuiCoreMediator;
 import com.limegroup.gnutella.gui.I18n;
 import com.limegroup.gnutella.gui.search.MagnetClipboardListener;
 
 /**
  * Action that creates a list of magnet links for a selection of {@link
- * FileDesc FileDescs} and copies the list to the clipboard. 
+ * com.limegroup.gnutella.library.FileDesc FileDescs} and copies the list to the clipboard. 
  *  <p>
  * It also makes sure that the {@link
  * com.limegroup.gnutella.gui.search.MagnetClipboardListener} doesn't pick up
@@ -49,7 +54,7 @@ public class CopyMagnetLinkToClipboardAction extends AbstractAction {
 			if (buffer.length() > 0) {
 				buffer.append(sep);
 			}
-			MagnetOptions magnet = MagnetOptions.createMagnet(files[i]);
+			MagnetOptions magnet = MagnetOptions.createMagnet(files[i], getInetSocketAddress(), getClientGUID());
 			if (magnet.isDownloadable()) {
 				buffer.append(magnet.toExternalForm());
 			}
@@ -60,5 +65,20 @@ public class CopyMagnetLinkToClipboardAction extends AbstractAction {
 		StringSelection sel = new StringSelection(text);
 		Toolkit.getDefaultToolkit().getSystemClipboard().setContents(sel, sel);
 	}
+    
+    private InetSocketAddress getInetSocketAddress() {
+        // TODO maybe cache this, even statically
+        NetworkManager networkManager = GuiCoreMediator.getNetworkManager();
+        try {
+            return new InetSocketAddress(InetAddress.getByAddress(networkManager.getAddress()), networkManager.getPort());
+        } catch (UnknownHostException e) {
+        }
+        return null;
+    }
+    
+    private byte[] getClientGUID() {
+        ApplicationServices applicationServices = GuiCoreMediator.getApplicationServices();
+        return applicationServices.getMyGUID();
+    }
 
 }

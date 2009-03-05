@@ -5,6 +5,7 @@ import java.io.File;
 
 import junit.framework.Test;
 
+import org.limewire.core.settings.UpdateSettings;
 import org.limewire.io.GGEP;
 import org.limewire.util.Base32;
 import org.limewire.util.FileUtils;
@@ -13,6 +14,7 @@ import org.limewire.util.TestUtils;
 
 import com.google.inject.AbstractModule;
 import com.google.inject.Module;
+import com.google.inject.Stage;
 import com.limegroup.gnutella.ActivityCallback;
 import com.limegroup.gnutella.BlockingConnectionUtils;
 import com.limegroup.gnutella.LimeTestUtils;
@@ -25,7 +27,6 @@ import com.limegroup.gnutella.messages.vendor.CapabilitiesVMStubHelper;
 import com.limegroup.gnutella.messages.vendor.UpdateRequest;
 import com.limegroup.gnutella.messages.vendor.UpdateResponse;
 import com.limegroup.gnutella.messages.vendor.VendorMessage;
-import com.limegroup.gnutella.settings.UpdateSettings;
 import com.limegroup.gnutella.stubs.ActivityCallbackStub;
 import com.limegroup.gnutella.util.DataUtils;
 import com.limegroup.gnutella.util.LimeWireUtils;
@@ -62,7 +63,7 @@ public class InterClientTest extends PeerTestCase {
                 bind(ActivityCallback.class).toInstance(myActivityCallback);
             }
         };
-        super.setUp(LimeTestUtils.createInjector(m));
+        super.setUp(LimeTestUtils.createInjector(Stage.PRODUCTION, m));
         setEmpty();
         PEER = connect(true);
         BlockingConnectionUtils.drain(PEER);

@@ -76,7 +76,7 @@ public class StringTrie<V> {
      * Indicates whenever search keys are case-sensitive or not.
      * If true, keys will be canonicalized to lowercase.
      */
-    private boolean ignoreCase;
+    private final boolean ignoreCase;
 
     /**
      * Constructs a new, empty tree.
@@ -138,7 +138,7 @@ public class StringTrie<V> {
      *
      * @requires 0 &lt;= startOffset &lt;= stopOffset &lt;= a.length()
      */
-    private final int match(String a, int startOffset, int stopOffset,
+    private int match(String a, int startOffset, int stopOffset,
                             String b) {
         //j is an index into b
         //i is a parallel index into a
@@ -416,7 +416,7 @@ public class StringTrie<V> {
         }
      }
 
-    public class NodeIterator extends UnmodifiableIterator<TrieNode<V>> {
+    private  class NodeIterator extends UnmodifiableIterator<TrieNode<V>> {
         /** Stack for DFS. Push and pop from back. */
         private ArrayList<Iterator<TrieNode<V>>> stack = new ArrayList<Iterator<TrieNode<V>>>();
         /** The next node to return. */
@@ -427,7 +427,7 @@ public class StringTrie<V> {
          * Creates a new iterator that yields all the nodes of start and its
          * children that have values (ignoring internal nodes).
          */
-        public NodeIterator(TrieNode<V> start, boolean withNulls) {
+        private NodeIterator(TrieNode<V> start, boolean withNulls) {
             this.withNulls = withNulls;
             if (withNulls || start.getValue() != null) {
                 nextNode = start;
@@ -584,7 +584,7 @@ final class TrieNode<E> {
      *
      * @requires 0 &lt;= i &lt; children.size()
      */
-    private final TrieEdge<E> get(int i) {
+    private TrieEdge<E> get(int i) {
         return children.get(i);
     }
 
@@ -625,7 +625,7 @@ final class TrieNode<E> {
      *           middle = 1, cmiddle == 'c', cmiddle < c, low = 2 (high == 1);
      *           end loop; return high == 1 (no match, insert at 2).
      */
-    private final int search(char c, boolean exact) {
+    private int search(char c, boolean exact) {
         // This code is stolen from IntSet.search.
         int low = 0;
         int high = children.size() - 1;

@@ -55,15 +55,17 @@ public abstract class AbstractGeocoder implements Geocoder {
 
         GeocodeInformation res = new GeocodeInformation();
 
+        String separator = "\t";
+
         BufferedReader in = new BufferedReader(new InputStreamReader(is));
         in.readLine(); // ignore the first line
         
         String line;
         while ((line = in.readLine()) != null) {
-            if (line.equals("")) {
+            if (line.equals("") || line.startsWith("#")) {
                 continue;
             }
-            String[] parts = line.split("\t");
+            String[] parts = line.split(separator);
             if (parts.length < 2) {
                 continue;
             }

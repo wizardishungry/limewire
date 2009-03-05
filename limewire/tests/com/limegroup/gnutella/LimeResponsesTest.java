@@ -4,17 +4,19 @@ import java.util.List;
 
 import junit.framework.Test;
 
+import org.limewire.core.settings.SearchSettings;
 import org.limewire.util.PrivilegedAccessor;
 
 import com.google.inject.Injector;
+import com.google.inject.Stage;
 import com.limegroup.gnutella.connection.RoutedConnection;
 import com.limegroup.gnutella.messages.QueryReply;
 import com.limegroup.gnutella.messages.QueryRequest;
 import com.limegroup.gnutella.messages.QueryRequestFactory;
 import com.limegroup.gnutella.messages.StaticMessages;
 import com.limegroup.gnutella.routing.PatchTableMessage;
+import com.limegroup.gnutella.routing.QRPUpdater;
 import com.limegroup.gnutella.routing.QueryRouteTable;
-import com.limegroup.gnutella.settings.SearchSettings;
 import com.limegroup.gnutella.simpp.SimppListener;
 import com.limegroup.gnutella.simpp.SimppManager;
 
@@ -41,7 +43,7 @@ public class LimeResponsesTest extends ClientSideTestCase {
     @Override
     public void setSettings() throws Exception {
         // TODO change this, by either introducing a setter or overriding FileManagerController
-        PrivilegedAccessor.setValue(FileManagerImpl.class, "QRP_DELAY", 1000);
+        PrivilegedAccessor.setValue(QRPUpdater.class, "QRP_DELAY", 1000);
         SearchSettings.LIME_QRP_ENTRIES.setValue(new String[]{"badger"});
         SearchSettings.LIME_SEARCH_TERMS.setValue(new String[]{"badger"});
         SearchSettings.SEND_LIME_RESPONSES.setValue(1f);
@@ -49,7 +51,7 @@ public class LimeResponsesTest extends ClientSideTestCase {
     
     @Override
     protected void setUp() throws Exception {
-		Injector injector = LimeTestUtils.createInjector();
+		Injector injector = LimeTestUtils.createInjector(Stage.PRODUCTION);
         super.setUp(injector);
 		connectionManager = injector.getInstance(ConnectionManager.class);
 		queryRequestFactory = injector.getInstance(QueryRequestFactory.class);

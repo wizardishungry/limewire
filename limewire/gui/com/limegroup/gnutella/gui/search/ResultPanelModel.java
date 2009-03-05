@@ -3,12 +3,13 @@ package com.limegroup.gnutella.gui.search;
 import java.util.HashMap;
 import java.util.Map;
 
+import org.limewire.core.settings.SearchSettings;
+import org.limewire.core.settings.UISettings;
+
 import com.limegroup.gnutella.URN;
 import com.limegroup.gnutella.gui.tables.BasicDataLineModel;
 import com.limegroup.gnutella.gui.tables.LimeJTable;
 import com.limegroup.gnutella.gui.tables.LimeTableColumn;
-import com.limegroup.gnutella.settings.SearchSettings;
-import com.limegroup.gnutella.settings.UISettings;
 
 /** 
  * Model for search results.

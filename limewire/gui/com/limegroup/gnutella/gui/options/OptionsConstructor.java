@@ -24,6 +24,7 @@ import javax.swing.WindowConstants;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 
+import org.limewire.core.settings.UISettings;
 import org.limewire.setting.IntSetting;
 import org.limewire.setting.SettingsGroupManager;
 import org.limewire.util.OSUtils;
@@ -105,7 +106,6 @@ import com.limegroup.gnutella.gui.options.panes.VideoPlayerPaneItem;
 import com.limegroup.gnutella.gui.options.panes.iTunesPreferencePaneItem;
 import com.limegroup.gnutella.gui.shell.LimeAssociations;
 import com.limegroup.gnutella.gui.themes.ThemeSettings;
-import com.limegroup.gnutella.settings.UISettings;
 import com.limegroup.gnutella.util.LimeWireUtils;
 
 /**
@@ -366,7 +366,7 @@ public final class OptionsConstructor {
 
         
 		addGroupTreeNode(OptionsMediator.ROOT_NODE_KEY, ITUNES_KEY, I18n.tr("iTunes"));
-		if (OSUtils.isMacOSX()) {
+		if (OSUtils.isMacOSX() || OSUtils.isWindows()) {
 			addOption(ITUNES_KEY, ITUNES_IMPORT_KEY, I18n.tr("Importing"), iTunesPreferencePaneItem.class); 
 		}
 		addOption(ITUNES_KEY, ITUNES_DAAP_KEY, I18n.tr("Sharing"), DaapSupportPaneItem.class, DaapPasswordPaneItem.class, DaapBufferSizePaneItem.class);

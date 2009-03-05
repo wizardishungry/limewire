@@ -11,12 +11,20 @@ import java.util.Properties;
 import java.util.zip.Deflater;
 import java.util.zip.Inflater;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
+import org.limewire.core.api.connection.ConnectionLifecycleEventType;
+import org.limewire.core.settings.ConnectionSettings;
+import org.limewire.core.settings.MessageSettings;
+import org.limewire.core.settings.SearchSettings;
 import org.limewire.inspection.Inspectable;
+import org.limewire.io.GUID;
 import org.limewire.io.IOUtils;
 import org.limewire.io.IpPortImpl;
 import org.limewire.io.NetworkInstanceUtils;
+import org.limewire.listener.ListenerSupport;
+import org.limewire.listener.EventListener;
+import org.limewire.listener.EventListenerList;
+import org.limewire.logging.Log;
+import org.limewire.logging.LogFactory;
 import org.limewire.net.SocketsManager;
 import org.limewire.net.SocketsManager.ConnectType;
 import org.limewire.nio.NBThrottle;
@@ -41,16 +49,14 @@ import com.limegroup.gnutella.ApplicationServices;
 import com.limegroup.gnutella.BandwidthTrackerImpl;
 import com.limegroup.gnutella.ConnectionManager;
 import com.limegroup.gnutella.ConnectionServices;
-import com.limegroup.gnutella.GUID;
 import com.limegroup.gnutella.GuidMap;
 import com.limegroup.gnutella.GuidMapManager;
 import com.limegroup.gnutella.InsufficientDataException;
 import com.limegroup.gnutella.MessageDispatcher;
 import com.limegroup.gnutella.NetworkManager;
 import com.limegroup.gnutella.NetworkUpdateSanityChecker;
-import com.limegroup.gnutella.ReplyHandler;
 import com.limegroup.gnutella.NetworkUpdateSanityChecker.RequestType;
-import com.limegroup.gnutella.connection.ConnectionLifecycleEvent.EventType;
+import com.limegroup.gnutella.ReplyHandler;
 import com.limegroup.gnutella.filters.SpamFilter;
 import com.limegroup.gnutella.filters.SpamFilterFactory;
 import com.limegroup.gnutella.handshaking.AsyncIncomingHandshaker;
@@ -65,6 +71,8 @@ import com.limegroup.gnutella.handshaking.HeadersFactory;
 import com.limegroup.gnutella.handshaking.NoGnutellaOkException;
 import com.limegroup.gnutella.messages.BadPacketException;
 import com.limegroup.gnutella.messages.Message;
+import com.limegroup.gnutella.messages.Message.MessageCounter;
+import com.limegroup.gnutella.messages.Message.Network;
 import com.limegroup.gnutella.messages.MessageFactory;
 import com.limegroup.gnutella.messages.PingReply;
 import com.limegroup.gnutella.messages.PushRequest;
@@ -72,8 +80,6 @@ import com.limegroup.gnutella.messages.QueryReply;
 import com.limegroup.gnutella.messages.QueryReplyFactory;
 import com.limegroup.gnutella.messages.QueryRequest;
 import com.limegroup.gnutella.messages.QueryRequestFactory;
-import com.limegroup.gnutella.messages.Message.MessageCounter;
-import com.limegroup.gnutella.messages.Message.Network;
 import com.limegroup.gnutella.messages.vendor.CapabilitiesVM;
 import com.limegroup.gnutella.messages.vendor.CapabilitiesVMFactory;
 import com.limegroup.gnutella.messages.vendor.HopsFlowVendorMessage;
@@ -92,9 +98,6 @@ import com.limegroup.gnutella.routing.PatchTableMessage;
 import com.limegroup.gnutella.routing.QueryRouteTable;
 import com.limegroup.gnutella.routing.ResetTableMessage;
 import com.limegroup.gnutella.search.SearchResultHandler;
-import com.limegroup.gnutella.settings.ConnectionSettings;
-import com.limegroup.gnutella.settings.MessageSettings;
-import com.limegroup.gnutella.settings.SearchSettings;
 import com.limegroup.gnutella.simpp.SimppManager;
 import com.limegroup.gnutella.statistics.OutOfBandStatistics;
 import com.limegroup.gnutella.util.DataUtils;
@@ -135,9 +138,13 @@ import com.limegroup.gnutella.version.UpdateHandler;
  */
 public class GnutellaConnection extends AbstractConnection implements ReplyHandler,
         MessageReceiver, SentMessageHandler, Shutdownable, Inspectable, RoutedConnection,
-        ConnectionRoutingStatistics, ConnectionMessageStatistics {
+        ConnectionRoutingStatistics, ConnectionMessageStatistics, ListenerSupport<GnutellaConnectionEvent> {
 
     private static final Log LOG = LogFactory.getLog(GnutellaConnection.class);
+    
+    public enum EventType {
+        IS_PUSH_PROXY    
+    }
 
     /**
      * The time to wait between route table updates for leaves, in milliseconds.
@@ -326,6 +333,9 @@ public class GnutellaConnection extends AbstractConnection implements ReplyHandl
     private final Map<StatsWriters,StatisticGatheringWriter> statsWriters = new HashMap<StatsWriters,StatisticGatheringWriter>();
     private volatile MessageCounter incoming, outgoing;
     private volatile long droppedBadHops, droppedBadAddress,droppedFW;
+    
+    private final EventListenerList<GnutellaConnectionEvent> listeners =
+        new EventListenerList<GnutellaConnectionEvent>();
 
     /**
      * Creates a new outgoing connection to the specified host on the specified
@@ -437,6 +447,7 @@ public class GnutellaConnection extends AbstractConnection implements ReplyHandl
         Properties requestHeaders;
         HandshakeResponder responder;
 
+        addListener(connectionManager);
         if (isOutgoing()) {
             String host = getAddress();
             if (connectionServices.get().isSupernode()) {
@@ -742,6 +753,7 @@ public class GnutellaConnection extends AbstractConnection implements ReplyHandl
      * @see com.limegroup.gnutella.RoutedConnection#send(com.limegroup.gnutella.messages.Message)
      */
     public void send(Message m) {
+        LOG.debugf("send message: {0}, class: {1}", m);
         if (m instanceof QueryRequest && !shouldSendQuery((QueryRequest)m))
                 return;
         
@@ -959,8 +971,7 @@ public class GnutellaConnection extends AbstractConnection implements ReplyHandl
 
     private QueryRequest tryToProxy(QueryRequest query) {
         // we must have the following qualifications:
-        // 1) Leaf must be sending SuperNode a query (checked in
-        // loopForMessages)
+        // 1) Leaf must be sending SuperNode a query
         // 2) Leaf must support Leaf Guidance
         // 3) Query must not be OOB.
         // 3.5) The query originator should not disallow proxying.
@@ -1050,6 +1061,9 @@ public class GnutellaConnection extends AbstractConnection implements ReplyHandl
     }
 
     public void countDroppedMessage() {
+        if(LOG.isDebugEnabled()) {
+            LOG.debug("dropped", new Exception());
+        }
         _connectionStats.addReceivedDropped();
     }
 
@@ -1138,6 +1152,7 @@ public class GnutellaConnection extends AbstractConnection implements ReplyHandl
             PushProxyAcknowledgement ack = (PushProxyAcknowledgement) vm;
             if (Arrays.equals(ack.getGUID(), applicationServices.getMyGUID())) {
                 myPushProxy = true;
+                fireEvent(new GnutellaConnectionEvent(this, EventType.IS_PUSH_PROXY, new GUID(applicationServices.getMyGUID())));
             }
             // else mistake on the server side - the guid should be my client
             // guid - not really necessary but whatever
@@ -1164,7 +1179,7 @@ public class GnutellaConnection extends AbstractConnection implements ReplyHandl
             receivedCapVM = true;
             // fire a vendor event
             connectionManager.dispatchEvent(new ConnectionLifecycleEvent(this,
-                    EventType.CONNECTION_CAPABILITIES, this));
+                    ConnectionLifecycleEventType.CONNECTION_CAPABILITIES, this));
 
         } else if (vm instanceof MessagesSupportedVendorMessage) {
             // If this is a ClientSupernodeConnection and the host supports
@@ -1224,6 +1239,18 @@ public class GnutellaConnection extends AbstractConnection implements ReplyHandl
                                 + _maxDisabledOOBProtocolVersion);
             }
         }
+    }
+
+    public void addListener(EventListener<GnutellaConnectionEvent> listener) {
+        listeners.addListener(listener);
+    }
+
+    public boolean removeListener(EventListener<GnutellaConnectionEvent> listener) {
+        return listeners.removeListener(listener);
+    }
+    
+    private void fireEvent(GnutellaConnectionEvent event) {
+        listeners.broadcast(event);    
     }
 
     public int getNumMessagesSent() {
@@ -1344,11 +1371,13 @@ public class GnutellaConnection extends AbstractConnection implements ReplyHandl
         }
 
         public void shutdown() {
+            LOG.debug("shutdown");
             observer.shutdown();
         }
 
         // ignored.
         public void handleIOException(IOException iox) {
+            LOG.debug("", iox);
         }
     }
 

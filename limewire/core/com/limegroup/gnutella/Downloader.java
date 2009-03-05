@@ -1,6 +1,13 @@
 package com.limegroup.gnutella;
 
 import java.io.File;
+import java.util.List;
+
+import org.limewire.core.api.download.SaveLocationException;
+import org.limewire.io.Address;
+import org.limewire.listener.ListenerSupport;
+
+import com.limegroup.gnutella.downloader.DownloadStatusEvent;
 
 /**
  * Defines an interface for downloading a file. The user interface maintains a 
@@ -8,7 +15,7 @@ import java.io.File;
  * resume downloads. Note that there is no start method;
  * it is assumed that the downloader will start as soon as it is instantiated.
  */
-public interface Downloader extends BandwidthTracker {
+public interface Downloader extends BandwidthTracker, ListenerSupport<DownloadStatusEvent> {
     
     /** Enumerates the various states of a download. */
     public static enum DownloadStatus {
@@ -50,10 +57,11 @@ public interface Downloader extends BandwidthTracker {
     
     
     /**
-     * Stops this.  If the download is already stopped, does nothing.
+     * Stops this download if it is not already stopped.  If 
+     * <code>deleteFile</code> is true, then the file is deleted. 
      * @modifies this
      */
-    public void stop();
+    public void stop(boolean deleteFile);
     
     /**
      * Pauses this download.  If the download is already paused or stopped, does nothing.
@@ -321,5 +329,8 @@ public interface Downloader extends BandwidthTracker {
      * used.
      */
     public String getCustomIconDescriptor();
+    
+    /** Gets all sources as addresses */
+    public List<Address> getSourcesAsAddresses();
 }
 

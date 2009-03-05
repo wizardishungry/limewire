@@ -2,6 +2,9 @@ package com.limegroup.gnutella.altlocs;
 
 import java.io.IOException;
 
+import org.limewire.core.settings.ConnectionSettings;
+import org.limewire.io.Address;
+import org.limewire.io.Connectable;
 import org.limewire.io.ConnectableImpl;
 import org.limewire.io.IP;
 import org.limewire.io.IpPort;
@@ -19,8 +22,6 @@ import com.limegroup.gnutella.PushEndpoint;
 import com.limegroup.gnutella.PushEndpointFactory;
 import com.limegroup.gnutella.RemoteFileDesc;
 import com.limegroup.gnutella.URN;
-import com.limegroup.gnutella.settings.ConnectionSettings;
-import com.limegroup.gnutella.settings.SSLSettings;
 
 @Singleton
 public class AlternateLocationFactoryImpl implements AlternateLocationFactory {
@@ -75,8 +76,8 @@ public class AlternateLocationFactoryImpl implements AlternateLocationFactory {
     		    return new DirectAltLoc(new ConnectableImpl(
     		                NetworkUtils.ip2string(networkManager.getAddress()),
     		                networkManager.getPort(),
-    		                SSLSettings.isIncomingTLSEnabled())
-    		            , urn, networkInstanceUtils, ipPortForSelf);
+    		                networkManager.isIncomingTLSEnabled())
+    		            , urn, networkInstanceUtils);
     		} else { 
     			return new PushAltLoc(pushEndpointFactory.createForSelf(), urn, applicationServices);
     		}
@@ -99,15 +100,18 @@ public class AlternateLocationFactoryImpl implements AlternateLocationFactory {
     	if(urn == null)
     	    throw new NullPointerException("cannot accept null URN");
     
-    	if (!rfd.needsPush()) {
-            return new DirectAltLoc(new ConnectableImpl(rfd.getHost(), rfd.getPort(), rfd
-                    .isTLSCapable()), urn, networkInstanceUtils, ipPortForSelf);
+    	Address address = rfd.getAddress();
+    	if (address instanceof Connectable) {
+            return new DirectAltLoc((Connectable)address, urn, networkInstanceUtils);
         } else {
             PushEndpoint copy;
-            if (rfd.getPushAddr() != null) 
-                copy = rfd.getPushAddr();
-            else 
-                copy = pushEndpointFactory.createPushEndpoint(rfd.getClientGUID(), IpPort.EMPTY_SET, PushEndpoint.PLAIN, 0, null);
+            if (address instanceof PushEndpoint) {
+                copy = (PushEndpoint)address;
+            } else  {
+                throw new IllegalArgumentException(address.getClass() + " should not have become an alternate location: " + rfd.getCreationTime());
+                // this is the old code, that would fail silently
+                // copy = pushEndpointFactory.createPushEndpoint(rfd.getClientGUID(), IpPort.EMPTY_SET, PushEndpoint.PLAIN, 0, null);
+            }
     	    return new PushAltLoc(copy,urn, applicationServices);
     	} 
     }
@@ -124,14 +128,14 @@ public class AlternateLocationFactoryImpl implements AlternateLocationFactory {
      */
     public AlternateLocation createDirectDHTAltLoc(IpPort ipp, URN urn, 
             long fileSize, byte[] ttroot) throws IOException {
-        return new DirectDHTAltLoc(ipp, urn, fileSize, ttroot, networkInstanceUtils, ipPortForSelf);
+        return new DirectDHTAltLoc(ipp, urn, fileSize, ttroot, networkInstanceUtils);
     }
 
     /* (non-Javadoc)
      * @see com.limegroup.gnutella.altlocs.AlternateLocationFactory#createDirectAltLoc(org.limewire.io.IpPort, com.limegroup.gnutella.URN)
      */
     public AlternateLocation createDirectAltLoc(IpPort ipp, URN urn) throws IOException {
-        return new DirectAltLoc(ipp, urn, networkInstanceUtils, ipPortForSelf);
+        return new DirectAltLoc(ipp, urn, networkInstanceUtils);
     }
 
     /* (non-Javadoc)
@@ -148,7 +152,7 @@ public class AlternateLocationFactoryImpl implements AlternateLocationFactory {
         // Case 1. Direct Alt Loc
         if (location.indexOf(";")==-1) {
         	IpPort addr = createUrlFromMini(location, urn, tlsCapable);
-    		return new DirectAltLoc(addr, urn, networkInstanceUtils, ipPortForSelf);
+    		return new DirectAltLoc(addr, urn, networkInstanceUtils);
         }
         
         //Case 2. Push Alt loc

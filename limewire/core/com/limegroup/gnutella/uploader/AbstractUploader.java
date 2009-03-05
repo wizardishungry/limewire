@@ -8,10 +8,10 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.limewire.nio.ssl.SSLUtils;
 
-import com.limegroup.gnutella.FileDesc;
 import com.limegroup.gnutella.InsufficientDataException;
 import com.limegroup.gnutella.Uploader;
-import com.limegroup.gnutella.library.SharingUtils;
+import com.limegroup.gnutella.library.FileDesc;
+import com.limegroup.gnutella.library.LibraryUtils;
 import com.limegroup.gnutella.statistics.TcpBandwidthStatistics;
 import com.limegroup.gnutella.statistics.TcpBandwidthStatistics.StatisticType;
 
@@ -92,6 +92,8 @@ public abstract class AbstractUploader implements Uploader {
     private UploadType uploadType;
     
     private final TcpBandwidthStatistics tcpBandwidthStatistics;
+    
+    private Exception previousStateSetter = null;
 
     public AbstractUploader(String fileName, HTTPUploadSession session, TcpBandwidthStatistics tcpBandwidthStatistics) {
         this.session = session;
@@ -128,17 +130,22 @@ public abstract class AbstractUploader implements Uploader {
         if (LOG.isDebugEnabled())
             LOG.debug("Setting file description for " + this + ": " + fd);
         this.fileDesc = fd;
-        this.forcedShare = SharingUtils.isForcedShare(fd);
-        this.priorityShare = SharingUtils
+        this.forcedShare = LibraryUtils.isForcedShare(fd);
+        this.priorityShare = LibraryUtils
                 .isApplicationSpecialShare(fd.getFile());
         this.index = fd.getIndex();
         setFileSize(fd.getFileSize());
     }
 
     public void setState(UploadStatus state) {
-        assert this.state != state;
+        if (this.state == state) {
+            IllegalStateException ise = new IllegalStateException();
+            ise.initCause(previousStateSetter);
+            throw ise;
+        }
         this.lastTransferState = this.state;
         this.state = state;
+        this.previousStateSetter = new Exception();
     }
 
     /**
@@ -364,8 +371,13 @@ public abstract class AbstractUploader implements Uploader {
 
     /**
      * Returns the file size returned by {@link #getFileSize()}.
+     * 
+     * @param fileSize must be greater than 0
      */
     public void setFileSize(long fileSize) {
+        if (fileSize <= 0) {
+            throw new IllegalArgumentException("illegal file size: " + fileSize);
+        }
         this.fileSize = fileSize;
     }
 
@@ -413,6 +425,11 @@ public abstract class AbstractUploader implements Uploader {
     /** Returns a combination of getInetAddress and getPort. */
     public InetSocketAddress getInetSocketAddress() {
         return new InetSocketAddress(getInetAddress(), getPort());
+    }
+    
+    @Override
+    public String getAddressDescription() {
+        return getInetSocketAddress().toString();
     }
 
     /** Returns the Gnutella Port, if one was provided.  Otherwise, the remote port from the socket. */

@@ -1,7 +1,9 @@
 
 package org.limewire.collection;
 
+import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.List;
 import java.util.NoSuchElementException;
 
 /**
@@ -58,6 +60,15 @@ public class MultiIterator<T> implements Iterator<T> {
 		this.iterators = iterators;
 	}
 	
+	@SuppressWarnings("unchecked")
+    public MultiIterator(Iterable<? extends Iterator<? extends T>> iterators) {
+	    List<Iterator<? extends T>> list = new ArrayList<Iterator<? extends T>>();
+	    for(Iterator<? extends T> iterator : iterators) {
+	        list.add(iterator);
+	    }
+	    this.iterators = list.toArray(new Iterator[list.size()]);
+	}
+	
 	public void remove() {
 		if (iterators.length == 0)
 			throw new IllegalStateException();
@@ -66,10 +77,10 @@ public class MultiIterator<T> implements Iterator<T> {
 	}
 
 	public boolean hasNext() {
-		for (int i = 0; i < iterators.length; i++) {
-			if (iterators[i].hasNext())
-				return true;
-		}
+        for (Iterator<? extends T> iterator : iterators) {
+            if (iterator.hasNext())
+                return true;
+        }
 		return false;
 	}
 

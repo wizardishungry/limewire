@@ -11,10 +11,12 @@ import javax.swing.JPopupMenu;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.limewire.core.settings.SpeedConstants;
+import org.limewire.io.GUID;
+import org.limewire.security.SHA1;
+import org.limewire.security.SecureMessage.Status;
 import org.limewire.util.Base32;
 
-import com.limegroup.gnutella.GUID;
-import com.limegroup.gnutella.SpeedConstants;
 import com.limegroup.gnutella.URN;
 import com.limegroup.gnutella.gui.GUIMediator;
 import com.limegroup.gnutella.gui.GuiCoreMediator;
@@ -22,7 +24,6 @@ import com.limegroup.gnutella.gui.I18n;
 import com.limegroup.gnutella.gui.tables.Linkable;
 import com.limegroup.gnutella.gui.themes.ThemeFileHandler;
 import com.limegroup.gnutella.gui.util.PopupUtils;
-import com.limegroup.gnutella.security.SHA1;
 import com.limegroup.gnutella.util.EncodingUtils;
 import com.limegroup.gnutella.util.LimeWireUtils;
 import com.limegroup.gnutella.xml.LimeXMLDocument;
@@ -73,9 +74,9 @@ public class PromotionSearchResult extends AbstractSearchResult implements Linka
             if (urnString.length() > 20) urnString = urnString.substring(0,20);
             tmpUrn = URN.createSHA1UrnFromBytes(urnString.getBytes());
         } catch (UnsupportedEncodingException e) {
-            LOG.error(e);
+            throw new RuntimeException(e);
         } catch (IOException e) {
-            LOG.error(e);
+            LOG.error("exception", e);
         }
         this.urn = tmpUrn;
     }
@@ -146,8 +147,9 @@ public class PromotionSearchResult extends AbstractSearchResult implements Linka
         return QualityRenderer.THIRD_PARTY_RESULT_QUALITY;
     }
 
-    public int getSecureStatus() {
-        return 0;
+    public Status getSecureStatus() {
+        // TODO return 0;
+        throw new UnsupportedOperationException("old UI is broken");
     }
     
     public float getSpamRating() {

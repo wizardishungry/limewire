@@ -2,27 +2,31 @@ package com.limegroup.gnutella;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
 import junit.framework.Test;
 
+import org.limewire.core.settings.SearchSettings;
+import org.limewire.io.ConnectableImpl;
+import org.limewire.io.GUID;
+
 import com.google.inject.Injector;
 import com.google.inject.Singleton;
+import com.google.inject.Stage;
 import com.limegroup.gnutella.connection.BlockingConnection;
 import com.limegroup.gnutella.connection.RoutedConnection;
 import com.limegroup.gnutella.downloader.RemoteFileDescFactory;
+import com.limegroup.gnutella.helpers.UrnHelper;
 import com.limegroup.gnutella.messages.BadPacketException;
 import com.limegroup.gnutella.messages.Message;
+import com.limegroup.gnutella.messages.QueryReply;
 import com.limegroup.gnutella.messages.QueryReplyFactory;
 import com.limegroup.gnutella.messages.QueryRequest;
 import com.limegroup.gnutella.messages.vendor.CapabilitiesVMFactory;
 import com.limegroup.gnutella.messages.vendor.MessagesSupportedVendorMessage;
 import com.limegroup.gnutella.messages.vendor.QueryStatusResponse;
-import com.limegroup.gnutella.search.HostData;
 import com.limegroup.gnutella.search.SearchResultHandler;
-import com.limegroup.gnutella.settings.SearchSettings;
 import com.limegroup.gnutella.spam.SpamManager;
 import com.limegroup.gnutella.stubs.ActivityCallbackStub;
 import com.limegroup.gnutella.util.DataUtils;
@@ -58,7 +62,7 @@ public class ClientSideLeafGuidanceTest extends ClientSideTestCase {
     
     @Override
     protected void setUp() throws Exception {
-        Injector injector = LimeTestUtils.createInjector(MyActivityCallback.class);
+        Injector injector = LimeTestUtils.createInjector(Stage.PRODUCTION, MyActivityCallback.class);
         super.setUp(injector);
         
         searchServices = injector.getInstance(SearchServices.class);
@@ -116,17 +120,17 @@ public class ClientSideLeafGuidanceTest extends ClientSideTestCase {
         assertGreaterThan(REPORT_INTERVAL, 6*testUP.length);
         for (int i = 0; i < testUP.length; i++) {
             Response[] res = new Response[] {
-                responseFactory.createResponse(10, 10, "susheel"+i),
-                responseFactory.createResponse(10, 10, "susheel smells good"+i),
-                responseFactory.createResponse(10, 10, "anita is sweet"+i),
-                responseFactory.createResponse(10, 10, "anita is prety"+i),
-                responseFactory.createResponse(10, 10, "susheel smells bad" + i),
-                responseFactory.createResponse(10, 10, "renu is sweet " + i),
-                responseFactory.createResponse(10, 10, "prety is spelled pretty " + i),
-                responseFactory.createResponse(10, 10, "go susheel go" + i),
-                responseFactory.createResponse(10, 10, "susheel runs fast" + i),
-                responseFactory.createResponse(10, 10, "susheel jumps high" + i),
-                responseFactory.createResponse(10, 10, "sleepy susheel" + i),
+                responseFactory.createResponse(10, 10, "susheel"+i, UrnHelper.SHA1),
+                responseFactory.createResponse(10, 10, "susheel smells good"+i, UrnHelper.SHA1),
+                responseFactory.createResponse(10, 10, "anita is sweet"+i, UrnHelper.SHA1),
+                responseFactory.createResponse(10, 10, "anita is prety"+i, UrnHelper.SHA1),
+                responseFactory.createResponse(10, 10, "susheel smells bad" + i, UrnHelper.SHA1),
+                responseFactory.createResponse(10, 10, "renu is sweet " + i, UrnHelper.SHA1),
+                responseFactory.createResponse(10, 10, "prety is spelled pretty " + i, UrnHelper.SHA1),
+                responseFactory.createResponse(10, 10, "go susheel go" + i, UrnHelper.SHA1),
+                responseFactory.createResponse(10, 10, "susheel runs fast" + i, UrnHelper.SHA1),
+                responseFactory.createResponse(10, 10, "susheel jumps high" + i, UrnHelper.SHA1),
+                responseFactory.createResponse(10, 10, "sleepy susheel" + i, UrnHelper.SHA1),
             };
             m = queryReplyFactory.createQueryReply(queryGuid.bytes(), (byte) 1, 6355,
                     myIP(), 0, res, GUID.makeGuid(), new byte[0], false, false,
@@ -177,7 +181,7 @@ public class ClientSideLeafGuidanceTest extends ClientSideTestCase {
             //send enough responses per ultrapeer to shut off querying.
             Response[] res = new Response[150/testUP.length + 10];
             for (int j = 0; j < res.length; j++)
-                res[j] = responseFactory.createResponse(10, 10, "susheel good"+i+j);
+                res[j] = responseFactory.createResponse(10, 10, "susheel good"+i+j, UrnHelper.SHA1);
 
             m = queryReplyFactory.createQueryReply(queryGuid.bytes(), (byte) 1, 6355,
                     myIP(), 0, res, GUID.makeGuid(), new byte[0], false, false,
@@ -211,7 +215,7 @@ public class ClientSideLeafGuidanceTest extends ClientSideTestCase {
         // leaf guidance...
         Response[] res = new Response[REPORT_INTERVAL*4];
         for (int j = 0; j < res.length; j++)
-            res[j] = responseFactory.createResponse(10, 10, "anita is pretty"+j);
+            res[j] = responseFactory.createResponse(10, 10, "anita is pretty"+j, UrnHelper.SHA1);
         m = queryReplyFactory.createQueryReply(queryGuid.bytes(), (byte) 1, 6355,
                 myIP(), 0, res, GUID.makeGuid(), new byte[0], false, false,
                 true, true, false, false, null);
@@ -220,7 +224,7 @@ public class ClientSideLeafGuidanceTest extends ClientSideTestCase {
         testUP[0].flush();
 
         // no UPs should get a QueryStatusResponse
-        drainQSRespones();
+        drainQSResponses();
     }
 
 
@@ -245,7 +249,7 @@ public class ClientSideLeafGuidanceTest extends ClientSideTestCase {
         // from the leaf
         Response[] res = new Response[REPORT_INTERVAL*4];
         for (int j = 0; j < res.length; j++)
-            res[j] = responseFactory.createResponse(10, 10, "anita is pretty"+j);
+            res[j] = responseFactory.createResponse(10, 10, "anita is pretty"+j, UrnHelper.SHA1);
 
         m = queryReplyFactory.createQueryReply(queryGuid.bytes(), (byte) 1, 6355,
                 myIP(), 0, res, GUID.makeGuid(), new byte[0], false, false,
@@ -266,7 +270,7 @@ public class ClientSideLeafGuidanceTest extends ClientSideTestCase {
         // REPORT_INTERVAL - and confirm we don't get messages
         res = new Response[REPORT_INTERVAL-1];
         for (int j = 0; j < res.length; j++)
-            res[j] = responseFactory.createResponse(10, 10, "anita is sweet"+j);
+            res[j] = responseFactory.createResponse(10, 10, "anita is sweet"+j, UrnHelper.SHA1);
 
         m = queryReplyFactory.createQueryReply(queryGuid.bytes(), (byte) 1, 6355,
                 myIP(), 0, res, GUID.makeGuid(), new byte[0], false, false,
@@ -284,7 +288,7 @@ public class ClientSideLeafGuidanceTest extends ClientSideTestCase {
         // simply send 2 more responses....
         res = new Response[2];
         for (int j = 0; j < res.length; j++)
-            res[j] = responseFactory.createResponse(10, 10, "anita is young"+j);
+            res[j] = responseFactory.createResponse(10, 10, "anita is young"+j, UrnHelper.SHA1);
 
         m = queryReplyFactory.createQueryReply(queryGuid.bytes(), (byte) 1, 6355,
                 myIP(), 0, res, GUID.makeGuid(), new byte[0], false, false,
@@ -316,7 +320,7 @@ public class ClientSideLeafGuidanceTest extends ClientSideTestCase {
         // more results should not result in more status messages...
         res = new Response[REPORT_INTERVAL*2];
         for (int j = 0; j < res.length; j++)
-            res[j] = responseFactory.createResponse(10, 10, "anita is pretty"+j);
+            res[j] = responseFactory.createResponse(10, 10, "anita is pretty"+j, UrnHelper.SHA1);
 
         m = queryReplyFactory.createQueryReply(queryGuid.bytes(), (byte) 1, 6355,
                 myIP(), 0, res, GUID.makeGuid(), new byte[0], false, false,
@@ -326,90 +330,123 @@ public class ClientSideLeafGuidanceTest extends ClientSideTestCase {
         testUP[0].flush();
 
         // no UPs should get a QueryStatusResponse
-        drainQSRespones();
+        drainQSResponses();
     }
     
     /**
      * tests that spammy results are shown to the gui but are not counted 
      * in leaf guidance
      */
-    public void testSpamFiltering() throws Exception {
+    public void testSpamFiltering1() throws Exception {
         SearchSettings.ENABLE_SPAM_FILTER.setValue(true);
-        SearchSettings.FILTER_SPAM_RESULTS.setValue(0.4f);
-        
+        SearchSettings.FILTER_SPAM_RESULTS.setValue(0.5f); // Strict
+        spamManager.clearFilterData();        
+        callback.responses.clear();
+        final String query = "badgers";
+        final int size = 1234;
+
+        // Spawn a query and make sure the UPs get it
+        GUID queryGuid = spawnQuery(query);
+
+        // Mark a result as spam so the later results will be rated as spam
+        RemoteFileDescFactory rfdFactory =
+            injector.getInstance(RemoteFileDescFactory.class); 
+        RemoteFileDesc rfd = rfdFactory.createRemoteFileDesc(
+                new ConnectableImpl("127.0.0.1", 6355, false),
+                1, query, size, DataUtils.EMPTY_GUID, 3, false,
+                3, false, null, URN.NO_URN_SET, false, "ALT", 0l);
+        spamManager.handleUserMarkedSpam(new RemoteFileDesc[]{rfd});
+        assertTrue(rfd.isSpam());
+
+        // Send back results from the UP - they should be rated as spam
+        // because they have the same address and size as the spam result
+        Response[] res = new Response[REPORT_INTERVAL*4];
+        for (int i = 0; i < res.length; i++)
+            res[i] = responseFactory.createResponse(10, size, query + i, UrnHelper.SHA1);
+
+        QueryReply reply = queryReplyFactory.createQueryReply(
+                queryGuid.bytes(), (byte) 1, 6355, myIP(), 0, res,
+                GUID.makeGuid(), new byte[0], false, false, true, true,
+                false, false, null);
+
+        testUP[0].send(reply);
+        testUP[0].flush();
+        Thread.sleep(1000);
+
+        // the gui should be informed about the results 
+        assertEquals(res.length, callback.responses.size());
+
+        // the UP should not get a QueryStatusResponse for spam results
+        QueryStatusResponse qsr = getFirstQueryStatus(testUP[0]);
+        assertNull(qsr);
+    }
+    
+    /**
+     * tests that non-spammy results are shown to the gui and counted in
+     * leaf guidance
+     */
+    public void testSpamFiltering2() throws Exception {
+        SearchSettings.ENABLE_SPAM_FILTER.setValue(true);
+        SearchSettings.FILTER_SPAM_RESULTS.setValue(0.5f); // Strict
+        spamManager.clearFilterData();
         callback.responses.clear();
         
-        Message m = null;
-
-        for (int i = 0; i < testUP.length; i++)
-            BlockingConnectionUtils.drain(testUP[i]);
-        
         // spawn a query and make sure all UPs get it
-        GUID queryGuid = new GUID(searchServices.newQueryGUID());
-        searchServices.query(queryGuid.bytes(), "anita kesavan");
-
-        for (int i = 0; i < testUP.length; i++) {
-            QueryRequest qr = BlockingConnectionUtils.getFirstQueryRequest(testUP[i]);
-            assertNotNull(qr);
-            assertEquals(new GUID(qr.getGUID()), queryGuid);
-        }
+        GUID queryGuid = spawnQuery("anita kesavan");
         
-        // mark anita as spammy
-        RemoteFileDesc anita =injector.getInstance(RemoteFileDescFactory.class)
-                .createRemoteFileDesc("127.0.0.1", 6355, 1, "anita kasevan", 1000, DataUtils.EMPTY_GUID, 3, false, 3, false,
-                        null, Collections.EMPTY_SET, false, false, "ALT", Collections.EMPTY_SET, 0l, false);
-        
-        spamManager.handleUserMarkedSpam(new RemoteFileDesc[]{anita});
-        assertTrue(spamManager.isSpam(anita));
-        
-        // now send back results and make sure that we do not get a QueryStatus
-        // from the leaf
+        // now send back results
         Response[] res = new Response[REPORT_INTERVAL*4];
-        for (int j = 0; j < res.length; j++)
-            res[j] = responseFactory.createResponse(10, 10, "anita kasevan "+j);
+        for (int i = 0; i < res.length; i++)
+            res[i] = responseFactory.createResponse(10, 10, "anita kesavan "+i, UrnHelper.SHA1);
 
-        m = queryReplyFactory.createQueryReply(queryGuid.bytes(), (byte) 1, 6355,
-                myIP(), 0, res, GUID.makeGuid(), new byte[0], false, false,
-                true, true, false, false, null);
+        QueryReply reply =
+            queryReplyFactory.createQueryReply(queryGuid.bytes(), (byte) 1,
+                    6355, myIP(), 0, res, GUID.makeGuid(), new byte[0],
+                    false, false, true, true, false, false, null);
         
-        testUP[0].send(m);
+        testUP[0].send(reply);
         testUP[0].flush();
         Thread.sleep(1000);
         
         // the gui should be informed about the results 
-        assertEquals(REPORT_INTERVAL * 4, callback.responses.size());
+        assertEquals(res.length, callback.responses.size());
         
-        // We should get a QueryStatusResponse from the UP even if all
-        // Responses are spam. See SearchResultHandler.handleQueryReply(QueryReply)
-        // for more info!
-        int numGoodSentToFrontEnd = 0;
-        int numBadSentToFrontEnd = (int)Math.ceil(res.length * SearchSettings.SPAM_RESULT_RATIO.getValue());
-        int numToReport = numGoodSentToFrontEnd + numBadSentToFrontEnd;
-        
-        // Make sure the spam ratio is not 1 as we'd no longer 
-        // be able to distinguish between spam and not spam!
-        assertNotEquals(SearchSettings.SPAM_RESULT_RATIO.getValue(), 1.0f);
-        
-        assertGreaterThan(REPORT_INTERVAL, numToReport);
-        
-        QueryStatusResponse qsr 
-            = (QueryStatusResponse)BlockingConnectionUtils.getFirstInstanceOfMessageType(testUP[0], QueryStatusResponse.class, TIMEOUT);
-        
-        assertEquals(numToReport/4, qsr.getNumResults());
+        // the UP should get a QueryStatusResponse for non-spam results
+        QueryStatusResponse qsr = getFirstQueryStatus(testUP[0]);
+        assertNotNull(qsr);
+        assertEquals(res.length/4, qsr.getNumResults());
+    }
+    
+    /**
+     * Spawns a query and makes sure all the UPs have received it
+     * 
+     * @param query the query string
+     * @returns the GUID of the query
+     */
+    private GUID spawnQuery(String query) throws Exception {
+        GUID queryGuid = new GUID(searchServices.newQueryGUID());
+        searchServices.query(queryGuid.bytes(), query);
+        Thread.sleep(250);
+        for(BlockingConnection up : testUP) {
+            QueryRequest qr = BlockingConnectionUtils.getFirstQueryRequest(up);
+            assertNotNull(qr);
+            assertEquals(new GUID(qr.getGUID()), queryGuid);
+        }
+        return queryGuid;
     }
     
     /**
      * drains the ultrapeers for any QueryStatusResponses and fails if one is received.
      * @throws Exception
      */
-    private void drainQSRespones() throws Exception {
+    private void drainQSResponses() throws Exception {
         BlockingConnectionUtils.failIfAnyArrive(testUP, QueryStatusResponse.class);
     }
 
     private static byte[] myIP() {
-        return new byte[] { (byte)127, (byte)0, 0, 1 };
+        return new byte[] { (byte)127, (byte)0, (byte)0, (byte)1 };
     }
-
+    
     public int getNumberOfPeers() {
         return 3;
     }
@@ -421,7 +458,7 @@ public class ClientSideLeafGuidanceTest extends ClientSideTestCase {
         
 
         public void handleQueryResult(RemoteFileDesc rfdParam,
-                                      HostData data,
+                                      QueryReply queryReply,
                                       Set locs) {
             responses.add(rfdParam);
         }
@@ -429,4 +466,3 @@ public class ClientSideLeafGuidanceTest extends ClientSideTestCase {
 
 
 }
-

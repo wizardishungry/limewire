@@ -1,7 +1,5 @@
 package com.limegroup.gnutella;
 
-import java.io.Closeable;
-import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InterruptedIOException;
@@ -9,36 +7,38 @@ import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.Properties;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
+import org.limewire.core.settings.ConnectionSettings;
+import org.limewire.core.settings.FilterSettings;
+import org.limewire.core.settings.NetworkSettings;
+import org.limewire.core.settings.SearchSettings;
+import org.limewire.core.settings.UltrapeerSettings;
+import org.limewire.io.GUID;
 import org.limewire.net.SocketsManager.ConnectType;
-import org.limewire.util.FileUtils;
-import org.limewire.util.PrivilegedAccessor;
 import org.limewire.util.TestUtils;
 
+import com.google.inject.Injector;
+import com.google.inject.Stage;
 import com.limegroup.gnutella.connection.BlockingConnection;
 import com.limegroup.gnutella.connection.BlockingConnectionFactory;
 import com.limegroup.gnutella.downloader.RemoteFileDescFactory;
-import com.google.inject.Injector;
 import com.limegroup.gnutella.handshaking.HandshakeResponder;
 import com.limegroup.gnutella.handshaking.HandshakeResponse;
 import com.limegroup.gnutella.handshaking.HeaderNames;
 import com.limegroup.gnutella.handshaking.HeadersFactory;
 import com.limegroup.gnutella.handshaking.NoGnutellaOkException;
+import com.limegroup.gnutella.library.FileDesc;
+import com.limegroup.gnutella.library.FileManager;
 import com.limegroup.gnutella.messages.BadPacketException;
 import com.limegroup.gnutella.messages.Message;
 import com.limegroup.gnutella.messages.PingReply;
 import com.limegroup.gnutella.messages.PingReplyFactory;
 import com.limegroup.gnutella.messages.PingRequest;
 import com.limegroup.gnutella.messages.QueryReply;
-import com.limegroup.gnutella.settings.ConnectionSettings;
-import com.limegroup.gnutella.settings.FilterSettings;
-import com.limegroup.gnutella.settings.NetworkSettings;
-import com.limegroup.gnutella.settings.SearchSettings;
-import com.limegroup.gnutella.settings.SharingSettings;
-import com.limegroup.gnutella.settings.UltrapeerSettings;
 import com.limegroup.gnutella.spam.SpamManager;
 import com.limegroup.gnutella.util.LimeTestCase;
-import com.limegroup.gnutella.xml.LimeXMLDocumentFactory;
 
 /**
  * Sets up a Test Scenario of a Leaf connected to some Ultrapeers (default of
@@ -55,7 +55,6 @@ import com.limegroup.gnutella.xml.LimeXMLDocumentFactory;
  * and {@link #getNumberOfPeers()} (for the number of Ultrapeers to connect to, must be 1-4), 
  * and main and suite().
  */
-@SuppressWarnings("all")
 public abstract class ClientSideTestCase extends LimeTestCase {
     
     public final int SERVER_PORT = 6669;
@@ -68,7 +67,6 @@ public abstract class ClientSideTestCase extends LimeTestCase {
 
     protected BlockingConnection testUP[];
 
-    private ActivityCallback callback;
     protected LifecycleManager lifecycleManager;
     protected ConnectionServices connectionServices;
     protected Injector injector;
@@ -76,13 +74,14 @@ public abstract class ClientSideTestCase extends LimeTestCase {
     private BlockingConnectionFactory connectionFactory;
     private SpamManager spamManager;
     private HeadersFactory headersFactory;
-    private LimeXMLDocumentFactory instance;
+    protected FileManager fileManager;
+    protected FileDesc berkeleyFD;
+    protected FileDesc susheelFD;
     
     public ClientSideTestCase(String name) {
         super(name);
     }
     
-    @SuppressWarnings("unused")
     public final void doSettings() throws Exception {
         String localIP = InetAddress.getLocalHost().getHostAddress();
         FilterSettings.BLACK_LISTED_IP_ADDRESSES.setValue(
@@ -100,19 +99,9 @@ public abstract class ClientSideTestCase extends LimeTestCase {
 		UltrapeerSettings.FORCE_ULTRAPEER_MODE.setValue(false);
 		ConnectionSettings.NUM_CONNECTIONS.setValue(0);
 		ConnectionSettings.LOCAL_IS_PRIVATE.setValue(false);
-		SharingSettings.EXTENSIONS_TO_SHARE.setValue("txt;");
 		ConnectionSettings.WATCHDOG_ACTIVE.setValue(false);
-        // get the resource file for com/limegroup/gnutella
-        File berkeley = 
-            TestUtils.getResourceFile("com/limegroup/gnutella/berkeley.txt");
-        File susheel = 
-            TestUtils.getResourceFile("com/limegroup/gnutella/susheel.txt");
-        // now move them to the share dir
-        FileUtils.copy(berkeley, new File(_sharedDir, "berkeley.txt"));
-        FileUtils.copy(susheel, new File(_sharedDir, "susheel.txt"));
         // make sure results get through
         SearchSettings.MINIMUM_SEARCH_QUALITY.setValue(-2);
-        
         setSettings();
     }        
     
@@ -143,7 +132,7 @@ public abstract class ClientSideTestCase extends LimeTestCase {
     
     @Override
     protected void setUp() throws Exception {
-        this.setUp(LimeTestUtils.createInjector());
+        this.setUp(LimeTestUtils.createInjector(Stage.PRODUCTION));
     }
     
     public void setUp(Injector injector) throws Exception {
@@ -159,11 +148,21 @@ public abstract class ClientSideTestCase extends LimeTestCase {
         connectionFactory = injector.getInstance(BlockingConnectionFactory.class);
         spamManager = injector.getInstance(SpamManager.class);
         headersFactory = injector.getInstance(HeadersFactory.class);
-        instance = injector.getInstance(LimeXMLDocumentFactory.class);
+        fileManager = injector.getInstance(FileManager.class);
 
         lifecycleManager.start();
         connectionServices.connect();
-
+        
+        Future<FileDesc> f1 = fileManager.getGnutellaFileList().add(
+                TestUtils.getResourceFile("com/limegroup/gnutella/berkeley.txt"));
+        Future<FileDesc> f2 = fileManager.getGnutellaFileList().add(
+                TestUtils.getResourceFile("com/limegroup/gnutella/susheel.txt"));
+        
+        berkeleyFD = f1.get(1, TimeUnit.SECONDS);
+        susheelFD = f2.get(1, TimeUnit.SECONDS);
+        assertNotNull(berkeleyFD);
+        assertNotNull(susheelFD);
+        
         assertEquals("unexpected port", SERVER_PORT, NetworkSettings.PORT.getValue());
         int numUPs = getNumberOfPeers();
         
@@ -289,7 +288,7 @@ public abstract class ClientSideTestCase extends LimeTestCase {
         Response[] resp = qr.getResultsArray();
         RemoteFileDesc rfds[] = new RemoteFileDesc[resp.length];
         for(int i = 0; i < resp.length; i++) {
-            rfds[i] = resp[i].toRemoteFileDesc(qr.getHostData(), injector.getInstance(RemoteFileDescFactory.class));
+            rfds[i] = resp[i].toRemoteFileDesc(qr, null, injector.getInstance(RemoteFileDescFactory.class), injector.getInstance(PushEndpointFactory.class));
             //assertTrue(SpamManager.instance().isSpam(rfds[i]));
         }
         
@@ -297,7 +296,7 @@ public abstract class ClientSideTestCase extends LimeTestCase {
         
         // Make sure they're not spam
         for(int i = 0; i < rfds.length; i++) {
-            assertFalse(spamManager.isSpam(rfds[i]));
+            assertFalse(rfds[i].isSpam());
         }
     }
     
@@ -322,4 +321,3 @@ public abstract class ClientSideTestCase extends LimeTestCase {
         public void setLocalePreferencing(boolean b) {}
     }
 }
-

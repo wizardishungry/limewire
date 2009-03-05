@@ -8,14 +8,14 @@ import java.io.IOException;
 import javax.swing.JCheckBox;
 import javax.swing.JTextField;
 
+import org.limewire.core.settings.DaapSettings;
 import org.limewire.i18n.I18nMarker;
 
-import com.limegroup.gnutella.gui.DaapManager;
 import com.limegroup.gnutella.gui.I18n;
 import com.limegroup.gnutella.gui.LabeledComponent;
 import com.limegroup.gnutella.gui.SizedPasswordField;
 import com.limegroup.gnutella.gui.SizedTextField;
-import com.limegroup.gnutella.settings.DaapSettings;
+import com.limegroup.gnutella.gui.GuiCoreMediator;
 
 import de.kapsi.net.daap.DaapUtil;
 
@@ -191,10 +191,10 @@ public final class DaapPasswordPaneItem extends AbstractPaneItem {
                 // A password is required now or password has changed, 
                 // disconnect all users...
                 if (requiresPassword) { 
-                    DaapManager.instance().disconnectAll();
+                    GuiCoreMediator.getDaapManager().disconnectAll();
                 }
                 
-                DaapManager.instance().updateService();
+                GuiCoreMediator.getDaapManager().updateService();
 
             } catch (IOException err) {
                 
@@ -204,7 +204,7 @@ public final class DaapPasswordPaneItem extends AbstractPaneItem {
                 DaapSettings.DAAP_REQUIRES_PASSWORD.setValue(prevRequiresPassword);
                 DaapSettings.DAAP_PASSWORD.setValue(prevPassword);
 
-                DaapManager.instance().stop();
+                GuiCoreMediator.getDaapManager().stop();
 
                 initOptions();
 

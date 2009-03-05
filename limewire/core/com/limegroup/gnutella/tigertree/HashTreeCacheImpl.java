@@ -22,10 +22,10 @@ import org.limewire.util.GenericsUtils;
 import com.google.inject.Inject;
 import com.google.inject.Singleton;
 import com.limegroup.gnutella.DownloadManager;
-import com.limegroup.gnutella.FileDesc;
-import com.limegroup.gnutella.FileManager;
-import com.limegroup.gnutella.IncompleteFileDesc;
 import com.limegroup.gnutella.URN;
+import com.limegroup.gnutella.library.FileDesc;
+import com.limegroup.gnutella.library.FileManager;
+import com.limegroup.gnutella.library.IncompleteFileDesc;
 
 /**
  * @author Gregorio Roper
@@ -250,7 +250,7 @@ public final class HashTreeCacheImpl implements HashTreeCache {
         while (iter.hasNext()) {
             URN sha1 = iter.next();
             if (roots.get(sha1) != BUSH) {
-                if (fileManager.getFileDescForUrn(sha1) != null)
+                if (!fileManager.getManagedFileList().getFileDescsMatching(sha1).isEmpty())
                     continue;
                 else if (downloadManager.getIncompleteFileManager().getFileForUrn(sha1) != null)
                     continue;

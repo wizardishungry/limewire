@@ -3,14 +3,15 @@ package com.limegroup.gnutella;
 import java.io.File;
 import java.util.Set;
 
+import org.limewire.core.api.download.DownloadAction;
+import org.limewire.core.api.download.SaveLocationException;
+import org.limewire.i18n.I18nMarker;
+import org.limewire.io.GUID;
 import org.limewire.io.IpPort;
 
+import com.limegroup.bittorrent.ManagedTorrent;
 import com.limegroup.gnutella.browser.MagnetOptions;
-import com.limegroup.gnutella.chat.InstantMessenger;
-import com.limegroup.gnutella.connection.ConnectionLifecycleEvent;
-import com.limegroup.gnutella.connection.ConnectionLifecycleListener;
-import com.limegroup.gnutella.search.HostData;
-import com.limegroup.gnutella.version.UpdateInformation;
+import com.limegroup.gnutella.messages.QueryReply;
 
 /**
  *  Defines the interface of a callback to notify about asynchronous backend 
@@ -26,23 +27,17 @@ import com.limegroup.gnutella.version.UpdateInformation;
  *  <li>Error messages</li>
  *  </ul>
  */
-public interface ActivityCallback extends DownloadCallback, FileEventListener, ConnectionLifecycleListener
+public interface ActivityCallback extends DownloadCallback
 {
     
-    /**
-     * The address of the program has changed or we've
-     * just accepted our first incoming connection.
-     */
-    public void handleAddressStateChanged();
-
     /**
      * Notifies the UI that a new query result has come in to the backend.
      * 
      * @param rfd the descriptor for the remote file
-     * @param data the data for the host returning the result
+     * @param queryReply
      * @param locs the <tt>Set</tt> of alternate locations for the file
      */
-	public void handleQueryResult(RemoteFileDesc rfd, HostData data, Set<? extends IpPort> locs);
+	public void handleQueryResult(RemoteFileDesc rfd, QueryReply queryReply, Set<? extends IpPort> locs);
 
     /**
      * Add a query string to the monitor screen
@@ -55,73 +50,7 @@ public interface ActivityCallback extends DownloadCallback, FileEventListener, C
     /** Remove an uploader from the upload window. */
     public void removeUpload(Uploader u);    
 
-	/**
-     * Add a new incoming chat connection. This is invoked when the handshake
-     * for a connection has been completed and the connection is ready for
-     * sending and receiving of messages.
-     */
-	public void acceptChat(InstantMessenger ctr);
-
-    /** A new message is available from the given chatter. */
-	public void receiveMessage(InstantMessenger chr, String messsage);
-
-	/** The given chatter is no longer available */
-	public void chatUnavailable(InstantMessenger chatter);
-
-	/** display an error message */
-	public void chatErrorMessage(InstantMessenger chatter, String str);
-
-    /** display an error message since the browse host failed. 
-     *  @param guid The GUID of the browse host.
-     */    
-    public void browseHostFailed(GUID guid);
-        
-	/**
-	 * Notification that the <code>FileManager</code> is beginning loading.
-	 */
-	public void fileManagerLoading();
-
-    /**
-     * Notifies a user that the file manager has completely loaded.
-     */
-    public void fileManagerLoaded();
-    
-    /**
-     * Notifies that the user is attempting to share a sensitive
-     * directory.  Returns true if the sensitive directory should be shared. 
-     */
-    public boolean warnAboutSharingSensitiveDirectory(File dir);
-    
-    /**
-     * Notifies when a FileDesc was either added, removed, 
-     * changed or renamed. This event is triggered by FileManager
-     * or MetaFileManager.
-     */
-    public void handleFileEvent(FileManagerEvent evt);
-    
-    /** 
-     * Notifies about connection life cycle related events.
-     * This event is triggered by the ConnectionManager
-     * 
-     */
-    public void handleConnectionLifecycleEvent(ConnectionLifecycleEvent evt);
-    
-    /**
-     * Notifies that the given shared file has new information.
-     *
-     * @param file The File that needs updating
-     */    
     public void handleSharedFileUpdate(File file);
-
-	/**
-	 * Notification that an update became available.
-	 */
-	public void updateAvailable(UpdateInformation info);
-
-	/**
-	 * Sets the enabled/disabled state of file annotation.
-	 */
-	public void setAnnotateEnabled(boolean enabled);
     
     /** 
      * Notifies that all active uploads have been completed.
@@ -139,11 +68,6 @@ public interface ActivityCallback extends DownloadCallback, FileEventListener, C
      */
     public boolean isQueryAlive(GUID guid);
     
-    /**
-     * Indicates a component is loading.
-     */
-    public void componentLoading(String component);
-    
     /** Notification that installation may be corrupted. */
     public void installationCorrupted();
 	
@@ -154,15 +78,38 @@ public interface ActivityCallback extends DownloadCallback, FileEventListener, C
 	 * If this is the case the callback should return <code>true</code>, otherwise
 	 * the core starts the downloads itself.
 	 * @param magnets Array of magnet information to handle
-	 * @return true if the callback handles the magnet links
 	 */
-	public boolean handleMagnets(MagnetOptions[] magnets);
-	
-	/**
-	 * Indicates that the firewalled state of this has changed. 
-	 */
-	public void acceptedIncomingChanged(boolean status);
-	
-	/** Try to download the torrent file */
+	public void handleMagnets(MagnetOptions[] magnets);
+
+    /** Try to download the torrent file */
 	public void handleTorrent(File torrentFile);
+
+    /**
+     * Translate a String taking into account Locale.
+     * 
+     * String literals that should be translated must still be marked for
+     * translation using {@link I18nMarker#marktr(String)}.
+     * 
+     * @param s The String to translate
+     * @return the translated String
+     */
+    public String translate(String s);
+    
+    /**
+     * Handles the supplied SaveLocation exception by prompting the user for a new savelocation 
+     * or whether to overwrite the file. 
+     */
+    void handleSaveLocationException(DownloadAction downLoadAction, SaveLocationException sle, boolean supportsNewSaveDir);
+    
+    /**
+     * Validates with the user that the torrent upload should be cancelled. 
+     * There are various reasons the user will not want the cancel to go through. 
+     * 1) If the torrent is still downloading, the upload cannot be cancelled 
+     *    without cancelling the download.
+     * 2) If the torrent is seeding, but the seed ratio is low, the user may 
+     *    wish to seed to at least 100% to be a good samaritan. 
+     * @param torrent 
+     */
+    void promptTorrentUploadCancel(ManagedTorrent torrent);
+
 }

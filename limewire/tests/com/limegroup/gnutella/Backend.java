@@ -1,10 +1,6 @@
 package com.limegroup.gnutella;
 
-import java.io.BufferedInputStream;
-import java.io.BufferedOutputStream;
 import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.ObjectInputStream;
@@ -15,19 +11,19 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.UnknownHostException;
 
+import org.limewire.core.settings.ConnectionSettings;
+import org.limewire.core.settings.FilterSettings;
+import org.limewire.core.settings.NetworkSettings;
+import org.limewire.core.settings.SearchSettings;
+import org.limewire.core.settings.UltrapeerSettings;
 import org.limewire.service.ErrorCallback;
 import org.limewire.service.ErrorService;
 import org.limewire.util.TestUtils;
 
 import com.google.inject.Guice;
-import com.limegroup.gnutella.settings.ConnectionSettings;
-import com.limegroup.gnutella.settings.FilterSettings;
-import com.limegroup.gnutella.settings.NetworkSettings;
-import com.limegroup.gnutella.settings.SearchSettings;
-import com.limegroup.gnutella.settings.SharingSettings;
-import com.limegroup.gnutella.settings.UltrapeerSettings;
+import com.google.inject.Stage;
+import com.limegroup.gnutella.library.FileManager;
 import com.limegroup.gnutella.stubs.ActivityCallbackStub;
-import com.limegroup.gnutella.util.LogUtils;
 
 /**
  * Utility class that constructs a LimeWire backend for testing
@@ -358,10 +354,11 @@ public class Backend extends com.limegroup.gnutella.util.LimeTestCase {
 
             preSetUp();
             setStandardSettings(port);
-            populateSharedDirectory();
-            limeWireCore = Guice.createInjector(new LimeWireCoreModule(ActivityCallbackStub.class))
-                    .getInstance(LimeWireCore.class);
+            limeWireCore = Guice.createInjector(Stage.PRODUCTION,
+                                                new LimeWireCoreModule(ActivityCallbackStub.class))
+                                .getInstance(LimeWireCore.class);
             limeWireCore.getLifecycleManager().start();
+            populateSharedDirectory(limeWireCore.getFileManager());
             if (!reject)
                 limeWireCore.getConnectionServices().connect();
 
@@ -419,7 +416,7 @@ public class Backend extends com.limegroup.gnutella.util.LimeTestCase {
     /**
      * Creates a temporary shared directory for testing purposes.
      */
-    private void populateSharedDirectory() {
+    private void populateSharedDirectory(FileManager fileManager) {
         File coreDir;
         coreDir = TestUtils.getResourceFile("com/limegroup/gnutella");
         File[] files = coreDir.listFiles();
@@ -428,7 +425,7 @@ public class Backend extends com.limegroup.gnutella.util.LimeTestCase {
             for (int i = 0; i < files.length; i++) {
                 if (!files[i].isFile())
                     continue;
-                copyResourceFile(files[i], files[i].getName() + "." + SHARED_EXTENSION);
+                fileManager.getGnutellaFileList().add(files[i]);
             }
         }
     }
@@ -438,8 +435,6 @@ public class Backend extends com.limegroup.gnutella.util.LimeTestCase {
      * number of connections to maintain, etc.
      */
     private void setStandardSettings(int port) {
-        SharingSettings.EXTENSIONS_TO_SHARE.setValue(SHARED_EXTENSION);
-
         SearchSettings.GUESS_ENABLED.setValue(true);
 
         UltrapeerSettings.DISABLE_ULTRAPEER_MODE.setValue(false);
@@ -469,52 +464,6 @@ public class Backend extends com.limegroup.gnutella.util.LimeTestCase {
         if(limeWireCore != null)
             limeWireCore.getLifecycleManager().shutdown();
         System.exit(0);
-    }
-
-    /**
-     * Copies the specified resource file into the current directory from the
-     * jar file. If the file already exists, no copy is performed.
-     * 
-     * @param fileName the name of the file to copy
-     * @param newName the new name for the target
-     */
-    private final void copyResourceFile(final File fileToCopy, String newName) {
-
-        File file = new File(getSharedDirectory(), newName);
-        // return quickly if the file is already there, no copy necessary
-        if (file.exists())
-            return;
-
-        BufferedInputStream bis = null;
-        BufferedOutputStream bos = null;
-        try {
-            InputStream is = new FileInputStream(fileToCopy);
-            // buffer the streams to improve I/O performance
-            final int bufferSize = 2048;
-            bis = new BufferedInputStream(is, bufferSize);
-            file.deleteOnExit();
-            bos = new BufferedOutputStream(new FileOutputStream(file), bufferSize);
-            byte[] buffer = new byte[bufferSize];
-            int c = 0;
-
-            do { // read and write in chunks of buffer size until EOF reached
-                c = bis.read(buffer, 0, bufferSize);
-                bos.write(buffer, 0, c);
-            } while (c == bufferSize); // (# of bytes read)c will = bufferSize
-                                        // until EOF
-
-        } catch (Exception e) {
-            // if there is any error, delete any portion of file that did write
-            file.delete();
-        } finally {
-            try {
-                if (bis != null)
-                    bis.close();
-                if (bos != null)
-                    bos.close();
-            } catch (IOException ioe) {
-            } // all we can do is try to close the streams
-        }
     }
 
     /** Handles throwable error report from the backend */

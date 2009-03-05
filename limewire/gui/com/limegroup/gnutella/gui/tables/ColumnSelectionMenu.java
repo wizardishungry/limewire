@@ -9,11 +9,11 @@ import javax.swing.JMenu;
 import javax.swing.JMenuItem;
 import javax.swing.JPopupMenu;
 
+import org.limewire.core.settings.QuestionsHandler;
 import org.limewire.setting.BooleanSetting;
 
 import com.limegroup.gnutella.gui.GUIMediator;
 import com.limegroup.gnutella.gui.I18n;
-import com.limegroup.gnutella.settings.QuestionsHandler;
 
 /**
  * Simple popup menu that shows the current columns,

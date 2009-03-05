@@ -5,18 +5,22 @@ import java.util.List;
 import java.util.Set;
 
 import org.limewire.collection.NECallable;
+import org.limewire.io.Address;
+import org.limewire.net.address.StrictIpPortSet;
 import org.limewire.nio.observer.Shutdownable;
 
 import com.limegroup.bittorrent.messages.BTHave;
-import com.limegroup.gnutella.util.StrictIpPortSet;
 
+/**
+ * Manages BitTorrent links since torrents have hundreds of connections.
+ */
 public class BTLinkManager implements Shutdownable,
         NECallable<List<? extends Chokable>> {
     /**
 	 * The list of BTConnections that this torrent has.
 	 * LOCKING: this
 	 */
-	private final List<BTLink> _connections;
+	private final List<BTConnection> _connections;
 	
 	/**
 	 * The locations we are currently connected to.  Torrents have hundreds
@@ -27,7 +31,7 @@ public class BTLinkManager implements Shutdownable,
 		
 	
 	BTLinkManager() {
-		_connections = new ArrayList<BTLink>();
+		_connections = new ArrayList<BTConnection>();
 		endpoints = new StrictIpPortSet<TorrentLocation>();
 	}
 	
@@ -57,9 +61,17 @@ public class BTLinkManager implements Shutdownable,
 		return _connections.size();
 	}
 	
-	public synchronized void addLink(BTLink link) {
-		_connections.add(link);
-		endpoints.add(link.getEndpoint());
+	public synchronized List<Address> getSourceAddresses() {
+	    List<Address> locs = new ArrayList<Address>(_connections.size());
+	    for(BTConnection connection : _connections) {
+	        locs.add(connection.getEndpoint());
+	    }
+	    return locs;
+	}
+	
+	public synchronized void addConnection(BTConnection connection) {
+		_connections.add(connection);
+		endpoints.add(connection.getEndpoint());
 	}
 	
 	public synchronized void removeLink(BTLink link) {
@@ -107,6 +119,18 @@ public class BTLinkManager implements Shutdownable,
 		}
 		return busy;
 	}
+	
+	/**
+	 * Returns the number of peers we are curerntly uplaoding to. 
+	 */
+	public synchronized int getNumUploadingPeers() {
+        int upload = 0;
+        for (BTLink con : _connections) {
+            if (con.isUploading())
+                upload++;
+        }
+        return upload;
+    }
 
 	public synchronized int getNumChockingPeers() {
 		int qd = 0;
@@ -117,7 +141,7 @@ public class BTLinkManager implements Shutdownable,
 		return qd;
 	}
 	
-	public List<BTLink> getConnections() {
+	public List<BTConnection> getConnections() {
 		return _connections;
 	}
 	

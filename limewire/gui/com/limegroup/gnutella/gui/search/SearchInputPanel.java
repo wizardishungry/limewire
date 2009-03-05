@@ -37,12 +37,13 @@ import javax.swing.SwingUtilities;
 import javax.swing.UIManager;
 import javax.swing.border.LineBorder;
 
+import org.limewire.core.settings.FilterSettings;
 import org.limewire.inspection.InspectionHistogram;
 import org.limewire.inspection.InspectionPoint;
 import org.limewire.io.NetworkInstanceUtils;
 import org.limewire.io.NetworkUtils;
+import org.limewire.util.MediaType;
 
-import com.limegroup.gnutella.MediaType;
 import com.limegroup.gnutella.NetworkManager;
 import com.limegroup.gnutella.gui.AutoCompleteTextField;
 import com.limegroup.gnutella.gui.BoxPanel;
@@ -55,7 +56,6 @@ import com.limegroup.gnutella.gui.MySharedFilesButton;
 import com.limegroup.gnutella.gui.themes.ThemeFileHandler;
 import com.limegroup.gnutella.gui.themes.ThemeSettings;
 import com.limegroup.gnutella.gui.xml.InputPanel;
-import com.limegroup.gnutella.settings.FilterSettings;
 import com.limegroup.gnutella.xml.LimeXMLSchema;
 
 /**
@@ -653,7 +653,7 @@ class SearchInputPanel extends JPanel {
             if(isWhatIsNewSearchType()) {
                 info = SearchInformation.createWhatsNewSearch(
                     SCHEMA_BOX.getSelectedItem(), mt);
-                whatsNewSearches.count(mt != null ? mt.getMimeType() : "all");
+                whatsNewSearches.count(mt != null ? mt.getSchema() : "all");
             } else if(isNormalSearchType()) {
                 String query = null;
                 String xml = null;
@@ -673,7 +673,7 @@ class SearchInputPanel extends JPanel {
                     title = query;
                 }
                 info = SearchInformation.createTitledKeywordSearch(query, xml, mt, title);
-                regularSearches.count(mt != null ? mt.getMimeType() : "all");
+                regularSearches.count(mt != null ? mt.getSchema() : "all");
             } else if(isBrowseHostSearchType()) {
                 String user = BROWSE_HOST_FIELD.getText();
                 if (!NetworkUtils.isAddress(user)) {

@@ -16,14 +16,25 @@ import java.util.concurrent.TimeUnit;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.limewire.core.api.connection.FWTStatusReason;
+import org.limewire.core.api.connection.FirewallTransferStatus;
+import org.limewire.core.api.connection.FirewallTransferStatusEvent;
+import org.limewire.core.settings.ConnectionSettings;
 import org.limewire.inspection.Inspectable;
 import org.limewire.inspection.InspectionPoint;
 import org.limewire.io.ByteBufferOutputStream;
+import org.limewire.io.GUID;
 import org.limewire.io.IpPort;
 import org.limewire.io.NetworkInstanceUtils;
 import org.limewire.io.NetworkUtils;
+import org.limewire.listener.EventBroadcaster;
+import org.limewire.listener.EventListener;
+import org.limewire.listener.ListenerSupport;
 import org.limewire.nio.NIODispatcher;
 import org.limewire.nio.observer.ReadWriteObserver;
+import org.limewire.rudp.AbstractNBSocketChannel;
+import org.limewire.rudp.ConnectionState;
+import org.limewire.rudp.UDPSocketChannelConnectionEvent;
 import org.limewire.security.AddressSecurityToken;
 import org.limewire.security.MACCalculator;
 import org.limewire.security.MACCalculatorRepositoryManager;
@@ -43,7 +54,6 @@ import com.limegroup.gnutella.messages.PingRequest;
 import com.limegroup.gnutella.messages.PingRequestFactory;
 import com.limegroup.gnutella.messages.Message.Network;
 import com.limegroup.gnutella.messages.vendor.ReplyNumberVendorMessage;
-import com.limegroup.gnutella.settings.ConnectionSettings;
 
 /**
  * This class handles UDP messaging services.  It both sends and
@@ -108,20 +118,27 @@ public class UDPService implements ReadWriteObserver {
     /** The last time we sent a UDP Connect Back.
      */
     private long _lastConnectBackTime = System.currentTimeMillis();
+
+    /**
+     * Whether or not a firewall transfer has successfully been done
+     */
+    private volatile boolean _successfulFWT;
+
     void resetLastConnectBackTime() {
         _lastConnectBackTime = 
              System.currentTimeMillis() - acceptor.get().getIncomingExpireTime();
     }
     
-    /** Whether our NAT assigns stable ports for successive connections 
-     * LOCKING: this
-     */
-    private boolean _portStable = true;
-    
     /** The last reported port as seen from the outside
      *  LOCKING: this
      */
     private int _lastReportedPort;
+
+    /**
+     * The class C network that last reported our port to us
+     * in a solicited response
+     */
+    private int _lastReportedClassC;
 
     /**
      * The number of pongs carrying IP:Port info we have received.
@@ -158,7 +175,7 @@ public class UDPService implements ReadWriteObserver {
     
     private final NetworkManager networkManager;
     private final Provider<MessageDispatcher> messageDispatcher;
-    private final Provider<IPFilter> hostileFilter;
+    private final Provider<IPFilter> ipFilter;
     private final Provider<ConnectionManager> connectionManager;
     private final Provider<MessageRouter> messageRouter;
     private final Provider<Acceptor> acceptor;
@@ -168,7 +185,8 @@ public class UDPService implements ReadWriteObserver {
     private final MessageFactory messageFactory;
     private final PingRequestFactory pingRequestFactory;
     private final NetworkInstanceUtils networkInstanceUtils;
-    
+    private final EventBroadcaster<FirewallTransferStatusEvent> fwtStatusBroadcaster;
+
     @InspectionPoint("udp sent messages")
     private final Message.MessageCounter sentMessageCounter = new Message.MessageCounter(50);
     
@@ -183,7 +201,7 @@ public class UDPService implements ReadWriteObserver {
 	@Inject
     public UDPService(NetworkManager networkManager,
             Provider<MessageDispatcher> messageDispatcher,
-            @Named("hostileFilter") Provider<IPFilter> hostileFilter,
+            @Named("hostileFilter") Provider<IPFilter> ipFilter,
             Provider<ConnectionManager> connectionManager,
             Provider<MessageRouter> messageRouter, Provider<Acceptor> acceptor,
             Provider<QueryUnicaster> queryUnicaster,
@@ -191,10 +209,12 @@ public class UDPService implements ReadWriteObserver {
             ConnectionServices connectionServices,
             MessageFactory messageFactory,
             PingRequestFactory pingRequestFactory,
-            NetworkInstanceUtils networkInstanceUtils) {
+            NetworkInstanceUtils networkInstanceUtils,
+            EventBroadcaster<FirewallTransferStatusEvent> fwtStatusBroadcaster,
+            ListenerSupport<UDPSocketChannelConnectionEvent> channelEventListenerSupport) {
         this.networkManager = networkManager;
         this.messageDispatcher = messageDispatcher;
-        this.hostileFilter = hostileFilter;
+        this.ipFilter = ipFilter;
         this.connectionManager = connectionManager;
         this.messageRouter = messageRouter;
         this.acceptor = acceptor;
@@ -204,11 +224,17 @@ public class UDPService implements ReadWriteObserver {
         this.messageFactory = messageFactory;
         this.pingRequestFactory = pingRequestFactory;
         this.networkInstanceUtils = networkInstanceUtils;
+        this.fwtStatusBroadcaster = fwtStatusBroadcaster;
 
         OUTGOING_MSGS = new LinkedList<SendBundle>();
 	    byte[] backing = new byte[BUFFER_SIZE];
 	    BUFFER = ByteBuffer.wrap(backing);
-        scheduleServices();
+        // TODO convert this to a Service and move this
+        // TODO initialize()
+        fwtStatusBroadcaster.broadcast(new FirewallTransferStatusEvent(
+                FirewallTransferStatus.DOES_NOT_SUPPORT_FWT, FWTStatusReason.UNKNOWN));
+        
+        channelEventListenerSupport.addListener(new UDPConnectionListener());
     }
     
     /**
@@ -237,6 +263,9 @@ public class UDPService implements ReadWriteObserver {
      * Starts listening for UDP messages & allowing UDP messages to be written.
      */
     public void start() {
+        if(!_started)
+            scheduleServices();
+        
         DatagramChannel channel;
         synchronized(this) {
             _started = true;
@@ -281,28 +310,29 @@ public class UDPService implements ReadWriteObserver {
 	public void setListeningSocket(DatagramSocket datagramSocket) {
 	    if(_channel != null) {
 	        try {
+	            LOG.debug("Closing socket");
 	            _channel.close();
 	        } catch(IOException ignored) {}
 	    }
-	    
+
 	    if(datagramSocket != null) {
 	        boolean wasStarted;
 	        synchronized(this) {
-        	    _channel = datagramSocket.getChannel();
-        	    if(_channel == null)
-        	        throw new IllegalArgumentException("No channel!");
-        	        
-                wasStarted = _started;
-            
-                // set the port in the FWT records
-                _lastReportedPort=_channel.socket().getLocalPort();
-                _portStable=true;
-            }
-            
-            // If it was already started at one point, re-start to register this new channel.
-            if(wasStarted)
-                start();
-        }
+	            _channel = datagramSocket.getChannel();
+	            if(_channel == null)
+	                throw new IllegalArgumentException("No channel!");
+                
+	            wasStarted = _started;
+
+	            // set the port in the FWT records
+	            _lastReportedPort=_channel.socket().getLocalPort();
+                _successfulFWT = false;
+	        }
+
+	        // If it was already started at one point, re-start to register this new channel.
+	        if(wasStarted)
+	            start();
+	    }
 	}
 	
 	int getListeningPort() {
@@ -356,8 +386,10 @@ public class UDPService implements ReadWriteObserver {
                     continue;
 
                 // don't go further if filtered.
-                if (!hostileFilter.get().allow(addr.getAddress().getAddress()))
+                if(!ipFilter.get().allow(addr.getAddress().getAddress())) {
+                    LOG.debug("Received packet from hostile host");
                     return;
+                }
                 
                 byte[] data = BUFFER.array();
                 int length = BUFFER.position();
@@ -365,12 +397,15 @@ public class UDPService implements ReadWriteObserver {
                     // we do things the old way temporarily
                     InputStream in = new ByteArrayInputStream(data, 0, length);
                     Message message = messageFactory.read(in, Network.UDP, IN_HEADER_BUF, addr);
-                    if (message == null)
+                    if(message == null) {
+                        LOG.debug("Received a null message");
                         continue;
-
+                    }
                     processMessage(message, addr);
-                } catch (IOException ignored) {
-                } catch (BadPacketException ignored) {
+                } catch(IOException e) {
+                    LOG.debug("Could not parse message", e);
+                } catch(BadPacketException e) {
+                    LOG.debug("Could not parse message", e);
                 }
             } 
         } catch(Throwable t) {
@@ -387,16 +422,20 @@ public class UDPService implements ReadWriteObserver {
         if( !(iox instanceof java.nio.channels.ClosedChannelException ) )
             ErrorService.error(iox, "UDP Error.");
         else
-            LOG.trace("Swallowing a UDPService ClosedChannelException", iox);
+            LOG.debug("Swallowing a UDPService ClosedChannelException", iox);
 	}
 	
 	/**
 	 * Processes a single message.
 	 */
     protected void processMessage(Message message, InetSocketAddress addr) {
-        if (!hostileFilter.get().allow(message))
+        // FIXME: redundant check?
+        if(!ipFilter.get().allow(message)) {
+            LOG.debug("Received packet from hostile host");
             return;
-        if (message instanceof PingReply) 
+        }
+        // FIXME: why do we mutate the GUIDs of ping replies?
+        if(message instanceof PingReply)
             mutateGUID(message.getGUID(), addr.getAddress(), addr.getPort());
         updateState(message, addr);
         messageDispatcher.get().dispatchUDP(message, addr);
@@ -413,7 +452,12 @@ public class UDPService implements ReadWriteObserver {
             if (message instanceof PingRequest) {
                 GUID guid = new GUID(message.getGUID());
                 if(CONNECT_BACK_GUID.equals(guid) && isValidForIncoming(addr)) {
-                    _acceptedUnsolicitedIncoming = true;
+                    synchronized (this) {
+                        _acceptedUnsolicitedIncoming = true;
+                        _lastReportedPort = networkManager.getPort(); // sent by the connect back request
+                        ConnectionSettings.HAS_STABLE_PORT.setValue(true);
+                    }
+                    updateFWTState();
                 }
                 _lastUnsolicitedIncomingTime = _lastReceivedAny;
             }
@@ -427,13 +471,24 @@ public class UDPService implements ReadWriteObserver {
                 if (r.getMyPort() != 0) {
                     synchronized(this){
                         _numReceivedIPPongs++;
-                        
-                        if (_numReceivedIPPongs==1) 
-                            _lastReportedPort=r.getMyPort();
-                        else if (_lastReportedPort!=r.getMyPort()) {
-                            _portStable = false;
-                            _lastReportedPort = r.getMyPort();
+                        if(LOG.isDebugEnabled()) {
+                            LOG.debug("Received IP pong from " +
+                                    r.getAddress() + ":" + r.getPort() +
+                                    " reporting " +
+                                    r.getMyInetAddress().getHostAddress() +
+                                    ":" + r.getMyPort());
+                        }                    
+                        if(_numReceivedIPPongs > 1) {
+                            if(_lastReportedClassC != NetworkUtils.getClassC(r.getInetAddress())) {
+                                if(_lastReportedPort == r.getMyPort()) {
+                                    ConnectionSettings.HAS_STABLE_PORT.setValue(true);
+                                } else {
+                                    ConnectionSettings.HAS_STABLE_PORT.setValue(false);
+                                }
+                            }
                         }
+                        _lastReportedPort = r.getMyPort();
+                        _lastReportedClassC = NetworkUtils.getClassC(r.getInetAddress());
                     }
                     updateFWTState();
                 }
@@ -507,13 +562,10 @@ public class UDPService implements ReadWriteObserver {
             throw new IllegalArgumentException("Null Message");
         if (!NetworkUtils.isValidSocketAddress(addr))
             throw new IllegalArgumentException("Invalid addr: " + addr);
-        if(_channel == null || _channel.socket().isClosed())
-            return; // ignore if not open.
-
-        if (LOG.isTraceEnabled()) {
-            LOG.trace("Sending message: " + msg + "to " + addr);
+        if(_channel == null || _channel.socket().isClosed()) {
+            LOG.debug("Socket not ready for writing");
+            return;
         }
-        
         int length = msg.getTotalLength();
         ByteBuffer buffer = NIODispatcher.instance().getBufferCache().getHeap(length);
         if(buffer.remaining() != length)
@@ -650,28 +702,58 @@ public class UDPService implements ReadWriteObserver {
 	 * port.
 	 */
 	public boolean canDoFWT(){
-	    // this does not affect EVER_DISABLED_FWT.
-	    if (!canReceiveSolicited()) 
-	        return false;
-
-	    boolean ret = !ConnectionSettings.LAST_FWT_STATE.getValue();
-	    if (!connectionServices.isConnected())
-	        return ret;
+	    boolean retValue = false;
 	    
-	    synchronized(this) {
-	        if (_numReceivedIPPongs < 1) 
-	            return ret;
+	    // this does not affect EVER_DISABLED_FWT.
+	    if (!canReceiveSolicited()) { 
+            fwtStatusBroadcaster.broadcast(new FirewallTransferStatusEvent(FirewallTransferStatus.DOES_NOT_SUPPORT_FWT,
+                    FWTStatusReason.NO_SOLICITED_INCOMING_MESSAGES));
+            retValue = false;
+        } else {
+    	    boolean canDoFWTSetting = !ConnectionSettings.CANNOT_DO_FWT.getValue();
+    	    if (!connectionServices.isConnected()) {
+                if(canDoFWTSetting) {
+                    fwtStatusBroadcaster.broadcast(new FirewallTransferStatusEvent(FirewallTransferStatus.SUPPORTS_FWT,
+                            FWTStatusReason.REUSING_STATUS_FROM_PREVIOUS_SESSION));
+                } else {
+                    fwtStatusBroadcaster.broadcast(new FirewallTransferStatusEvent(FirewallTransferStatus.DOES_NOT_SUPPORT_FWT,
+                            FWTStatusReason.REUSING_STATUS_FROM_PREVIOUS_SESSION));
+                }
+                retValue = canDoFWTSetting;
+            } else {
+        	    boolean needToUpdateState;
+        	    synchronized(this) {
+        	        if (_numReceivedIPPongs < 1) {
+                        if(canDoFWTSetting) {
+                            fwtStatusBroadcaster.broadcast(new FirewallTransferStatusEvent(FirewallTransferStatus.SUPPORTS_FWT,
+                                    FWTStatusReason.REUSING_STATUS_FROM_PREVIOUS_SESSION));
+                        } else {
+                            fwtStatusBroadcaster.broadcast(new FirewallTransferStatusEvent(FirewallTransferStatus.DOES_NOT_SUPPORT_FWT,
+                                    FWTStatusReason.REUSING_STATUS_FROM_PREVIOUS_SESSION));
+                        }
+                        needToUpdateState = false;
+                        retValue = canDoFWTSetting;
+                    } else {
+                        needToUpdateState = true;
+                    }
+        	    }
+        	    
+        	    if(needToUpdateState) {
+        	        updateFWTState();
+        	        retValue = !ConnectionSettings.CANNOT_DO_FWT.getValue();
+        	    }
+            }
 	    }
 	    
-	    updateFWTState();
-	    return !ConnectionSettings.LAST_FWT_STATE.getValue();
+	    return retValue;
 	}
 	
 	private void updateFWTState() {
-	    boolean ret = true;
+	    boolean newFWTSetting = true;
+        FWTStatusReason reason = FWTStatusReason.UNKNOWN;
 	    synchronized(this) {     	
 	        if (LOG.isTraceEnabled()) {
-	            LOG.trace("stable "+_portStable+
+	            LOG.trace("stable port "+ConnectionSettings.HAS_STABLE_PORT.getValue() +
 	                    " last reported port "+_lastReportedPort+
 	                    " our external port "+networkManager.getPort()+
 	                    " our non-forced port "+acceptor.get().getPort(false)+
@@ -679,23 +761,43 @@ public class UDPService implements ReadWriteObserver {
 	                    " valid external addr "+NetworkUtils.isValidAddress(
 	                            networkManager.getExternalAddress()));
 	        }
-	        
-	        ret= 
-	            NetworkUtils.isValidAddress(networkManager.getExternalAddress()) && 
-	            _portStable;
-	        
-	        if (_numReceivedIPPongs == 1){
-	            ret = ret &&
-	            (_lastReportedPort == acceptor.get().getPort(false) ||
-	                    _lastReportedPort == networkManager.getPort());
-	        }
+            if(_successfulFWT || _acceptedUnsolicitedIncoming) {
+                newFWTSetting = true;
+            } else {	        
+                if(!NetworkUtils.isValidAddress(networkManager.getExternalAddress())) {
+                    reason = FWTStatusReason.INVALID_EXTERNAL_ADDRESS;
+                    newFWTSetting = false;
+                }
+                boolean stablePort = ConnectionSettings.HAS_STABLE_PORT.getValue();
+                newFWTSetting = newFWTSetting && stablePort;
+                if(!stablePort) {
+                    if(_numReceivedIPPongs < 2) {
+                        reason = FWTStatusReason.REUSING_STATUS_FROM_PREVIOUS_SESSION;
+                    } else {
+                        reason = FWTStatusReason.PORT_UNSTABLE;
+                    }
+                }
+                
+                if (_numReceivedIPPongs == 1){
+                    newFWTSetting = newFWTSetting &&
+                    (_lastReportedPort == acceptor.get().getPort(false) ||
+                            _lastReportedPort == networkManager.getPort());
+                }
+            }
 	    }
-	    ConnectionSettings.LAST_FWT_STATE.setValue(!ret);
+        if(newFWTSetting) {
+            fwtStatusBroadcaster.broadcast(new FirewallTransferStatusEvent(FirewallTransferStatus.SUPPORTS_FWT,
+                    FWTStatusReason.UNKNOWN));
+        } else {
+            fwtStatusBroadcaster.broadcast(new FirewallTransferStatusEvent(FirewallTransferStatus.DOES_NOT_SUPPORT_FWT,
+                    reason));
+        }
+	    ConnectionSettings.CANNOT_DO_FWT.setValue(!newFWTSetting);
 	}
 	
 	// Some getters for bug reporting 
 	public boolean portStable() {
-	    return _portStable;
+	    return ConnectionSettings.HAS_STABLE_PORT.getValue();
 	}
 	
 	public int receivedIpPong() {
@@ -721,7 +823,7 @@ public class UDPService implements ReadWriteObserver {
 	    int forcedPort = networkManager.getPort();
 
 	    synchronized(this) {
-	        if (_portStable && _numReceivedIPPongs > 1)
+	        if (ConnectionSettings.HAS_STABLE_PORT.getValue() && _numReceivedIPPongs > 1)
 	            return _lastReportedPort;
 
 		if (_numReceivedIPPongs == 1 &&
@@ -754,10 +856,11 @@ public class UDPService implements ReadWriteObserver {
 	 *  UDP messages, <tt>false</tt> otherwise
 	 */
 	public boolean isListening() {
-		if(_channel == null)
+        DatagramChannel channel = _channel;
+		if(channel == null)
 		    return false;
 		    
-		return (_channel.socket().getLocalPort() != -1);
+		return (channel.socket().getLocalPort() != -1);
 	}
 
 	/** 
@@ -813,6 +916,9 @@ public class UDPService implements ReadWriteObserver {
                                     // we set according to the message listener
                                     _acceptedUnsolicitedIncoming = 
                                         ml._gotIncoming;
+                                    // TODO set _lastReportedPort ??
+                                    // TODO set ConnectionSettings.STABLE_PORT ??
+                                    // TODO updateFWTState() ??
                                 }
                                 messageRouter.get().unregisterMessageListener(cbGuid.bytes(), ml);
                             }
@@ -838,11 +944,27 @@ public class UDPService implements ReadWriteObserver {
             if (!canReceiveSolicited() && !canReceiveUnsolicited()) return;
 
             // good to use the solicited guid
-            PingRequest pr = pingRequestFactory.createPingRequest(getSolicitedGUID().bytes(), (byte)1,
-                    (byte)0);
+            byte[] guid = getSolicitedGUID().bytes();
+            PingRequest pr =
+                pingRequestFactory.createPingRequest(guid, (byte)1,(byte)0);
             
             pr.addIPRequest();
             send(pr, ep.getInetAddress(), ep.getPort());
+        }
+    }
+
+    private class UDPConnectionListener implements EventListener<UDPSocketChannelConnectionEvent> {
+        @Override
+        public void handleEvent(UDPSocketChannelConnectionEvent event) {
+            if(event.getType() == ConnectionState.CONNECTED && !_successfulFWT) {
+                synchronized (this) {
+                    _successfulFWT = true;
+                     // TODO not sure this is correct - could also call networkManager.getPort() ?
+                    _lastReportedPort = ((AbstractNBSocketChannel)event.getSource()).socket().getLocalPort();
+                    ConnectionSettings.HAS_STABLE_PORT.setValue(true);
+                }
+                updateFWTState();
+            }
         }
     }
 }

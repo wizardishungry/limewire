@@ -19,16 +19,16 @@ public class LegacyRanker extends AbstractSourceRanker {
     
     private static final Log LOG = LogFactory.getLog(LegacyRanker.class);
 
-	private final Set<RemoteFileDesc> rfds;  
+	private final Set<RemoteFileDescContext> rfds;  
 	
 	public LegacyRanker() {
-		rfds = new HashSet<RemoteFileDesc>();
+		rfds = new HashSet<RemoteFileDescContext>();
 	}
 	
 	@Override
-    public synchronized boolean addToPool(RemoteFileDesc host) {
+    public synchronized boolean addToPool(RemoteFileDescContext host) {
         if (LOG.isDebugEnabled())
-            LOG.debug("adding host "+host+" to be ranked");
+            LOG.debug("adding host "+host+" to be ranked", new Exception());
 		return rfds.add(host);
 	}
 
@@ -44,11 +44,11 @@ public class LegacyRanker extends AbstractSourceRanker {
      * @return the best file/endpoint location 
      */
 	@Override
-    public synchronized RemoteFileDesc getBest() {
+    public synchronized RemoteFileDescContext getBest() {
 		if (!hasMore())
             return null;
         
-        RemoteFileDesc ret = getBest(rfds.iterator());
+        RemoteFileDescContext ret = getBest(rfds.iterator());
         //The best rfd found so far
         boolean removed = rfds.remove(ret);
         assert removed : "unable to remove RFD.";
@@ -59,44 +59,51 @@ public class LegacyRanker extends AbstractSourceRanker {
         return ret;
     }
     
-    static RemoteFileDesc getBest(Iterator<RemoteFileDesc> iter) {
-        RemoteFileDesc ret= iter.next();
-        
-        long now = System.currentTimeMillis();
-        //Find max of each (remaining) element, storing in max.
-        //Follows the following logic:
-        //1) Find a non-busy host (make connections)
-        //2) Find a host that uses hashes (avoid corruptions)
-        //3) Find a better quality host (avoid dud locations)
-        //4) Find a speedier host (avoid slow downloads)
-        while (iter.hasNext()) {
-            RemoteFileDesc rfd= iter.next();
-            
-            // 1.            
-            if (rfd.isBusy(now))
-                continue;
+    static RemoteFileDescContext getBest(Iterator<RemoteFileDescContext> iter) {
+        RemoteFileDescContext currentRfdContext = iter.next();
 
-            if (ret.isBusy(now))
-                ret=rfd;
+        long now = System.currentTimeMillis();
+        // Find max of each (remaining) element, storing in max.
+        // Follows the following logic:
+        // 1) Find a non-busy host (make connections)
+        // 2) Find a host that uses hashes (avoid corruptions)
+        // 3) Find a better quality host (avoid dud locations)
+        // 4) Find a speedier host (avoid slow downloads)
+        while (iter.hasNext()) {
+            // define in loop to reflect current selection of ret
+            RemoteFileDesc currentRfd = currentRfdContext.getRemoteFileDesc();
+
+            RemoteFileDescContext potentialRfdContext = iter.next();
+            RemoteFileDesc potentialRfd = potentialRfdContext.getRemoteFileDesc();
+
+            // 1.
+            if (potentialRfdContext.isBusy(now)) {
+                continue;
+            }
+
+            if (currentRfdContext.isBusy(now)) {
+                currentRfdContext = potentialRfdContext;
+            }
             // 2.
-            else if (rfd.getSHA1Urn()!=null && ret.getSHA1Urn()==null)
-                ret=rfd;
-            // 3 & 4.
+            else if (potentialRfd.getSHA1Urn() != null && currentRfd.getSHA1Urn() == null) {
+                currentRfdContext = potentialRfdContext;
+            }
             // (note the use of == so that the comparison is only done
-            //  if both rfd & ret either had or didn't have a SHA1)
-            else if ((rfd.getSHA1Urn()==null) == (ret.getSHA1Urn()==null)) {
+            // if both rfd & ret either had or didn't have a SHA1)
+            else if ((potentialRfd.getSHA1Urn() == null) == (currentRfd.getSHA1Urn() == null)) {
                 // 3.
-                if (rfd.getQuality() > ret.getQuality())
-                    ret=rfd;
-                else if (rfd.getQuality() == ret.getQuality()) {
+                if (potentialRfd.getQuality() > currentRfd.getQuality()) {
+                    currentRfdContext = potentialRfdContext;
+                } else if (potentialRfd.getQuality() == currentRfd.getQuality()) {
                     // 4.
-                    if (rfd.getSpeed() > ret.getSpeed())
-                        ret=rfd;
+                    if (potentialRfd.getSpeed() > currentRfd.getSpeed()) {
+                        currentRfdContext = potentialRfdContext;
+                    }
                 }            
             }
         }
         
-        return ret;
+        return currentRfdContext;
     }
 	
 	@Override
@@ -105,12 +112,12 @@ public class LegacyRanker extends AbstractSourceRanker {
 	}
 
     @Override
-    public Collection<RemoteFileDesc> getShareableHosts() {
+    public Collection<RemoteFileDescContext> getShareableHosts() {
         return rfds;
     }
     
     @Override
-    protected Collection<RemoteFileDesc> getPotentiallyBusyHosts() {
+    protected Collection<RemoteFileDescContext> getPotentiallyBusyHosts() {
         return rfds;
     }
     

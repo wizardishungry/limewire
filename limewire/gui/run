@@ -1,5 +1,7 @@
 #!/bin/bash
 
+echo "This run script is deprecated, use limewire/run instead (../run)."
+
 ### Run script for LimeWire.
 ### Builds a classpath for all jars & components.
 
@@ -52,6 +54,12 @@ done
 for JAR in $(find ../lib/jars/other -maxdepth 1 -name "*.jar" ); do 
    CLASSPATH="${CLASSPATH}${PS}${JAR}"
 done
+
+#add all the resources
+CLASSPATH="${CLASSPATH}${PS}../lib/resources"
+
+#add all the additional resources
+CLASSPATH="${CLASSPATH}${PS}../lib/resources/${ADDITIONAL}"
 
 #add all the components.
 for COMPONENT in $(ls ../components); do

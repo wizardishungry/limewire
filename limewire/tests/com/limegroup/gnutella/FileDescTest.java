@@ -9,14 +9,15 @@ import java.util.Set;
 
 import junit.framework.Test;
 
+import org.limewire.core.settings.DHTSettings;
 import org.limewire.util.PrivilegedAccessor;
 import org.limewire.util.TestUtils;
 
 import com.google.inject.Injector;
 import com.limegroup.gnutella.helpers.UrnHelper;
-import com.limegroup.gnutella.settings.DHTSettings;
-import com.limegroup.gnutella.simpp.SimppListener;
-import com.limegroup.gnutella.xml.MetaFileManager;
+import com.limegroup.gnutella.library.FileDesc;
+import com.limegroup.gnutella.library.FileDescFactory;
+import com.limegroup.gnutella.library.UrnCache;
 
 
 /**
@@ -27,7 +28,7 @@ public final class FileDescTest extends com.limegroup.gnutella.util.LimeTestCase
     
     private static final long MAX_FILE_SIZE = 3L * 1024L * 1024;
     private UrnCache urnCache;
-    private FileManagerController fileManagerController;
+    private FileDescFactory factory;
     
 	public FileDescTest(String name) {
 		super(name);
@@ -45,7 +46,7 @@ public final class FileDescTest extends com.limegroup.gnutella.util.LimeTestCase
 	protected void setUp() throws Exception {
 	    Injector injector = LimeTestUtils.createInjector();
 		urnCache = injector.getInstance(UrnCache.class);
-		fileManagerController = injector.getInstance(FileManagerController.class);
+		factory = injector.getInstance(FileDescFactory.class);
 	}
 	
 	/**
@@ -56,22 +57,22 @@ public final class FileDescTest extends com.limegroup.gnutella.util.LimeTestCase
         Set urns = UrnHelper.calculateAndCacheURN(file, urnCache);
         
 		try {
-			new FileDesc(null, urns, 0);
+			factory.createFileDesc(null, urns, 0);
 			fail("null file should not be permitted for FileDesc constructor");
 		} catch(NullPointerException ignored) {}
         
         try {
-            new FileDesc(file, null, 0);
+            factory.createFileDesc(file, null, 0);
             fail("null urns should not be permitted for FileDesc constructor");
         } catch(NullPointerException ignored) {}
         
         try {
-            new FileDesc(file, urns, -1);
+            factory.createFileDesc(file, urns, -1);
             fail("negative index should not be permitted for FileDesc constructor");
         } catch(IndexOutOfBoundsException ignored) {}
         
         try {
-            new FileDesc(file, Collections.EMPTY_SET, 0);
+            factory.createFileDesc(file, Collections.EMPTY_SET, 0);
             fail("no sha1 urn should not be permitted for FileDesc constructor");
         } catch(IllegalArgumentException ignored) {}
 	}
@@ -96,16 +97,15 @@ public final class FileDescTest extends com.limegroup.gnutella.util.LimeTestCase
         for(int i = 0; it.hasNext(); i++) {
             File file = (File)it.next();
             Set urns = UrnHelper.calculateAndCacheURN(file, urnCache); 
-            new FileDesc(file, urns, i);
+            factory.createFileDesc(file, urns, i);
         }
     }
     
     public void testIsRareFile() throws Exception {
-        FileManager fm = new MetaFileManager(fileManagerController);
         File file = TestUtils.getResourceFile("build.xml");
         Set urns = UrnHelper.calculateAndCacheURN(file, urnCache);
         
-        FileDesc fd = new FileDesc(file, urns, 0);
+        FileDesc fd = factory.createFileDesc(file, urns, 0);
         
         // Initial State: Not Rare!
         assertLessThan(DHTSettings.RARE_FILE_ATTEMPTED_UPLOADS.getValue(), fd.getAttemptedUploads());
@@ -114,47 +114,42 @@ public final class FileDescTest extends com.limegroup.gnutella.util.LimeTestCase
         long delta = System.currentTimeMillis() - fd.getLastAttemptedUploadTime();
         assertLessThan(DHTSettings.RARE_FILE_TIME.getValue(), delta);
         
-        assertFalse(fm.isRareFile(fd));
+        assertFalse(fd.isRareFile());
         
         // Modify the lastAttemptedUploadTime and it should be still not rare
         delta = System.currentTimeMillis() - DHTSettings.RARE_FILE_TIME.getValue();
         PrivilegedAccessor.setValue(fd, "lastAttemptedUploadTime", Long.valueOf(delta));
         Thread.sleep(10);
-        assertFalse(fm.isRareFile(fd));
+        assertFalse(fd.isRareFile());
         
         // Change the _attemptedUploads counter
         PrivilegedAccessor.setValue(fd, "_attemptedUploads", 
                 Integer.valueOf(DHTSettings.RARE_FILE_ATTEMPTED_UPLOADS.getValue()));
         
         // And it should be rare
-        assertTrue(fm.isRareFile(fd));
+        assertTrue(fd.isRareFile());
         
         // Simulate an upload attempt and it shoudn't be rare anymore
         fd.incrementAttemptedUploads();
-        assertFalse(fm.isRareFile(fd));
+        assertFalse(fd.isRareFile());
         
         // Change the definition to something bogus like completedUploads == attemptedUploads
         DHTSettings.RARE_FILE_DEFINITION.setValue(new String[] {
         "cups","ups","=="
         });
-        triggerSimppUpdate(fm);
-        assertFalse(fm.isRareFile(fd));
+        Thread.sleep(100); //allow setting event to propagate
+        assertFalse(fd.isRareFile());
         fd.incrementCompletedUploads();
-        assertFalse(fm.isRareFile(fd));
+        assertFalse(fd.isRareFile());
         fd.incrementCompletedUploads();
         assertEquals(fd.getAttemptedUploads(), fd.getCompletedUploads());
-        assertTrue(fm.isRareFile(fd));
+        assertTrue(fd.isRareFile());
         
         // test that a broken rule will not make the file rare
         DHTSettings.RARE_FILE_DEFINITION.setValue(new String[] {
                 "badger","badger"
                 });
-        triggerSimppUpdate(fm);
-        assertFalse(fm.isRareFile(fd));
-    }
-    
-    private void triggerSimppUpdate(FileManager fm) throws Exception {
-        SimppListener lm = (SimppListener) PrivilegedAccessor.getValue(fm, "rareDefinition");
-        lm.simppUpdated(1);
+        Thread.sleep(100); //allow setting event to propagate
+        assertFalse(fd.isRareFile());
     }
 }

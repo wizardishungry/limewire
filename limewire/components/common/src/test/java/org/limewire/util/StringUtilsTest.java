@@ -91,16 +91,16 @@ public class StringUtilsTest extends BaseTestCase {
 
     public void testContainsCase() {
         //Cases 
-        assertTrue(StringUtils.contains("aBcDd", "bCD", true) == true);
-        assertTrue(StringUtils.contains("aBcDd", "bCD", false) == false);
-        assertTrue(StringUtils.contains("....", "..", true) == true);
-        assertTrue(StringUtils.contains("....", "..", false) == true);
+        assertTrue(StringUtils.contains("aBcDd", "bCD", true));
+        assertFalse(StringUtils.contains("aBcDd", "bCD", false));
+        assertTrue(StringUtils.contains("....", "..", true));
+        assertTrue(StringUtils.contains("....", "..", false));
     }
 
     public void testContainsClip2() {
         //Clip2 compatibility      
-        assertTrue(StringUtils.contains("abcd", " ") == true);
-        assertTrue(StringUtils.contains("abcd", "    ") == true);
+        assertTrue(StringUtils.contains("abcd", " "));
+        assertTrue(StringUtils.contains("abcd", "    "));
     }
         
     public void testSplit() {
@@ -276,8 +276,8 @@ public class StringUtilsTest extends BaseTestCase {
         assertEquals("ab", StringUtils.explode(in, ""));
     }
     
-    public void testCollectionExplode() {
-        Collection<String> in = Arrays.asList("a" , "b", " c "); 
+    public void testIterableExplode() {
+        Collection<?> in = Arrays.asList("a" , "b", " c "); 
         assertEquals("a/b/ c ", StringUtils.explode(in, "/"));
 
         in = Collections.emptyList(); 
@@ -295,6 +295,9 @@ public class StringUtilsTest extends BaseTestCase {
         // single element
         in = Collections.singletonList("h");
         assertEquals("h", StringUtils.explode(in, "kfkdf"));
+        
+        in = Arrays.asList(5, 4, 4, 4);
+        assertEquals("5,4,4,4", StringUtils.explode(in, ","));
     }
     
     public void testToString() {
@@ -306,6 +309,20 @@ public class StringUtilsTest extends BaseTestCase {
         assertEquals("SomeFields {a=a, n=null}", result);
     }
     
+    public void testToStringBlacklist() {
+        BlacklistFields someFields = new BlacklistFields();
+        String result = someFields.toString();
+        assertEquals("BlacklistFields {i=2147483647, thiz=circular structure}", result);
+    }
+    
+    public void testToStringWithArrayFields() {
+        ArrayFields fields = new ArrayFields();
+        assertEquals("ArrayFields {objs=[null, hello], ints=[4, 4]}", fields.toString());
+    }
+    
+    public void testReplace() {
+        assertEquals("mimimi", StringUtils.replace("mamama", "ma", "mi"));
+    }
     
     private static class AllFields {
         String a = "a";
@@ -328,6 +345,28 @@ public class StringUtilsTest extends BaseTestCase {
         @Override
         public String toString() {
             return StringUtils.toString(this, a, n);
+        }
+    }
+    
+    private static class ArrayFields {
+        Object[] objs = new Object[] { null, "hello" };
+        int[] ints = new int[] { 4 , 4 };
+        
+        @Override
+        public String toString() {
+            return StringUtils.toString(this);
+        }
+    }
+    
+    private static class BlacklistFields {
+        String a = "a";
+        int i = Integer.MAX_VALUE;
+        Object n = null;
+        BlacklistFields thiz = this;
+        
+        @Override
+        public String toString() {
+            return StringUtils.toStringBlacklist(this, a, n);
         }
     }
 }

@@ -10,14 +10,16 @@ import java.util.concurrent.TimeUnit;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.limewire.core.settings.ConnectionSettings;
+import org.limewire.lifecycle.Service;
 
 import com.google.inject.Inject;
 import com.google.inject.Provider;
 import com.google.inject.Singleton;
 import com.google.inject.name.Named;
 import com.limegroup.gnutella.connection.RoutedConnection;
+import com.limegroup.gnutella.messages.PingRequest;
 import com.limegroup.gnutella.messages.PingRequestFactory;
-import com.limegroup.gnutella.settings.ConnectionSettings;
 
 /*
  * A "watchdog" that periodically examines connections and
@@ -25,7 +27,7 @@ import com.limegroup.gnutella.settings.ConnectionSettings;
  * possible heuristics to use when examining connections.
  */
 @Singleton
-public final class ConnectionWatchdog {
+public final class ConnectionWatchdog implements Service {
     
     private static final Log LOG = LogFactory.getLog(ConnectionWatchdog.class);
 
@@ -54,7 +56,22 @@ public final class ConnectionWatchdog {
         this.connectionServices = connectionServices;
         this.pingRequestFactory = pingRequestFactory;
     }
+    
+    @Inject
+    void register(org.limewire.lifecycle.ServiceRegistry registry) {
+        registry.register(this);
+    }
 
+    public String getServiceName() {
+        return org.limewire.i18n.I18nMarker.marktr("Stale Connection Management");
+    }
+    
+    public void initialize() {
+    }
+    
+    public void stop() {
+    }
+    
     /**
      * Starts the <tt>ConnectionWatchdog</tt>.
      */
@@ -138,7 +155,8 @@ public final class ConnectionWatchdog {
             if (!c.isKillable())
 				continue;
             snapshot.put(c, new ConnectionState(c));
-            messageRouter.get().sendPingRequest(pingRequestFactory.createPingRequest((byte)1), c);
+            PingRequest ping = pingRequestFactory.createPingRequest((byte)1);
+            messageRouter.get().sendPingRequest(ping, c);
         }
         
         backgroundExecutor.schedule(new DudChecker(snapshot, true), REEVALUATE_TIME, TimeUnit.MILLISECONDS);

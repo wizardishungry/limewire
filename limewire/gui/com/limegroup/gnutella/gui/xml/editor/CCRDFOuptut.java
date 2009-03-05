@@ -16,8 +16,6 @@ import javax.swing.JScrollPane;
 import javax.swing.JTextArea;
 import javax.swing.border.EmptyBorder;
 
-import com.limegroup.gnutella.FileDesc;
-import com.limegroup.gnutella.FileManagerEvent;
 import com.limegroup.gnutella.gui.BoxPanel;
 import com.limegroup.gnutella.gui.ButtonRow;
 import com.limegroup.gnutella.gui.GUIMediator;
@@ -25,6 +23,7 @@ import com.limegroup.gnutella.gui.GUIUtils;
 import com.limegroup.gnutella.gui.I18n;
 import com.limegroup.gnutella.gui.MessageService;
 import com.limegroup.gnutella.gui.URLLabel;
+import com.limegroup.gnutella.library.FileDesc;
 import com.limegroup.gnutella.licenses.PublishedCCLicense;
 
 /**
@@ -34,7 +33,7 @@ import com.limegroup.gnutella.licenses.PublishedCCLicense;
  * 
  * @see CCPublishWizard
  */
-public class CCRDFOuptut implements MetaDataEventListener {
+public class CCRDFOuptut /*implements MetaDataEventListener*/ {
 	
 	private final String CCPUBLISHER_TITLE = I18n.tr("License RDF Output");
 	
@@ -52,7 +51,7 @@ public class CCRDFOuptut implements MetaDataEventListener {
 	
 	private JDialog dialog;
 	
-	private final FileDesc _fd;
+//	private final FileDesc _fd;
 	
 	private final String _holder,_title,_year,_description,_url;
 	
@@ -62,7 +61,7 @@ public class CCRDFOuptut implements MetaDataEventListener {
 	
 	public CCRDFOuptut(FileDesc fd,String holder, String title, 
             String year, String description, String url,int type) {
-		_fd = fd;
+//		_fd = fd;
 		_holder = holder;
 		_title = title;
 		_year = year;
@@ -71,16 +70,14 @@ public class CCRDFOuptut implements MetaDataEventListener {
 		_type = type;
 	}
 	
-	public void handleFileEvent(final FileManagerEvent event) {
-	    if(!event.isChangeEvent() || 
-                event.getFileDescs() == null || 
-                event.getFileDescs().length == 0)
-             return;
-        
-        if(_fd.equals(event.getFileDescs()[0])) {
-        	showDialog(event.getFileDescs()[1]);
-        }
-	}
+//	public void handleEvent(final FileManagerEvent event) {
+//	    if(!event.isChangeEvent() || (event.getOldFileDesc() == null && event.getNewFileDesc() == null) )
+//             return;
+//        
+//        if(_fd.equals(event.getOldFileDesc())) {
+//        	showDialog(event.getNewFileDesc());
+//        }
+//	}
 	
 	public void metaDataUnchanged(FileDesc fd) {
 		showDialog(fd);

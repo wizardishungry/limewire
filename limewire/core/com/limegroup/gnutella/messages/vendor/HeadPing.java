@@ -7,9 +7,9 @@ import java.io.IOException;
 import org.limewire.io.BadGGEPBlockException;
 import org.limewire.io.BadGGEPPropertyException;
 import org.limewire.io.GGEP;
+import org.limewire.io.GUID;
 import org.limewire.service.ErrorService;
 
-import com.limegroup.gnutella.GUID;
 import com.limegroup.gnutella.URN;
 import com.limegroup.gnutella.messages.BadPacketException;
 
@@ -122,7 +122,7 @@ public class HeadPing extends AbstractVendorMessage implements HeadPongRequestor
 		// extract the client guid if any
 		GUID clientGuid = null;
 		if (_ggep != null) {
-            if(_ggep.hasKey(GGEP_PUSH)) {
+            if(_ggep.hasValueFor(GGEP_PUSH)) {
     			try {
     				clientGuid = new GUID(_ggep.getBytes(GGEP_PUSH));
     			} catch (BadGGEPPropertyException noGuid) {}

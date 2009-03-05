@@ -3,6 +3,8 @@ package com.limegroup.gnutella.downloader;
 import java.io.File;
 import java.util.concurrent.ScheduledExecutorService;
 
+import org.limewire.core.api.download.SaveLocationManager;
+import org.limewire.net.SocketsManager;
 import org.limewire.util.Objects;
 
 import com.google.inject.Inject;
@@ -11,18 +13,16 @@ import com.google.inject.name.Named;
 import com.limegroup.gnutella.ApplicationServices;
 import com.limegroup.gnutella.DownloadCallback;
 import com.limegroup.gnutella.DownloadManager;
-import com.limegroup.gnutella.FileManager;
 import com.limegroup.gnutella.MessageRouter;
 import com.limegroup.gnutella.NetworkManager;
-import com.limegroup.gnutella.SaveLocationManager;
-import com.limegroup.gnutella.SavedFileManager;
 import com.limegroup.gnutella.URN;
-import com.limegroup.gnutella.UrnCache;
 import com.limegroup.gnutella.altlocs.AltLocManager;
 import com.limegroup.gnutella.altlocs.AlternateLocationFactory;
 import com.limegroup.gnutella.auth.ContentManager;
 import com.limegroup.gnutella.filters.IPFilter;
 import com.limegroup.gnutella.guess.OnDemandUnicaster;
+import com.limegroup.gnutella.library.FileManager;
+import com.limegroup.gnutella.library.UrnCache;
 import com.limegroup.gnutella.messages.QueryRequestFactory;
 import com.limegroup.gnutella.tigertree.HashTreeCache;
 
@@ -56,17 +56,19 @@ class ResumeDownloaderImpl extends ManagedDownloaderImpl implements ResumeDownlo
             QueryRequestFactory queryRequestFactory, OnDemandUnicaster onDemandUnicaster,
             DownloadWorkerFactory downloadWorkerFactory, AltLocManager altLocManager,
             ContentManager contentManager, SourceRankerFactory sourceRankerFactory,
-            UrnCache urnCache, SavedFileManager savedFileManager,
+            UrnCache urnCache,
             VerifyingFileFactory verifyingFileFactory, DiskController diskController,
              IPFilter ipFilter, @Named("backgroundExecutor") ScheduledExecutorService backgroundExecutor,
             Provider<MessageRouter> messageRouter, Provider<HashTreeCache> tigerTreeCache,
-            ApplicationServices applicationServices, RemoteFileDescFactory remoteFileDescFactory, Provider<PushList> pushListProvider) {
+            ApplicationServices applicationServices, RemoteFileDescFactory remoteFileDescFactory, Provider<PushList> pushListProvider,
+            SocketsManager socketsManager) {
         super(saveLocationManager, downloadManager, fileManager, incompleteFileManager,
                 downloadCallback, networkManager, alternateLocationFactory, requeryManagerFactory,
                 queryRequestFactory, onDemandUnicaster, downloadWorkerFactory, altLocManager,
-                contentManager, sourceRankerFactory, urnCache, savedFileManager,
+                contentManager, sourceRankerFactory, urnCache, 
                 verifyingFileFactory, diskController, ipFilter, backgroundExecutor, messageRouter,
-                tigerTreeCache, applicationServices, remoteFileDescFactory, pushListProvider);
+                tigerTreeCache, applicationServices, remoteFileDescFactory, pushListProvider,
+                socketsManager);
     }
     
     /* (non-Javadoc)
@@ -87,14 +89,13 @@ class ResumeDownloaderImpl extends ManagedDownloaderImpl implements ResumeDownlo
     @Override
     public void initialize() {
         super.initialize();
-        // Auto-activate the requeryManager if this was created
-        // from clicking 'Resume' in the library (as opposed to
-        // from being deserialized from disk).
-        requeryManager.activate();
-    }
-
-    @Override
-    protected boolean shouldInitAltLocs() {
-        return true;
+        
+        // NOTE: We do not auto-activate anymore because
+        //       we automatically create downloaders for
+        //       incomplete files.
+//        // Auto-activate the requeryManager if this was created
+//        // from clicking 'Resume' in the library (as opposed to
+//        // from being deserialized from disk).
+//        requeryManager.activate();
     }
 }

@@ -41,16 +41,18 @@ import javax.swing.event.MouseInputAdapter;
 import javax.swing.event.MouseInputListener;
 import javax.swing.plaf.metal.MetalBorders;
 
+import org.limewire.core.settings.FilterSettings;
+import org.limewire.core.settings.SearchSettings;
 import org.limewire.i18n.I18nMarker;
 import org.limewire.inspection.InspectablePrimitive;
 import org.limewire.inspection.InspectionHistogram;
 import org.limewire.inspection.InspectionPoint;
+import org.limewire.io.GUID;
+import org.limewire.util.MediaType;
 import org.limewire.util.OSUtils;
 
 import com.limegroup.gnutella.BrowseHostHandler;
 import com.limegroup.gnutella.FileDetails;
-import com.limegroup.gnutella.GUID;
-import com.limegroup.gnutella.MediaType;
 import com.limegroup.gnutella.RemoteFileDesc;
 import com.limegroup.gnutella.URN;
 import com.limegroup.gnutella.gui.BoxPanel;
@@ -80,8 +82,6 @@ import com.limegroup.gnutella.gui.util.PopupUtils;
 import com.limegroup.gnutella.licenses.License;
 import com.limegroup.gnutella.licenses.VerificationListener;
 import com.limegroup.gnutella.search.QueryHandler;
-import com.limegroup.gnutella.settings.FilterSettings;
-import com.limegroup.gnutella.settings.SearchSettings;
 import com.limegroup.gnutella.util.LimeWireUtils;
 import com.limegroup.gnutella.util.QueryUtils;
 import com.limegroup.gnutella.xml.LimeXMLDocument;
@@ -450,6 +450,13 @@ public class ResultPanel extends AbstractTableMediator<TableRowFilter, TableLine
         DOWNLOAD_LISTENER = new ActionListener() {
             public void actionPerformed(ActionEvent e) {
                 SearchMediator.doDownload(ResultPanel.this);
+                // Downloading a file implies the user thinks it's not spam
+                for(TableLine line : getAllSelectedLines())
+                    SPAM_FILTER.markAsSpamUser(line, false);
+                DATA_MODEL.refresh();
+                // This is harmless if the button's already in the right state
+                transformSpamButton(I18n.tr("Junk"), 
+                        I18n.tr("Mark selected search results as Junk"));
             }
         };
         
@@ -485,10 +492,8 @@ public class ResultPanel extends AbstractTableMediator<TableRowFilter, TableLine
 
         MARK_AS_SPAM_LISTENER = new ActionListener() {
             public void actionPerformed(ActionEvent e) {
-                TableLine[] lines = getAllSelectedLines();
-                for (int i = 0; i < lines.length; i++) {
-                    SPAM_FILTER.markAsSpamUser(lines[i], true);             
-                }
+                for(TableLine line : getAllSelectedLines())
+                    SPAM_FILTER.markAsSpamUser(line, true);             
                 
                 // This is a bit fine tuning...
                 if (SearchSettings.hideJunk()) {
@@ -504,10 +509,8 @@ public class ResultPanel extends AbstractTableMediator<TableRowFilter, TableLine
 
         MARK_AS_NOT_SPAM_LISTENER = new ActionListener() {
             public void actionPerformed(ActionEvent e) {
-                TableLine[] lines = getAllSelectedLines();
-                for (int i = 0; i < lines.length; i++) {
-                    SPAM_FILTER.markAsSpamUser(lines[i], false);
-                }
+                for(TableLine line : getAllSelectedLines())
+                    SPAM_FILTER.markAsSpamUser(line, false);
                 DATA_MODEL.refresh();
                 
                 transformSpamButton(I18n.tr("Junk"), 

@@ -1,10 +1,11 @@
 package com.limegroup.gnutella.gui.search;
 
 
+import org.limewire.core.settings.SearchSettings;
+
 import com.limegroup.gnutella.RemoteFileDesc;
 import com.limegroup.gnutella.gui.GuiCoreMediator;
 import com.limegroup.gnutella.gui.util.BackgroundExecutorService;
-import com.limegroup.gnutella.settings.SearchSettings;
 
 public class SpamFilter implements TableLineFilter {
     

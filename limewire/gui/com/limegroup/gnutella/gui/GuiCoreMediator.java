@@ -20,13 +20,10 @@ import com.limegroup.gnutella.ConnectionManager;
 import com.limegroup.gnutella.ConnectionServices;
 import com.limegroup.gnutella.DownloadManager;
 import com.limegroup.gnutella.DownloadServices;
-import com.limegroup.gnutella.FileManager;
 import com.limegroup.gnutella.LifecycleManager;
 import com.limegroup.gnutella.LimeWireCore;
-import com.limegroup.gnutella.LocalFileDetailsFactory;
 import com.limegroup.gnutella.NetworkManager;
 import com.limegroup.gnutella.ResponseFactory;
-import com.limegroup.gnutella.SavedFileManager;
 import com.limegroup.gnutella.SearchServices;
 import com.limegroup.gnutella.SpamServices;
 import com.limegroup.gnutella.UDPService;
@@ -37,14 +34,18 @@ import com.limegroup.gnutella.altlocs.AltLocManager;
 import com.limegroup.gnutella.browser.ExternalControl;
 import com.limegroup.gnutella.browser.LocalAcceptor;
 import com.limegroup.gnutella.browser.LocalHTTPAcceptor;
-import com.limegroup.gnutella.chat.ChatManager;
 import com.limegroup.gnutella.connection.ConnectionCheckerManager;
+import com.limegroup.gnutella.daap.DaapManager;
 import com.limegroup.gnutella.dht.DHTManager;
 import com.limegroup.gnutella.downloader.DiskController;
 import com.limegroup.gnutella.downloader.RemoteFileDescFactory;
 import com.limegroup.gnutella.filters.IPFilter;
 import com.limegroup.gnutella.geocode.CachedGeoLocation;
 import com.limegroup.gnutella.http.HttpExecutor;
+import com.limegroup.gnutella.library.CreationTimeCache;
+import com.limegroup.gnutella.library.FileManager;
+import com.limegroup.gnutella.library.LocalFileDetailsFactory;
+import com.limegroup.gnutella.library.SharedFilesKeywordIndex;
 import com.limegroup.gnutella.licenses.LicenseVerifier;
 import com.limegroup.gnutella.lws.server.LWSManager;
 import com.limegroup.gnutella.messages.QueryRequestFactory;
@@ -85,7 +86,6 @@ public class GuiCoreMediator {
     public static IPFilter getIpFilter() {  return core.getIpFilter(); }
     public static BandwidthManager getBandwidthManager() {  return core.getBandwidthManager(); }
     public static HttpExecutor getHttpExecutor() {  return core.getHttpExecutor(); }
-    public static SavedFileManager getSavedFileManager() { return core.getSavedFileManager(); }
     public static UPnPManager getUPnPManager() { return core.getUPnPManager(); }
     public static LimeXMLSchemaRepository getLimeXMLSchemaRepository() { return core.getLimeXMLSchemaRepository(); }
     public static SchemaReplyCollectionMapper getSchemaReplyCollectionMapper() { return core.getSchemaReplyCollectionMapper(); }
@@ -104,7 +104,6 @@ public class GuiCoreMediator {
     public static ConnectionCheckerManager getConnectionCheckerManager() { return core.getConnectionCheckerManager(); }
     public static ExternalControl getExternalControl() { return core.getExternalControl(); }
     public static ActivityCallback getActivityCallback() { return core.getActivityCallback(); }
-    public static ChatManager getChatManager() { return core.getChatManager(); }
     public static LimeXMLDocumentFactory getLimeXMLDocumentFactory() { return core.getLimeXMLDocumentFactory(); }
     public static MetaDataFactory getMetaDataFactory() { return core.getMetaDataFactory(); }
     public static LicenseVerifier getLicenseVerifier() { return core.getLicenseVerifier(); }
@@ -119,5 +118,8 @@ public class GuiCoreMediator {
     public static BTMetaInfoFactory getBTMetaInfoFactory() { return core.getBTMetaInfoFactory(); }    
     public static PromotionSearcher getPromotionSearcher() { return core.getPromotionSearcher(); }
     public static PromotionServices getPromotionServices() { return core.getPromotionServices(); }
+    public static SharedFilesKeywordIndex getSharedFilesKeywordIndex() { return core.getSharedFilesKeywordIndex(); }
     public static CachedGeoLocation getCachedGeoLocation() { return core.getCachedGeoLocation(); }
+    public static CreationTimeCache getCreationTimeCache() {return core.getCreationTimeCache(); }
+    public static DaapManager getDaapManager() {return core.getDaapManager(); }
 }

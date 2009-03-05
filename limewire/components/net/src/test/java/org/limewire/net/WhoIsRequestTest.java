@@ -2,11 +2,9 @@ package org.limewire.net;
 
 import junit.framework.Test;
 
-import org.limewire.io.NetworkInstanceUtils;
-import org.limewire.io.SimpleNetworkInstanceUtils;
+import org.limewire.common.LimeWireCommonModule;
 import org.limewire.util.BaseTestCase;
 
-import com.google.inject.AbstractModule;
 import com.google.inject.Guice;
 import com.google.inject.Injector;
 
@@ -28,14 +26,7 @@ public class WhoIsRequestTest extends BaseTestCase {
         
     @Override
     protected void setUp() throws Exception {
-        Injector injector = Guice.createInjector(new LimeWireNetModule(), new AbstractModule() {
-            @Override
-            protected void configure() {
-                bind(ProxySettings.class).to(EmptyProxySettings.class);
-                bind(SocketBindingSettings.class).to(EmptySocketBindingSettings.class);
-                bind(NetworkInstanceUtils.class).to(SimpleNetworkInstanceUtils.class);
-            }
-        });        
+        Injector injector = Guice.createInjector(new LimeWireCommonModule(), new LimeWireNetTestModule());        
         
         factory = injector.getInstance(WhoIsRequestFactory.class); 
     }

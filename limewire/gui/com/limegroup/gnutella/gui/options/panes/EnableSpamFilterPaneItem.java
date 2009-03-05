@@ -6,9 +6,10 @@ import javax.swing.Box;
 import javax.swing.ButtonGroup;
 import javax.swing.JRadioButton;
 
+import org.limewire.core.settings.SearchSettings;
+
 import com.limegroup.gnutella.gui.BoxPanel;
 import com.limegroup.gnutella.gui.I18n;
-import com.limegroup.gnutella.settings.SearchSettings;
 
 /**
  * This class gives the user the option of whether or not to enable LimeWire's

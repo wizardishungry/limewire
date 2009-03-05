@@ -1,12 +1,19 @@
 package com.limegroup.gnutella;
 
-import java.io.File;
 import java.util.Arrays;
 import java.util.Iterator;
 
 import junit.framework.Test;
 
+import org.limewire.core.settings.ConnectionSettings;
+import org.limewire.core.settings.FilterSettings;
+import org.limewire.core.settings.NetworkSettings;
+import org.limewire.core.settings.PingPongSettings;
+import org.limewire.core.settings.UltrapeerSettings;
+import org.limewire.io.GUID;
+
 import com.google.inject.Injector;
+import com.google.inject.Stage;
 import com.limegroup.gnutella.connection.BlockingConnection;
 import com.limegroup.gnutella.connection.BlockingConnectionFactory;
 import com.limegroup.gnutella.handshaking.HeadersFactory;
@@ -22,11 +29,6 @@ import com.limegroup.gnutella.messages.QueryRequest;
 import com.limegroup.gnutella.messages.QueryRequestFactory;
 import com.limegroup.gnutella.routing.QueryRouteTable;
 import com.limegroup.gnutella.routing.RouteTableMessage;
-import com.limegroup.gnutella.settings.ConnectionSettings;
-import com.limegroup.gnutella.settings.FilterSettings;
-import com.limegroup.gnutella.settings.NetworkSettings;
-import com.limegroup.gnutella.settings.PingPongSettings;
-import com.limegroup.gnutella.settings.UltrapeerSettings;
 import com.limegroup.gnutella.util.EmptyResponder;
 import com.limegroup.gnutella.util.LimeTestCase;
 
@@ -144,7 +146,6 @@ public final class UltrapeerRoutingTest extends LimeTestCase {
         // TODO hack: incrementing port value so each test has its own port
         // PORT++;
         NetworkSettings.PORT.setValue(PORT);
-        LimeTestUtils.setSharedDirectories(new File[0]);
 		ConnectionSettings.CONNECT_ON_STARTUP.setValue(false);
 		UltrapeerSettings.EVER_ULTRAPEER_CAPABLE.setValue(true);
 		UltrapeerSettings.DISABLE_ULTRAPEER_MODE.setValue(false);
@@ -159,7 +160,7 @@ public final class UltrapeerRoutingTest extends LimeTestCase {
         assertEquals("unexpected port", PORT, 
 					 NetworkSettings.PORT.getValue());
         
-        Injector injector = LimeTestUtils.createInjector();
+        Injector injector = LimeTestUtils.createInjector(Stage.PRODUCTION);
         connectionFactory = injector.getInstance(BlockingConnectionFactory.class);
         connectionServices = injector.getInstance(ConnectionServices.class);
         headersFactory = injector.getInstance(HeadersFactory.class);
@@ -306,7 +307,7 @@ public final class UltrapeerRoutingTest extends LimeTestCase {
 		
 		//2. Check that replies are routed back.
 		BlockingConnectionUtils.drain(LEAF);
-		Response response1=responseFactory.createResponse(0L, 0L, "response1.txt");
+		Response response1=responseFactory.createResponse(0L, 0L, "response1.txt", UrnHelper.SHA1);
 		byte[] clientGUID = GUID.makeGuid();
 		QueryReply reply1=queryReplyFactory.createQueryReply(qr.getGUID(), (byte)2, 6346,
                 IP, 56, new Response[] {response1}, clientGUID, false);
@@ -318,7 +319,7 @@ public final class UltrapeerRoutingTest extends LimeTestCase {
 				   Arrays.equals(clientGUID, replyRead.getClientGUID()));
 		
 		BlockingConnectionUtils.drain(LEAF);
-		Response response2 = responseFactory.createResponse(0l, 0l, "response2.txt");
+		Response response2 = responseFactory.createResponse(0l, 0l, "response2.txt", UrnHelper.SHA1);
 		byte[] guid2 = GUID.makeGuid();
 		QueryReply reply2 = 
 			queryReplyFactory.createQueryReply(qr.getGUID(), (byte)2, 6346,

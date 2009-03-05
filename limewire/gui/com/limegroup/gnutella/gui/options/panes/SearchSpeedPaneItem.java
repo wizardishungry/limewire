@@ -6,12 +6,12 @@ import javax.swing.Box;
 import javax.swing.ButtonGroup;
 import javax.swing.JRadioButton;
 
+import org.limewire.core.settings.SearchSettings;
+import org.limewire.core.settings.SpeedConstants;
 import org.limewire.i18n.I18nMarker;
 
-import com.limegroup.gnutella.SpeedConstants;
 import com.limegroup.gnutella.gui.BoxPanel;
 import com.limegroup.gnutella.gui.I18n;
-import com.limegroup.gnutella.settings.SearchSettings;
 
 /**
  * This class defines the panel in the options window that allows the user

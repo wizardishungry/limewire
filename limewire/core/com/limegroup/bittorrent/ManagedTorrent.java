@@ -62,7 +62,7 @@ public interface ManagedTorrent extends Torrent, BTLinkListener {
      * 
      * @return true if it was added
      */
-    boolean addConnection(final BTLink btc);
+    boolean addConnection(final BTConnection btc);
 
     /**
      * @return a peer we should try to connect to next
@@ -116,4 +116,15 @@ public interface ManagedTorrent extends Torrent, BTLinkListener {
      *         but all are choked.
      */
     boolean isSuspended();    
+    
+    /**
+     * Returns the BTLinkManager for this torrent instance.
+     */
+    BTLinkManager getLinkManager();
+
+    /**
+     * Returns the number of peers you are currently uploading to. 
+     */
+    int getNumUploadPeers();
+
 }

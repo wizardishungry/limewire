@@ -5,13 +5,13 @@ import java.io.IOException;
 
 import javax.swing.JComboBox;
 
+import org.limewire.core.settings.ConnectionSettings;
+import org.limewire.core.settings.SpeedConstants;
 import org.limewire.i18n.I18nMarker;
 
-import com.limegroup.gnutella.SpeedConstants;
 import com.limegroup.gnutella.gui.GUIConstants;
 import com.limegroup.gnutella.gui.I18n;
 import com.limegroup.gnutella.gui.LabeledComponent;
-import com.limegroup.gnutella.settings.ConnectionSettings;
 
 /**
  * This class defines the panel in the options window that allows the user

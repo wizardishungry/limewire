@@ -12,9 +12,9 @@ import java.util.Properties;
 import javax.swing.Icon;
 import javax.swing.ImageIcon;
 
+import org.limewire.core.settings.UISettings;
 import org.limewire.io.IOUtils;
 
-import com.limegroup.gnutella.settings.UISettings;
 
 public class ButtonIconController {
 

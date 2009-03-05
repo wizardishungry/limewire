@@ -8,6 +8,7 @@ import javax.swing.ButtonGroup;
 import javax.swing.JRadioButton;
 import javax.swing.JTextField;
 
+import org.limewire.core.settings.ConnectionSettings;
 import org.limewire.i18n.I18nMarker;
 
 import com.limegroup.gnutella.gui.BoxPanel;
@@ -17,7 +18,6 @@ import com.limegroup.gnutella.gui.SizedTextField;
 import com.limegroup.gnutella.gui.SizedWholeNumberField;
 import com.limegroup.gnutella.gui.WholeNumberField;
 import com.limegroup.gnutella.gui.GUIUtils.SizePolicy;
-import com.limegroup.gnutella.settings.ConnectionSettings;
 
 /**
  * This class defines the panel in the options window that allows the user to

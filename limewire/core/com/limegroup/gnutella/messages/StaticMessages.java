@@ -1,32 +1,28 @@
 package com.limegroup.gnutella.messages;
 
 import java.io.ByteArrayInputStream;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
 import java.io.InputStream;
 import java.io.ObjectInputStream;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.limewire.core.settings.SearchSettings;
 import org.limewire.io.IOUtils;
+import org.limewire.lifecycle.Service;
 import org.limewire.util.Base32;
-import org.limewire.util.CommonUtils;
 
 import com.google.inject.Inject;
 import com.google.inject.Provider;
 import com.google.inject.Singleton;
-import com.limegroup.gnutella.settings.SearchSettings;
 import com.limegroup.gnutella.simpp.SimppListener;
 import com.limegroup.gnutella.simpp.SimppManager;
 import com.limegroup.gnutella.util.Data;
 
 @Singleton
-public final class StaticMessages {
+public final class StaticMessages implements Service {
     
     private static final Log LOG = LogFactory.getLog(StaticMessages.class);
 
-    private volatile QueryReply updateReply;
     private volatile QueryReply limeReply;
     
     private final QueryReplyFactory queryReplyFactory;
@@ -37,8 +33,22 @@ public final class StaticMessages {
         this.queryReplyFactory = queryReplyFactory;
         this.simppManager = simppManager;
     }
-   
+    
+    @Inject
+    void register(org.limewire.lifecycle.ServiceRegistry registry) {
+        registry.register(this);
+    }
+    
+    public String getServiceName() {
+        return org.limewire.i18n.I18nMarker.marktr("Static Messages");
+    }
+    
     public void initialize() {
+    }
+    public void stop() {
+    }    
+   
+    public void start() {
         reloadMessages();
         simppManager.get().addListener(new SimppListener() {
             public void simppUpdated(int newVersion) {
@@ -48,16 +58,7 @@ public final class StaticMessages {
     }
     
     private void reloadMessages() {
-        updateReply = readUpdateReply();
         limeReply = createLimeReply();
-    }
-    
-    private QueryReply readUpdateReply() {
-        try {
-            return createReply(new FileInputStream(new File(CommonUtils.getUserSettingsDir(), "data.ser")));
-        } catch (FileNotFoundException bad) {
-            return null;
-        }
     }
     
     private QueryReply createLimeReply() {
@@ -78,10 +79,6 @@ public final class StaticMessages {
         } finally {
             IOUtils.close(in);
         }
-    }
-    
-    public QueryReply getUpdateReply() {
-        return updateReply;
     }
     
     public QueryReply getLimeReply() {

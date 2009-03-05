@@ -1,34 +1,35 @@
 package com.limegroup.gnutella;
 
-import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileOutputStream;
-import java.io.OutputStreamWriter;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Properties;
+import java.util.concurrent.TimeUnit;
 
 import junit.framework.Test;
 
+import org.limewire.core.settings.ConnectionSettings;
+import org.limewire.core.settings.NetworkSettings;
+import org.limewire.core.settings.PingPongSettings;
+import org.limewire.core.settings.SearchSettings;
+import org.limewire.core.settings.UltrapeerSettings;
 import org.limewire.net.SocketsManager.ConnectType;
-import org.limewire.util.FileUtils;
 import org.limewire.util.I18NConvert;
 
 import com.google.inject.Injector;
+import com.google.inject.Stage;
 import com.limegroup.gnutella.connection.BlockingConnection;
 import com.limegroup.gnutella.connection.BlockingConnectionFactory;
 import com.limegroup.gnutella.handshaking.HeaderNames;
 import com.limegroup.gnutella.handshaking.HeadersFactory;
+import com.limegroup.gnutella.library.FileDesc;
+import com.limegroup.gnutella.library.FileManager;
 import com.limegroup.gnutella.messages.Message;
 import com.limegroup.gnutella.messages.QueryReply;
 import com.limegroup.gnutella.messages.QueryRequest;
 import com.limegroup.gnutella.messages.QueryRequestFactory;
-import com.limegroup.gnutella.settings.ConnectionSettings;
-import com.limegroup.gnutella.settings.NetworkSettings;
-import com.limegroup.gnutella.settings.PingPongSettings;
-import com.limegroup.gnutella.settings.SearchSettings;
-import com.limegroup.gnutella.settings.UltrapeerSettings;
 import com.limegroup.gnutella.util.EmptyResponder;
 import com.limegroup.gnutella.util.LimeTestCase;
 import com.limegroup.gnutella.xml.LimeXMLDocument;
@@ -95,40 +96,16 @@ public class I18NSendReceiveTest extends LimeTestCase {
 		ConnectionSettings.LOCAL_IS_PRIVATE.setValue(false);
         ConnectionSettings.WATCHDOG_ACTIVE.setValue(false);
         PingPongSettings.PINGS_ACTIVE.setValue(false);
-
-        setUpFiles();
         SearchSettings.MINIMUM_SEARCH_QUALITY.setValue(-2);
     }
 
-    private static void setUpFiles() throws Exception {
-        
-        File dir = new File("com/limegroup/gnutella/");
-        if (!dir.exists()) {
-            dir.mkdirs();
-        }
-        
-        for(int i = 0; i < FILES.length; i++) {
-            File f = new File(dir, FILES[i]);
-            if(!f.exists()) {
-                f.createNewFile();
-                //make sure its not 0kb
-                FileOutputStream fo = new FileOutputStream(f);
-                BufferedWriter buf = new BufferedWriter(new OutputStreamWriter(fo));
-                buf.write("a");
-                buf.flush();
-                buf.close();
-            }
-            FileUtils.copy(f, new File(_sharedDir, FILES[i]));
-        }
-
-    }
 
     @Override
     protected void setUp() throws Exception {
         TEST_PORT++;
         doSettings();
         
-        Injector injector = LimeTestUtils.createInjector();
+        Injector injector = LimeTestUtils.createInjector(Stage.PRODUCTION);
         headersFactory = injector.getInstance(HeadersFactory.class);
         connectionFactory = injector.getInstance(BlockingConnectionFactory.class);
         queryRequestFactory = injector.getInstance(QueryRequestFactory.class);
@@ -140,7 +117,16 @@ public class I18NSendReceiveTest extends LimeTestCase {
         
         lifecycleManager.start();
         connectionServices.connect();
-        connect();
+        connect();        
+
+        for(int i = 0; i < FILES.length; i++) {
+            File f = new File(_scratchDir, FILES[i]);
+            FileOutputStream fo = new FileOutputStream(f);
+            fo.write('a');
+            fo.flush();
+            fo.close();
+            assertNotNull(fileManager.getGnutellaFileList().add(f).get(1, TimeUnit.SECONDS));
+        }
     }
 
     @Override
@@ -204,7 +190,7 @@ public class I18NSendReceiveTest extends LimeTestCase {
      * Adds an expected reply to the expected reply list.
      */
     private void addExpectedReply(List list, String name) throws Exception {
-        File f = new File("com/limegroup/gnutella/" + name);
+        File f = new File(_scratchDir, name);
         assertTrue("file: " + name + " doesn't exist", f.exists());
         f = f.getCanonicalFile(); // necessary to get the name as it is on disk
         list.add(I18NConvert.instance().compose(f.getName()));
@@ -304,7 +290,7 @@ public class I18NSendReceiveTest extends LimeTestCase {
     private void addMetaData(String fname, String xmlstr) throws Exception {
         FileManager fm = fileManager;
         FileDesc fd = 
-            fm.getFileDescForFile(new File(_sharedDir, fname));
+            fm.getManagedFileList().getFileDesc(new File(_scratchDir, fname));
         
         LimeXMLDocument newDoc = 
             limeXMLDocumentFactory.createLimeXMLDocument(buildXMLString(xmlstr));

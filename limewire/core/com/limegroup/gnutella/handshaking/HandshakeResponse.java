@@ -9,13 +9,14 @@ import java.util.Locale;
 import java.util.Properties;
 import java.util.StringTokenizer;
 
+import org.limewire.core.settings.ApplicationSettings;
+import org.limewire.core.settings.ConnectionSettings;
 import org.limewire.io.IpPort;
 import org.limewire.util.Version;
 import org.limewire.util.VersionFormatException;
 
-import com.limegroup.gnutella.settings.ApplicationSettings;
-import com.limegroup.gnutella.settings.ConnectionSettings;
 import com.limegroup.gnutella.util.LimeWireUtils;
+
 
 /**
  * Contains the necessary information to form a response to a 
@@ -232,7 +233,8 @@ public class HandshakeResponse {
      * 
      * @param headers the headers to use in the response. 
      */
-    protected HandshakeResponse(Properties headers) {
+    // public for testing
+    public HandshakeResponse(Properties headers) {
         this(OK, OK_MESSAGE, headers);
     }    
 

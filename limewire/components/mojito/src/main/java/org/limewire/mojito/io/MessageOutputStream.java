@@ -247,19 +247,16 @@ public class MessageOutputStream extends DataOutputStream {
      * Writes the given String to the OutputStream. This is different
      * from writeUTF(String) which writes the String in the so called
      * Modified-UTF format!
+     *
+     *  @param str must not be null
      */
-    private void writeDHTString(String str) throws IOException {
-        if (str == null) {
-            writeShort(0);
-        } else {
-            byte[] b = str.getBytes("UTF-8");
-            if (b.length > 0xFFFF) {
-                throw new IOException("String is too big");
-            }
-            
-            writeShort(b.length);
-            write(b);
+    void writeDHTString(String str) throws IOException {
+        byte[] b = str.getBytes("UTF-8");
+        if (b.length > 0xFFFF) {
+            throw new IOException("String is too big");
         }
+        writeShort(b.length);
+        write(b);
     }
     
     /**

@@ -14,12 +14,12 @@ import javax.swing.JDialog;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 
+import org.limewire.core.settings.QuestionsHandler;
 import org.limewire.i18n.I18nMarker;
 import org.limewire.util.Version;
 import org.limewire.util.VersionFormatException;
 import org.limewire.util.VersionUtils;
 
-import com.limegroup.gnutella.settings.QuestionsHandler;
 import com.limegroup.gnutella.util.Launcher;
 
 class JavaVersionNotice {

@@ -27,21 +27,17 @@ import javax.swing.table.TableCellEditor;
 import javax.swing.table.TableColumn;
 import javax.swing.table.TableColumnModel;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.limewire.collection.Tuple;
+import org.limewire.core.api.download.SaveLocationException;
+import org.limewire.core.api.download.SaveLocationException.LocationCode;
+import org.limewire.core.settings.QuestionsHandler;
 import org.limewire.io.NetworkUtils;
 import org.limewire.util.FileUtils;
+import org.limewire.util.MediaType;
 import org.limewire.util.OSUtils;
 
 import com.limegroup.gnutella.Downloader;
-import com.limegroup.gnutella.FileDesc;
 import com.limegroup.gnutella.FileDetails;
-import com.limegroup.gnutella.FileManager;
-import com.limegroup.gnutella.FileManagerEvent;
-import com.limegroup.gnutella.IncompleteFileDesc;
-import com.limegroup.gnutella.MediaType;
-import com.limegroup.gnutella.SaveLocationException;
 import com.limegroup.gnutella.URN;
 import com.limegroup.gnutella.downloader.CantResumeException;
 import com.limegroup.gnutella.downloader.IncompleteFileManager;
@@ -75,10 +71,11 @@ import com.limegroup.gnutella.gui.util.GUILauncher.LaunchableProvider;
 import com.limegroup.gnutella.gui.xml.editor.CCPublishWizard;
 import com.limegroup.gnutella.gui.xml.editor.MetaEditor;
 import com.limegroup.gnutella.gui.xml.editor.XmlTypeEditor;
-import com.limegroup.gnutella.library.SharingUtils;
+import com.limegroup.gnutella.library.FileDesc;
+import com.limegroup.gnutella.library.FileManager;
+import com.limegroup.gnutella.library.LibraryUtils;
 import com.limegroup.gnutella.licenses.License;
 import com.limegroup.gnutella.licenses.VerificationListener;
-import com.limegroup.gnutella.settings.QuestionsHandler;
 import com.limegroup.gnutella.util.EncodingUtils;
 import com.limegroup.gnutella.util.QueryUtils;
 import com.limegroup.gnutella.xml.LimeXMLDocument;
@@ -96,7 +93,7 @@ import com.limegroup.gnutella.xml.LimeXMLUtils;
 final class LibraryTableMediator extends AbstractTableMediator<LibraryTableModel, LibraryTableDataLine, File>
 	implements VerificationListener, FileDetailsProvider {
 
-    private static final Log LOG = LogFactory.getLog(LibraryTableMediator.class);
+//    private static final Log LOG = LogFactory.getLog(LibraryTableMediator.class);
 	
 	/**
      * Variables so the PopupMenu & ButtonRow can have the same listeners
@@ -286,7 +283,7 @@ final class LibraryTableMediator extends AbstractTableMediator<LibraryTableModel
 			menu.add(new JMenuItem(MAGNET_LOOKUP_ACTION));
 			menu.add(new JMenuItem(COPY_MAGNET_TO_CLIPBOARD_ACTION));
 			File file = getFile(TABLE.getSelectedRow());
-			menu.setEnabled(GuiCoreMediator.getFileManager().isFileShared(file)); 
+			menu.setEnabled(GuiCoreMediator.getFileManager().getGnutellaFileList().contains(file));
 		}
 		
         if (menu.getItemCount() == 0)
@@ -433,22 +430,6 @@ final class LibraryTableMediator extends AbstractTableMediator<LibraryTableModel
 			return;
 		clearTable();
 		setIncompleteSelected(LibraryMediator.incompleteDirectoryIsSelected());
-		File[] files = dirHolder.getFiles();
-        FileManager manager =  GuiCoreMediator.getFileManager();
-        
-        // if a store node, only display store files
-        if( dirHolder.isStoreNode() ) {
-          for (int i = 0; i < files.length; i++) {
-              if( manager.isStoreFileLoaded(files[i]) )
-                  addUnsorted(files[i]);
-          }
-        }
-        // else display everything but store files
-        else {
-          for (int i = 0; i < files.length; i++)
-              if( !manager.isStoreFileLoaded(files[i]))
-                  addUnsorted(files[i]);
-        }
 		forceResort();
     }
 	
@@ -456,75 +437,67 @@ final class LibraryTableMediator extends AbstractTableMediator<LibraryTableModel
 	 * Handles events created by the FileManager.  Adds or removes rows from
 	 * the table as necessary. 
 	 */
-    void handleFileManagerEvent(final FileManagerEvent evt, DirectoryHolder holder) {
-		//  Need to update table only if one of the files in evt
-		//  is contained in the current directory.
-		if (evt == null || holder == null)
-			return;
-			
-		File[] files = evt.getFiles();
-		FileDesc[] fds = evt.getFileDescs();
-		
-        if(LOG.isDebugEnabled())
-            LOG.debug("Handling event: " + evt);
-        switch(evt.getType()) {
-        case REMOVE_STORE_FILE:
-        case REMOVE_FILE:
-            File f = fds[0].getFile();
-            if(holder.accept(f)) {
-                DATA_MODEL.reinitialize(f);
-                handleSelection(-1);
-            } else if(DATA_MODEL.contains(f)) {
-                DATA_MODEL.remove(f);
-                handleSelection(-1);
-            }
-            break;
-        case ADD_STORE_FILE:
-        case ADD_FILE:
-            if(holder.accept(fds[0].getFile())) {
-                add(fds[0].getFile());
-                handleSelection(-1);
-            }
-            break;
-        case CHANGE_FILE:
-            File changed = fds[0].getFile();
-            DATA_MODEL.reinitialize(changed);
-            handleSelection(-1);
-            break;
-        case RENAME_FILE:
-            File old = fds[0].getFile();
-            File now = fds[1].getFile();
-            if (holder.accept(now)) {
-                if(DATA_MODEL.contains(old)) {
-                    DATA_MODEL.reinitialize(old, now);
-                    handleSelection(-1);
-                } else {
-                    DATA_MODEL.add(now);
-                }
-            } else {
-                DATA_MODEL.remove(old);
-            }
-            break;
-        case ADD_STORE_FOLDER:
-        case ADD_FOLDER:
-			if (holder.accept(files[0])) {
-			    add(files[0]);
-	            handleSelection(-1);
-			}
-			break;
-        case REMOVE_STORE_FOLDER:
-        case REMOVE_FOLDER:
-            f = files[0];
-            if(holder.accept(f)) {
-                DATA_MODEL.reinitialize(f);
-                handleSelection(-1);
-            } else if(DATA_MODEL.contains(f)) {
-                DATA_MODEL.remove(f);
-                handleSelection(-1);
-            }
-            break;
-        }
-    }
+//    void handleFileManagerEvent(final FileManagerEvent evt, DirectoryHolder holder) {
+//		//  Need to update table only if one of the files in evt
+//		//  is contained in the current directory.
+//		if (evt == null || holder == null)
+//			return;
+//			
+//        if(LOG.isDebugEnabled())
+//            LOG.debug("Handling event: " + evt);
+//        switch(evt.getType()) {
+//        case REMOVE_FILE:
+//            File f = evt.getNewFile();
+//            if(holder.accept(f)) {
+//                DATA_MODEL.reinitialize(f);
+//                handleSelection(-1);
+//            } else if(DATA_MODEL.contains(f)) {
+//                DATA_MODEL.remove(f);
+//                handleSelection(-1);
+//            }
+//            break;
+//        case ADD_FILE:
+//            if(holder.accept(evt.getNewFile())) {
+//                add(evt.getNewFile());
+//                handleSelection(-1);
+//            }
+//            break;
+//        case CHANGE_FILE:
+//            DATA_MODEL.reinitialize(evt.getOldFile());
+//            handleSelection(-1);
+//            break;
+//        case RENAME_FILE:
+//            File old = evt.getOldFile();
+//            File now = evt.getNewFile();
+//            if (holder.accept(now)) {
+//                if(DATA_MODEL.contains(old)) {
+//                    DATA_MODEL.reinitialize(old, now);
+//                    handleSelection(-1);
+//                } else {
+//                    DATA_MODEL.add(now);
+//                }
+//            } else {
+//                DATA_MODEL.remove(old);
+//            }
+//            break;
+//        case ADD_FOLDER:
+//			if (holder.accept(evt.getOldFile())) {
+//			    add(evt.getOldFile());
+//	            handleSelection(-1);
+//			}
+//			break;
+//        case REMOVE_FOLDER:
+//            f = evt.getNewFile();
+//            if(holder.accept(f)) {
+//                DATA_MODEL.reinitialize(f);
+//                handleSelection(-1);
+//            } else if(DATA_MODEL.contains(f)) {
+//                DATA_MODEL.remove(f);
+//                handleSelection(-1);
+//            }
+//            break;
+//        }
+//    }
 
 	/**
 	 * Returns the <tt>File</tt> stored at the specified row in the list.
@@ -668,8 +641,8 @@ final class LibraryTableMediator extends AbstractTableMediator<LibraryTableModel
                     if(schema == null)
                         throw new IllegalStateException("no audio schema!");
                     
-            		CCPublishWizard wizard = new CCPublishWizard(fd, doc, schema);
-            		wizard.showDialog(mainFrame);
+            		CCPublishWizard wizard = new CCPublishWizard(fd, doc, schema, mainFrame);
+            		wizard.launchWizard();
             	} else {
             		MetaEditor metaEditor = new MetaEditor(mainFrame, fds, name);
             		metaEditor.setLocationRelativeTo(mainFrame);
@@ -871,10 +844,10 @@ final class LibraryTableMediator extends AbstractTableMediator<LibraryTableModel
                 continue;
             }
             
-            if (fd instanceof IncompleteFileDesc || fd == null) 
+            if(fd == null || fileManager.getIncompleteFileList().contains(fd))
                 incompleteManager.removeEntry(file);
             else 
-                fileManager.removeFileIfSharedOrStore(file);
+                fileManager.getManagedFileList().remove(file);
             
             if (fd != null) { 
                 GuiCoreMediator.getUploadManager().killUploadsForFileDesc(fd);
@@ -962,7 +935,7 @@ final class LibraryTableMediator extends AbstractTableMediator<LibraryTableModel
 		File newFile = new File(parent, nameWithExtension);
         if (!ltm.getName(row).equals(newName)) {
             if (oldFile.renameTo(newFile)) {
-                GuiCoreMediator.getFileManager().renameFileIfSharedOrStore(oldFile, newFile);
+//                GuiCoreMediator.getFileManager().fileRenamed(oldFile, newFile);
                 // Ideally, renameFileIfShared should immediately send RENAME or REMOVE
                 // callbacks. But, if it doesn't, it should atleast have immediately
                 // internally removed the file from being shared. So, we immediately
@@ -1021,7 +994,7 @@ final class LibraryTableMediator extends AbstractTableMediator<LibraryTableModel
             Exception e = errors.get(i);
             if(e instanceof SaveLocationException) {
 				SaveLocationException sle = (SaveLocationException)e;
-				if (sle.getErrorCode() == SaveLocationException.FILE_ALREADY_DOWNLOADING) {
+				if (sle.getErrorCode() == LocationCode.FILE_ALREADY_DOWNLOADING) {
 					GUIMediator.showError(I18n.tr("You are already downloading this file to \"{0}\".", sle.getFile()),
 					        QuestionsHandler.ALREADY_DOWNLOADING);
 				}
@@ -1084,8 +1057,7 @@ final class LibraryTableMediator extends AbstractTableMediator<LibraryTableModel
 		
 		LibraryTableDataLine selectedLine = DATA_MODEL.get(sel[0]);
 		File selectedFile = getFile(sel[0]);
-		boolean firstShared = GuiCoreMediator.getFileManager().isFileShared(selectedFile);
-        boolean isStore = GuiCoreMediator.getFileManager().isStoreFileLoaded(selectedFile);
+		boolean firstShared = GuiCoreMediator.getFileManager().getGnutellaFileList().contains(selectedFile);
 		
 		//  always turn on Launch, Delete, Magnet Lookup, Bitzi Lookup
 		LAUNCH_ACTION.setEnabled(true);
@@ -1106,7 +1078,7 @@ final class LibraryTableMediator extends AbstractTableMediator<LibraryTableModel
 		//  turn on Describe for complete files
 		//  turn on Publish / Edit for single selected complete files
 		if (!_isIncomplete && _annotateEnabled) {
-			ANNOTATE_ACTION.setEnabled(firstShared || isStore);
+			ANNOTATE_ACTION.setEnabled(firstShared);
 			
 			boolean canPublish = (sel.length == 1 && firstShared && LimeXMLUtils.isFilePublishable(selectedFile.getName()));
 			PUBLISH_ACTION.setEnabled(canPublish && !selectedLine.isLicensed());
@@ -1152,13 +1124,13 @@ final class LibraryTableMediator extends AbstractTableMediator<LibraryTableModel
 					DELETE_ACTION.setEnabled(false);
 					foundDir = true;
 				}
-				if (!GuiCoreMediator.getFileManager().isFolderShared(file))
+//				if (!GuiCoreMediator.getFileManager().isFolderShared(file))
 					shareFolderAllowed = true;
-				else
+//				else
 					unshareFolderAllowed = true;
 			} else {
-				if (!GuiCoreMediator.getFileManager().isFileShared(file)) {
-					if (!SharingUtils.isFilePhysicallyShareable(file) || _isIncomplete)
+				if (!GuiCoreMediator.getFileManager().getGnutellaFileList().contains(file)) {
+					if (!LibraryUtils.isFileManagable(file) || _isIncomplete)
 						continue;
 					shareAllowed = true;
 				} else {
@@ -1169,16 +1141,16 @@ final class LibraryTableMediator extends AbstractTableMediator<LibraryTableModel
 					break;
 			}
 		}
-		SHARE_ACTION.setEnabled(shareAllowed && !isStore);
-		UNSHARE_ACTION.setEnabled(unshareAllowed && !isStore);
-		SHARE_FOLDER_ACTION.setEnabled(shareFolderAllowed && !isStore);
+		SHARE_ACTION.setEnabled(shareAllowed);
+		UNSHARE_ACTION.setEnabled(unshareAllowed);
+		SHARE_FOLDER_ACTION.setEnabled(shareFolderAllowed);
 		UNSHARE_FOLDER_ACTION.setEnabled(unshareFolderAllowed);
 		
 		//  enable / disable advanced items if file shared / not shared
-		MAGNET_LOOKUP_ACTION.setEnabled(firstShared && !isStore);
-		BITZI_LOOKUP_ACTION.setEnabled(firstShared && !isStore);
+		MAGNET_LOOKUP_ACTION.setEnabled(firstShared);
+		BITZI_LOOKUP_ACTION.setEnabled(firstShared);
 
-		COPY_MAGNET_TO_CLIPBOARD_ACTION.setEnabled(!_isIncomplete && getFileDesc(sel[0]) != null && !isStore);
+		COPY_MAGNET_TO_CLIPBOARD_ACTION.setEnabled(!_isIncomplete && getFileDesc(sel[0]) != null);
 	}
 
 	/**
@@ -1374,7 +1346,7 @@ final class LibraryTableMediator extends AbstractTableMediator<LibraryTableModel
 						File file = files[i];
 						if (file == null || file.isDirectory())
 							continue;
-        				GuiCoreMediator.getFileManager().addFileAlways(file);
+						GuiCoreMediator.getFileManager().getGnutellaFileList().add(file);
         			}
                 }
             });
@@ -1401,7 +1373,7 @@ final class LibraryTableMediator extends AbstractTableMediator<LibraryTableModel
 						File file = files[i];
 						if (file == null || file.isDirectory())
 							continue;
-        				GuiCoreMediator.getFileManager().stopSharingFile(file);
+						GuiCoreMediator.getFileManager().getGnutellaFileList().remove(file);
         			}
                 }
             });
@@ -1428,12 +1400,12 @@ final class LibraryTableMediator extends AbstractTableMediator<LibraryTableModel
 			final RecursiveSharingDialog dialog = 
 				new RecursiveSharingDialog(GUIMediator.getAppFrame(), files.toArray(new File[0]));
 			if (dialog.showChooseDialog(MessageService.getParentComponent()) == State.OK) {
-				BackgroundExecutorService.schedule(new Runnable() {
-				    public void run() {
-				        GuiCoreMediator.getFileManager().addSharedFolders(dialog.getRootsToShare(),
-				        		dialog.getFoldersToExclude());
-		            }
-		        });
+//				BackgroundExecutorService.schedule(new Runnable() {
+//				    public void run() {
+//				        GuiCoreMediator.getFileManager().addSharedFolders(dialog.getRootsToShare(),
+//				        		dialog.getFoldersToExclude());
+//		            }
+//		        });
 			}
 		}
 	}
@@ -1458,7 +1430,7 @@ final class LibraryTableMediator extends AbstractTableMediator<LibraryTableModel
 						File file = files[i];
 						if (file == null || !file.isDirectory())
 							continue;
-        				GuiCoreMediator.getFileManager().removeFolderIfShared(file);
+//        				GuiCoreMediator.getFileManager().removeSharedFolder(file);
         			}
                 }
             });
@@ -1499,7 +1471,7 @@ final class LibraryTableMediator extends AbstractTableMediator<LibraryTableModel
 			super.getListCellRendererComponent(list, value, index, isSelected,
 					cellHasFocus);
 			String extension = FileUtils.getFileExtension(value.toString());
-			if (extension != null) {
+			if (!extension.isEmpty()) {
 				setIcon(IconManager.instance().getIconForExtension(extension));
 			}
 			return this;
@@ -1515,7 +1487,7 @@ final class LibraryTableMediator extends AbstractTableMediator<LibraryTableModel
             
         public Icon getIcon(Tuple<File, FileDesc> obj) {
             String extension = FileUtils.getFileExtension(obj.getFirst());
-            if (extension != null) {
+            if (!extension.isEmpty()) {
                 return IconManager.instance().getIconForExtension(extension);
             }
             return null;

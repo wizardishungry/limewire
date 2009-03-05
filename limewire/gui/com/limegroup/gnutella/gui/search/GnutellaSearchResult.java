@@ -11,9 +11,11 @@ import javax.swing.JMenu;
 import javax.swing.JMenuItem;
 import javax.swing.JPopupMenu;
 
+import org.limewire.core.settings.UISettings;
+import org.limewire.io.GUID;
 import org.limewire.io.IpPort;
+import org.limewire.security.SecureMessage.Status;
 
-import com.limegroup.gnutella.GUID;
 import com.limegroup.gnutella.RemoteFileDesc;
 import com.limegroup.gnutella.URN;
 import com.limegroup.gnutella.gui.I18n;
@@ -22,8 +24,6 @@ import com.limegroup.gnutella.gui.actions.CopyMagnetLinkToClipboardAction;
 import com.limegroup.gnutella.gui.properties.ResultProperties;
 import com.limegroup.gnutella.gui.themes.ThemeFileHandler;
 import com.limegroup.gnutella.gui.util.PopupUtils;
-import com.limegroup.gnutella.search.HostData;
-import com.limegroup.gnutella.settings.UISettings;
 import com.limegroup.gnutella.xml.LimeXMLDocument;
 
 /**
@@ -33,15 +33,13 @@ import com.limegroup.gnutella.xml.LimeXMLDocument;
  */
 final class GnutellaSearchResult extends AbstractSearchResult {
     private final RemoteFileDesc RFD;
-    private final HostData DATA;
     private Set<? extends IpPort> _alts;
     
     /**
      * Constructs a new SearchResult with the given data.
      */
-    GnutellaSearchResult(RemoteFileDesc rfd, HostData data, Set<? extends IpPort> alts) {
+    GnutellaSearchResult(RemoteFileDesc rfd, Set<? extends IpPort> alts) {
         RFD = rfd;
-        DATA = data;
         if(UISettings.UI_ADD_REPLY_ALT_LOCS.getValue())
             _alts = alts;
         else
@@ -50,9 +48,6 @@ final class GnutellaSearchResult extends AbstractSearchResult {
     
     /** Gets the RemoteFileDesc */
     RemoteFileDesc getRemoteFileDesc() { return RFD; }
-    
-    /** Gets the HostData */
-    HostData getHostData() { return DATA; }
     
     /** Gets the Alternate Locations */
     Set<? extends IpPort> getAlts() { return _alts; }
@@ -92,7 +87,8 @@ final class GnutellaSearchResult extends AbstractSearchResult {
     }
 
     public boolean isDownloading() {
-        return RFD.isDownloading();
+        // TODO return RFD.isDownloading();
+        throw new UnsupportedOperationException("old UI is broken");
     }
 
     public String getVendor() {
@@ -103,12 +99,12 @@ final class GnutellaSearchResult extends AbstractSearchResult {
         return RFD.getQuality();
     }
 
-    public int getSecureStatus() {
+    public Status getSecureStatus() {
         return RFD.getSecureStatus();
     }
 
     public int getSpeed() {
-        return DATA.getSpeed();
+        return RFD.getSpeed();
     }
 
     public boolean isMeasuredSpeed() {
@@ -120,7 +116,8 @@ final class GnutellaSearchResult extends AbstractSearchResult {
     }
 
     public String getHost() {
-        return RFD.getHost();
+        // TODO return RFD.getAddress();
+        throw new UnsupportedOperationException("old UI is broken");
     }
 
     public Color getEvenRowColor() {
@@ -137,7 +134,7 @@ final class GnutellaSearchResult extends AbstractSearchResult {
 
     public void initialize(TableLine line) {
         RemoteFileDesc rfd = getRemoteFileDesc();
-        Set<? extends IpPort> alts = getAlts();
+//        Set<? extends IpPort> alts = getAlts();
 
         if (rfd.isChatEnabled()) {
             line.setChatHost(rfd);
@@ -145,21 +142,22 @@ final class GnutellaSearchResult extends AbstractSearchResult {
         if (rfd.isBrowseHostEnabled()) {
             line.setBrowseHost(rfd);
         }
-        if (!rfd.isFirewalled()) {
-            line.setNonFirewalledHost(rfd);
-        }
-        line.createEndpointHolder(
-            rfd.getHost(), rfd.getPort(),
-            rfd.isReplyToMulticast());
-
-        line.setAddedOn(rfd.getCreationTime());
-
-        if(alts != null && !alts.isEmpty()) {
-            Set<IpPort> as = line.getAltIpPortSet();
-            as.addAll(alts);
-            clearAlts();
-            line.getLocation().addHosts(alts);
-        }
+// TODO       if (!rfd.isFirewalled()) {
+// TODO           line.setNonFirewalledHost(rfd);
+// TODO       }
+// TODO       line.createEndpointHolder(
+// TODO           rfd.getAddress(), rfd.getPort(),
+// TODO           rfd.isReplyToMulticast());
+// TODO
+// TODO       line.setAddedOn(rfd.getCreationTime());
+// TODO
+// TODO       if(alts != null && !alts.isEmpty()) {
+// TODO           Set<IpPort> as = line.getAltIpPortSet();
+// TODO           as.addAll(alts);
+// TODO           clearAlts();
+// TODO           line.getLocation().addHosts(alts);
+// TODO       }
+        throw new UnsupportedOperationException("old UI is broken");
     }
 
     public JPopupMenu createMenu(JPopupMenu popupMenu, TableLine[] lines, boolean markAsSpam, boolean markAsNot, ResultPanel resultPanel) {

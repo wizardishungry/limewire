@@ -7,13 +7,13 @@ import java.io.RandomAccessFile;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicReference;
 
+import org.limewire.core.settings.QuestionsHandler;
+import org.limewire.core.settings.SharingSettings;
 import org.limewire.util.CommonUtils;
 import org.limewire.util.FileUtils;
 import org.limewire.util.OSUtils;
 
-import com.limegroup.gnutella.library.SharingUtils;
-import com.limegroup.gnutella.settings.QuestionsHandler;
-import com.limegroup.gnutella.settings.SharingSettings;
+import com.limegroup.gnutella.library.LibraryUtils;
 
 /** Handles prompting the user to enter a valid save directory. */
 public final class SaveDirectoryHandler {   
@@ -54,7 +54,7 @@ public final class SaveDirectoryHandler {
      * Determines if the folder is totally banned.
      */
     private static boolean checkForBannedDirectory(File folder) {
-        if(SharingUtils.isFolderBanned(folder)) {
+        if(LibraryUtils.isFolderBanned(folder)) {
             GUIMediator.showError(I18n.tr("<html><table width=400>You selected: <i>{0}</i><br>LimeWire cannot use this as a save folder for security reasons.<br><br>Please select another save folder.</table></html>", folder));
             return false;
         } else {
@@ -67,7 +67,7 @@ public final class SaveDirectoryHandler {
      * Determines if the folder is potentially sensitive.
      */
     private static boolean checkForSensitiveDirectory(File folder) {
-        if(!SharingUtils.isSensitiveDirectory(folder)) {
+        if(!LibraryUtils.isSensitiveDirectory(folder)) {
             SharingSettings.LAST_WARNED_SAVE_DIRECTORY.setValue("");
             return true;
         }
@@ -201,7 +201,7 @@ public final class SaveDirectoryHandler {
             } catch (IOException ignored) {}
         }
         
-        return saveDir.canWrite();
+        return FileUtils.canWrite(saveDir);
     }
     
     private static boolean isGoodVistaDirectory(File f) {

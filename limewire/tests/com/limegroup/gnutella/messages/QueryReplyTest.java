@@ -7,6 +7,7 @@ import java.io.File;
 import java.io.FileFilter;
 import java.io.IOException;
 import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.security.InvalidKeyException;
 import java.security.InvalidParameterException;
 import java.security.PrivateKey;
@@ -22,34 +23,39 @@ import java.util.List;
 import java.util.Random;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.concurrent.TimeUnit;
 
 import junit.framework.Test;
 
+import org.jmock.Expectations;
+import org.jmock.Mockery;
 import org.limewire.collection.BitNumbers;
+import org.limewire.core.settings.ConnectionSettings;
+import org.limewire.core.settings.FilterSettings;
+import org.limewire.core.settings.SearchSettings;
 import org.limewire.io.BadGGEPBlockException;
 import org.limewire.io.Connectable;
 import org.limewire.io.ConnectableImpl;
 import org.limewire.io.GGEP;
+import org.limewire.io.GUID;
 import org.limewire.io.IpPort;
 import org.limewire.io.IpPortImpl;
 import org.limewire.io.IpPortSet;
+import org.limewire.io.NetworkInstanceUtils;
 import org.limewire.io.NetworkUtils;
+import org.limewire.lifecycle.ServiceRegistry;
+import org.limewire.net.TLSManager;
 import org.limewire.security.AddressSecurityToken;
 import org.limewire.security.MACCalculatorRepositoryManager;
-import org.limewire.security.SecureMessage;
 import org.limewire.security.SecurityToken;
+import org.limewire.security.SecureMessage.Status;
 import org.limewire.util.ByteUtils;
-import org.limewire.util.FileUtils;
 import org.limewire.util.StringUtils;
 import org.limewire.util.TestUtils;
 
 import com.google.inject.AbstractModule;
 import com.google.inject.Injector;
-import com.limegroup.gnutella.CreationTimeCache;
 import com.limegroup.gnutella.Endpoint;
-import com.limegroup.gnutella.FileDesc;
-import com.limegroup.gnutella.FileManager;
-import com.limegroup.gnutella.GUID;
 import com.limegroup.gnutella.LimeTestUtils;
 import com.limegroup.gnutella.NetworkManager;
 import com.limegroup.gnutella.Response;
@@ -57,15 +63,14 @@ import com.limegroup.gnutella.ResponseFactory;
 import com.limegroup.gnutella.URN;
 import com.limegroup.gnutella.altlocs.AltLocManager;
 import com.limegroup.gnutella.altlocs.AlternateLocationFactory;
-import com.limegroup.gnutella.library.SharingUtils;
+import com.limegroup.gnutella.helpers.UrnHelper;
+import com.limegroup.gnutella.library.CreationTimeCache;
+import com.limegroup.gnutella.library.FileDesc;
+import com.limegroup.gnutella.library.FileManager;
+import com.limegroup.gnutella.library.FileManagerTestUtils;
+import com.limegroup.gnutella.library.LibraryUtils;
+import com.limegroup.gnutella.library.SharedFilesKeywordIndex;
 import com.limegroup.gnutella.messages.Message.Network;
-import com.limegroup.gnutella.settings.ConnectionSettings;
-import com.limegroup.gnutella.settings.FilterSettings;
-import com.limegroup.gnutella.settings.SSLSettings;
-import com.limegroup.gnutella.settings.SearchSettings;
-import com.limegroup.gnutella.settings.SharingSettings;
-import com.limegroup.gnutella.stubs.NetworkManagerStub;
-import com.limegroup.gnutella.stubs.SimpleFileManager;
 
 /**
  * This class tests the QueryReply class.
@@ -74,12 +79,11 @@ import com.limegroup.gnutella.stubs.SimpleFileManager;
 public final class QueryReplyTest extends com.limegroup.gnutella.util.LimeTestCase {
 
     private static final byte[] IP = new byte[] {1, 1, 1, 1};
-    private static final String EXTENSION = "XYZ";
     private static final int MAX_LOCATIONS = 10;
     
     private final byte[] guid = { 0x1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, (byte)0xFF };
     private final byte[] ip= {(byte)0xFE, 0, 0, 0x1};
-    private final long u4 = 0x00000000FFFFFFFFl;
+    private final int u4 = Integer.MAX_VALUE;
 
     private QueryReply qr;
     private Iterator iter;
@@ -97,8 +101,9 @@ public final class QueryReplyTest extends com.limegroup.gnutella.util.LimeTestCa
     private SecurityToken _token;
     
     private Injector injector;
-    
-	public QueryReplyTest(String name) {
+    private TLSManager tlsManager;
+
+    public QueryReplyTest(String name) {
 		super(name);
 	}
 
@@ -111,25 +116,16 @@ public final class QueryReplyTest extends com.limegroup.gnutella.util.LimeTestCa
 	}
 	
     
-	public void setUp() throws Exception {
-        SharingSettings.EXTENSIONS_TO_SHARE.setValue(EXTENSION);
+    public void setUp() throws Exception {
         ConnectionSettings.LOCAL_IS_PRIVATE.setValue(false);
         	    
-	    cleanFiles(_sharedDir, false);
-	    injector = LimeTestUtils.createInjector(new AbstractModule() {
-            @Override
-            protected void configure() {
-                bind(FileManager.class).to(SimpleFileManager.class);
-                NetworkManagerStub networkManagerStub = new NetworkManagerStub();
-                networkManagerStub.setAcceptedIncomingConnection(true);
-                bind(NetworkManager.class).toInstance(networkManagerStub);
-            }
-	    });
+	    injector = LimeTestUtils.createInjector();
 	    
         byte[] data = new byte[16];
         new Random().nextBytes(data);
         _token = new AddressSecurityToken(data, injector.getInstance(MACCalculatorRepositoryManager.class));
-	}
+        tlsManager = injector.getInstance(TLSManager.class);
+    }
 		
 	/**
 	 * Runs the legacy unit test that was formerly in QueryReply.
@@ -146,8 +142,8 @@ public final class QueryReplyTest extends com.limegroup.gnutella.util.LimeTestCa
         assertEquals(qr.getResults().hasNext(), false);
 
 		responses=new Response[2];
-		responses[0]=responseFactory.createResponse(11, 22, "Sample.txt");
-		responses[1]=responseFactory.createResponse(0x2FF2, 0xF11F, "Another file  ");
+		responses[0]=responseFactory.createResponse(11, 22, "Sample.txt", UrnHelper.SHA1);
+		responses[1]=responseFactory.createResponse(0x2FF2, 0xF11F, "Another file  ", UrnHelper.SHA1);
 		qr=queryReplyFactory.createQueryReply(guid, (byte)5, 0xFFFF,
                 ip, u4, responses, guid, false);
 		assertEquals("254.0.0.1",qr.getIP());
@@ -181,10 +177,11 @@ public final class QueryReplyTest extends com.limegroup.gnutella.util.LimeTestCa
 		assertEquals("A", response.getName());
 		assertFalse(iter.hasNext());
 
-		try {
-			qr.getVendor();    //undefined => exception
+        try {
+			qr.validate(); 
 			fail("qr should have been invalid");
 		} catch (BadPacketException e) { }
+        assertEquals("", qr.getVendor());
 		try {
 			qr.getNeedsPush(); //undefined => exception
 			fail("qr should have been invalid");
@@ -209,9 +206,10 @@ public final class QueryReplyTest extends com.limegroup.gnutella.util.LimeTestCa
             fail("qr should have been invalid");
         } catch (BadPacketException e) { }
         try {
-            qr.getVendor();
-            fail("qr should have been invalid");
-        } catch (BadPacketException e) { }
+			qr.validate(); 
+			fail("qr should have been invalid");
+		} catch (BadPacketException e) { }
+        assertEquals("", qr.getVendor());
     }
     
     public void testNetworkCheckMetadata() throws Exception {
@@ -322,10 +320,11 @@ public final class QueryReplyTest extends com.limegroup.gnutella.util.LimeTestCa
             qr.getNeedsPush();
             fail("qr should have been invalid");
         } catch (BadPacketException e) { }
-        try { 
-            qr.getVendor();
-            fail("qr should have been invalid");
-        } catch (BadPacketException e) { }
+        try {
+			qr.validate(); 
+			fail("qr should have been invalid");
+		} catch (BadPacketException e) { }
+        assertEquals("", qr.getVendor());
     }
     
     public void testNetworkInvalidCommonPayloadLength() throws Exception {
@@ -348,9 +347,10 @@ public final class QueryReplyTest extends com.limegroup.gnutella.util.LimeTestCa
         qr.getResults();
         
         try {
-            qr.getVendor();
-            fail("qr should have been invalid");
-        } catch (BadPacketException e) { }  
+			qr.validate(); 
+			fail("qr should have been invalid");
+		} catch (BadPacketException e) { }
+        assertEquals("", qr.getVendor());
     }
     
     public void testNetworkBearShareQHD() throws Exception {
@@ -423,7 +423,7 @@ public final class QueryReplyTest extends com.limegroup.gnutella.util.LimeTestCa
         assertTrue(qr.getIsBusy());
         assertTrue(qr.getIsMeasuredSpeed());
         assertTrue(qr.getHadSuccessfulUpload());
-        assertTrue(qr.getSupportsChat());
+        assertFalse(qr.getSupportsChat());
     }
     
     public void testNetworkQHDBusyPushBitsDefinedAndUnset() throws Exception {
@@ -460,8 +460,8 @@ public final class QueryReplyTest extends com.limegroup.gnutella.util.LimeTestCa
         ResponseFactory responseFactory = injector.getInstance(ResponseFactory.class);
         //Create extended QHD from scratch
         responses=new Response[2];
-        responses[0]=responseFactory.createResponse(11, 22, "Sample.txt");
-        responses[1]=responseFactory.createResponse(0x2FF2, 0xF11F, "Another file  ");
+        responses[0]=responseFactory.createResponse(11, 22, "Sample.txt", UrnHelper.SHA1);
+        responses[1]=responseFactory.createResponse(0x2FF2, 0xF11F, "Another file  ", UrnHelper.SHA1);
         qr=queryReplyFactory.createQueryReply(guid, (byte)5, 0xFFFF,
                 ip, u4, responses, guid, false, true, true, false,
                 true, false);
@@ -491,10 +491,10 @@ public final class QueryReplyTest extends com.limegroup.gnutella.util.LimeTestCa
         ResponseFactory responseFactory = injector.getInstance(ResponseFactory.class);
         MessageFactory messageFactory = injector.getInstance(MessageFactory.class);
         //Create extended QHD from scratch with different bits set
-        SSLSettings.TLS_INCOMING.setValue(false);
+        tlsManager.setIncomingTLSEnabled(false);
         responses=new Response[2];
-        responses[0]=responseFactory.createResponse(11, 22, "Sample.txt");
-        responses[1]=responseFactory.createResponse(0x2FF2, 0xF11F, "Another file  ");
+        responses[0]=responseFactory.createResponse(11, 22, "Sample.txt", UrnHelper.SHA1);
+        responses[1]=responseFactory.createResponse(0x2FF2, 0xF11F, "Another file  ", UrnHelper.SHA1);
         qr=queryReplyFactory.createQueryReply(guid, (byte)5, 0xFFFF,
                 ip, u4, responses, guid, true, false, false, true,
                 false, false);
@@ -518,7 +518,10 @@ public final class QueryReplyTest extends com.limegroup.gnutella.util.LimeTestCa
                                           new HashSet(), null).length;
         //Length includes header, query hit header and footer, responses, and
         //QHD (public and private)
-        assertEquals((23+11+16)+(8+10+2)+(8+14+2)+(4+1+QueryReply.COMMON_PAYLOAD_LEN+1+1)+ggepLen, bytes.length);
+        assertEquals((23+11+16) // header
+                +(8+10+2+41) // first response, 41 for sha1 urn
+                +(8+14+2+41) // second response
+                +(4+1+QueryReply.COMMON_PAYLOAD_LEN+1+1)+ggepLen, bytes.length);
         assertEquals(0x3d, bytes[bytes.length-16-6-ggepLen]); //11101
         assertEquals(0x31, bytes[bytes.length-16-5-ggepLen]); //10001
 
@@ -540,10 +543,10 @@ public final class QueryReplyTest extends com.limegroup.gnutella.util.LimeTestCa
         ResponseFactory responseFactory = injector.getInstance(ResponseFactory.class);
         MessageFactory messageFactory = injector.getInstance(MessageFactory.class);
         //Create extended QHD from scratch with different bits set
-        SSLSettings.TLS_INCOMING.setValue(true);
+        tlsManager.setIncomingTLSEnabled(true);
         responses=new Response[2];
-        responses[0]=responseFactory.createResponse(11, 22, "Sample.txt");
-        responses[1]=responseFactory.createResponse(0x2FF2, 0xF11F, "Another file  ");
+        responses[0]=responseFactory.createResponse(11, 22, "Sample.txt", UrnHelper.SHA1);
+        responses[1]=responseFactory.createResponse(0x2FF2, 0xF11F, "Another file  ", UrnHelper.SHA1);
         qr=queryReplyFactory.createQueryReply(guid, (byte)5, 0xFFFF,
                 ip, u4, responses, guid, true, false, false, true,
                 false, false);
@@ -567,7 +570,10 @@ public final class QueryReplyTest extends com.limegroup.gnutella.util.LimeTestCa
                                           new HashSet(), null).length;
         //Length includes header, query hit header and footer, responses, and
         //QHD (public and private)
-        assertEquals((23+11+16)+(8+10+2)+(8+14+2)+(4+1+QueryReply.COMMON_PAYLOAD_LEN+1+1)+ggepLen, bytes.length);
+        assertEquals((23+11+16) // header
+                +(8+10+2 +41) // first response, 41 for sha1
+                +(8+14+2 + 41) // second response
+                +(4+1+QueryReply.COMMON_PAYLOAD_LEN+1+1)+ggepLen, bytes.length);
         assertEquals(0x3d, bytes[bytes.length-16-6-ggepLen]); //11101
         assertEquals(0x31, bytes[bytes.length-16-5-ggepLen]); //10001
 
@@ -591,10 +597,10 @@ public final class QueryReplyTest extends com.limegroup.gnutella.util.LimeTestCa
         //Create extended QHD from scratch with different bits set
         // Do not set multicast, as that will unset pushing, busy, etc..
         // and generally confuse the test.
-        SSLSettings.TLS_INCOMING.setValue(false);
+        tlsManager.setIncomingTLSEnabled(false);
         responses=new Response[2];
-        responses[0]=responseFactory.createResponse(11, 22, "Sample.txt");
-        responses[1]=responseFactory.createResponse(0x2FF2, 0xF11F, "Another file  ");
+        responses[0]=responseFactory.createResponse(11, 22, "Sample.txt", UrnHelper.SHA1);
+        responses[1]=responseFactory.createResponse(0x2FF2, 0xF11F, "Another file  ", UrnHelper.SHA1);
         qr=queryReplyFactory.createQueryReply(guid, (byte)5, 0xFFFF,
                 ip, u4, responses, guid, true, false, false, true,
                 false, false);
@@ -619,7 +625,10 @@ public final class QueryReplyTest extends com.limegroup.gnutella.util.LimeTestCa
         //Length includes header, query hit header and footer, responses, and
         //QHD (public and private)
         assertEquals(
-            (23+11+16)+(8+10+2)+(8+14+2)+(4+1+QueryReply.COMMON_PAYLOAD_LEN+1+1)+ggepLen,
+                (23+11+16) // header
+                +(8+10+2 + 41) // first response, 41 for sha1
+                +(8+14+2 + 41) // second response
+                +(4+1+QueryReply.COMMON_PAYLOAD_LEN+1+1)+ggepLen,
             bytes.length
         );
         assertEquals(0x3d, bytes[bytes.length-16-6-ggepLen]); //11101
@@ -646,15 +655,15 @@ public final class QueryReplyTest extends com.limegroup.gnutella.util.LimeTestCa
         // Do not set multicast, as that will unset pushing, busy, etc..
         // and generally confuse the test.
         responses=new Response[2];
-        responses[0]=responseFactory.createResponse(11, 22, "SMDNKD.txt");
-        responses[1]=responseFactory.createResponse(0x2FF2, 0xF11F, "OneMore file  ");
+        responses[0]=responseFactory.createResponse(11, 22, "SMDNKD.txt", UrnHelper.SHA1);
+        responses[1]=responseFactory.createResponse(0x2FF2, 0xF11F, "OneMore file  ", UrnHelper.SHA1);
         // first take input of proxies
         String[] hosts = {"www.limewire.com", "www.limewire.org",
                           "www.susheeldaswani.com"};
         Set proxies = new TreeSet(IpPort.COMPARATOR);
         for (int i = 0; i < hosts.length; i++)
             proxies.add(new IpPortImpl(hosts[i], 6346));
-        SSLSettings.TLS_INCOMING.setValue(false);
+        tlsManager.setIncomingTLSEnabled(false);
         qr=queryReplyFactory.createQueryReply(guid, (byte)5, 0xFFFF,
                 ip, u4, responses, guid, new byte[0], true, false,
                 false, true, false, false, true, proxies, null);
@@ -680,7 +689,10 @@ public final class QueryReplyTest extends com.limegroup.gnutella.util.LimeTestCa
         //Length includes header, query hit header and footer, responses, and
         //QHD (public and private)
         assertEquals(
-            (23+11+16)+(8+10+2)+(8+14+2)+(4+1+QueryReply.COMMON_PAYLOAD_LEN+1+1)+ggepLen,
+            (23+11+16) // header
+            +(8+10+2+41) // first response, 41 for sha1
+            +(8+14+2+41) // second response
+            +(4+1+QueryReply.COMMON_PAYLOAD_LEN+1+1)+ggepLen,
             bytes.length
         );
         assertEquals(0x3d, bytes[bytes.length-16-6-ggepLen]); //11101
@@ -705,15 +717,16 @@ public final class QueryReplyTest extends com.limegroup.gnutella.util.LimeTestCa
         ResponseFactory responseFactory = injector.getInstance(ResponseFactory.class);
         //Create from scratch with no bits set
         responses=new Response[2];
-        responses[0]=responseFactory.createResponse(11, 22, "Sample.txt");
-        responses[1]=responseFactory.createResponse(0x2FF2, 0xF11F, "Another file  ");
+        responses[0]=responseFactory.createResponse(11, 22, "Sample.txt", UrnHelper.SHA1);
+        responses[1]=responseFactory.createResponse(0x2FF2, 0xF11F, "Another file  ", UrnHelper.SHA1);
         qr=queryReplyFactory.createQueryReply(guid, (byte)5, 0xFFFF,
                 ip, u4, responses, guid, false);
-        try {
-            qr.getVendor();
-            fail("qr should have been invalid");
-        } catch (BadPacketException e) { }
         
+        try {
+			qr.validate(); 
+			fail("qr should have been invalid");
+		} catch (BadPacketException e) { }
+        assertEquals("", qr.getVendor());         
         try {
             qr.getNeedsPush();
             fail("qr should have been invalid");
@@ -735,48 +748,108 @@ public final class QueryReplyTest extends com.limegroup.gnutella.util.LimeTestCa
         } catch (BadPacketException e) { }
 	}
 
-    public void testCalculateQualityOfService() {
-        QueryReplyFactory queryReplyFactory = injector.getInstance(QueryReplyFactory.class);
-        NetworkManager networkManager = injector.getInstance(NetworkManager.class);
-        final byte[] addr=new byte[] {(byte)18, (byte)239, (byte)0, (byte)144};
-        QueryReply reachableNonBusy=queryReplyFactory.createQueryReply(new byte[16], (byte)5, 6346,
-                addr, 0l, new Response[0], new byte[16], false, false, true, false,
-                false, false);
-        QueryReply reachableBusy=queryReplyFactory.createQueryReply(new byte[16], (byte)5, 6346,
-                addr, 0l, new Response[0], new byte[16], false, true, true, false,
-                false, false);
-        QueryReply unreachableNonBusy=queryReplyFactory.createQueryReply(new byte[16], (byte)5, 6346,
-                addr, 0l, new Response[0], new byte[16], true, false, true, false,
-                false, false);
-        QueryReply unreachableBusy=queryReplyFactory.createQueryReply(new byte[16], (byte)5, 6346,
-                addr, 0l, new Response[0], new byte[16], true, true, true, false,
-                false, false);
-        QueryReply oldStyle=queryReplyFactory.createQueryReply(new byte[16], (byte)5, 6346,
-                addr, 0l, new Response[0], new byte[16], false);
+    public void testCalculateQualityOfService() throws UnknownHostException, BadPacketException {        
         
         //Remember that a return value of N corresponds to N+1 stars
-        assertEquals(3,  reachableNonBusy.calculateQualityOfService(false, networkManager));
-        assertEquals(3,  reachableNonBusy.calculateQualityOfService(true, networkManager));
-        assertEquals(1,  reachableBusy.calculateQualityOfService(false, networkManager));
-        assertEquals(1,  reachableBusy.calculateQualityOfService(true, networkManager));
-        assertEquals(2,  unreachableNonBusy.calculateQualityOfService(false, networkManager));
-        assertEquals(-1, unreachableNonBusy.calculateQualityOfService(true, networkManager));
-        assertEquals(0,  unreachableBusy.calculateQualityOfService(false, networkManager));
-        assertEquals(-1, unreachableBusy.calculateQualityOfService(true, networkManager));        
-        assertEquals(0,  oldStyle.calculateQualityOfService(false, networkManager));
-        assertEquals(0,  oldStyle.calculateQualityOfService(true, networkManager));
+        QueryReply reachableNonBusy = getQueryReplyWithCalculateQOSInputs(false, false, true);
+        assertEquals(3,  reachableNonBusy.calculateQualityOfService());
+        reachableNonBusy = getQueryReplyWithCalculateQOSInputs(false, false, false);
+        assertEquals(3,  reachableNonBusy.calculateQualityOfService());
+        
+        QueryReply reachableBusy = getQueryReplyWithCalculateQOSInputs(false, true, true);
+        assertEquals(1,  reachableBusy.calculateQualityOfService());
+        reachableBusy = getQueryReplyWithCalculateQOSInputs(false, true, false);
+        assertEquals(1,  reachableBusy.calculateQualityOfService());
+        
+        QueryReply unreachableNonBusy = getQueryReplyWithCalculateQOSInputs(true, false, true);
+        assertEquals(2,  unreachableNonBusy.calculateQualityOfService());
+        unreachableNonBusy = getQueryReplyWithCalculateQOSInputs(true, false, false);
+        assertEquals(-1,  unreachableNonBusy.calculateQualityOfService());
+        
+        QueryReply unreachableBusy = getQueryReplyWithCalculateQOSInputs(true, true, true);
+        assertEquals(0,  unreachableBusy.calculateQualityOfService());
+        unreachableBusy = getQueryReplyWithCalculateQOSInputs(true, true, false);
+        assertEquals(-1,  unreachableBusy.calculateQualityOfService());        
+        
+        QueryReply oldStyle=getQueryReplyWithCalculateQOSInputsOldStyle(true);
+        assertEquals(0,  oldStyle.calculateQualityOfService());
+        oldStyle=getQueryReplyWithCalculateQOSInputsOldStyle(false);
+        assertEquals(0,  oldStyle.calculateQualityOfService());               
+        
+    }
+    
+    private QueryReply getQueryReplyWithCalculateQOSInputs(boolean needsPush, boolean isBusy, final boolean acceptedIncomingConnection) throws UnknownHostException, BadPacketException {
+        final byte[] addr=new byte[] {(byte)18, (byte)239, (byte)0, (byte)144};
+        Mockery mockery = new Mockery();
+        final NetworkManager mockNetworkManager = mockery.mock(NetworkManager.class);
+        final NetworkInstanceUtils networkInstanceUtils = mockery.mock(NetworkInstanceUtils.class);
+        mockery.checking(new Expectations() {{
+            atLeast(0).of(networkInstanceUtils).isPrivateAddress(addr);
+            will(returnValue(false));
+            atLeast(0).of(mockNetworkManager).getAddress();
+            will(returnValue(InetAddress.getLocalHost().getAddress()));            
+            atLeast(0).of(mockNetworkManager).acceptedIncomingConnection();
+            will(returnValue(acceptedIncomingConnection));
+            atLeast(0).of(mockNetworkManager).isIncomingTLSEnabled();
+            will(returnValue(true));
+        }});
+        
+        Injector injector = LimeTestUtils.createInjector(new AbstractModule() {
+            @Override
+            protected void configure() {
+                bind(NetworkManager.class).toInstance(mockNetworkManager);
+            }
+	    });
+        
+        QueryReplyFactory queryReplyFactory = injector.getInstance(QueryReplyFactory.class);
+
+        //query.setMulticastAllowed(true);
+        return queryReplyFactory.createQueryReply(new byte[16], (byte)5, 6346,
+                addr, 0l, new Response[0], new byte[16], needsPush, isBusy, true, false,
+                false, false);
+    }
+    
+    private QueryReply getQueryReplyWithCalculateQOSInputsOldStyle(final boolean acceptedIncomingConnection) throws UnknownHostException, BadPacketException {
+        final byte[] addr=new byte[] {(byte)18, (byte)239, (byte)0, (byte)144};
+        Mockery mockery = new Mockery();
+        final NetworkManager mockNetworkManager = mockery.mock(NetworkManager.class);
+        final NetworkInstanceUtils networkInstanceUtils = mockery.mock(NetworkInstanceUtils.class);
+        mockery.checking(new Expectations() {{
+            atLeast(0).of(networkInstanceUtils).isPrivateAddress(addr);
+            will(returnValue(false));
+            atLeast(0).of(mockNetworkManager).getAddress();
+            will(returnValue(InetAddress.getLocalHost().getAddress()));            
+            atLeast(0).of(mockNetworkManager).acceptedIncomingConnection();
+            will(returnValue(acceptedIncomingConnection));
+            atLeast(0).of(mockNetworkManager).isIncomingTLSEnabled();
+            will(returnValue(true));
+        }});
+        
+        Injector injector = LimeTestUtils.createInjector(new AbstractModule() {
+            @Override
+            protected void configure() {
+                bind(NetworkManager.class).toInstance(mockNetworkManager);
+            }
+	    });
+        
+        QueryReplyFactory queryReplyFactory = injector.getInstance(QueryReplyFactory.class);
+       
+        QueryReply oldStyle=queryReplyFactory.createQueryReply(new byte[16], (byte)5, 6346,
+                addr, 0l, new Response[0], new byte[16], false);
+        oldStyle.setMulticastAllowed(true);
+        return oldStyle;
     }
 
 
     public void testGGEPUtil() throws Exception {
-        GGEP testGGEP = null;
+        GGEP testGGEP;
 
         // test standard null GGEP....
         try {
             // this shouldn't even work....
-            testGGEP = new GGEP(_ggepUtil.getQRGGEP(false, false, false,false,
-                                                    new HashSet(), null), 
-                                0, null);
+            new GGEP(_ggepUtil.getQRGGEP(false, false, false,false,
+                                         new HashSet(), null), 
+                     0, null);
             fail("expected exception");
         }
         catch (BadGGEPBlockException expected) {}
@@ -825,7 +898,7 @@ public final class QueryReplyTest extends com.limegroup.gnutella.util.LimeTestCa
         
         // assert token is not written
         try {
-            ggep = new GGEP(_ggepUtil.getQRGGEP(false, false, false,false, null, null), 0, null);
+            new GGEP(_ggepUtil.getQRGGEP(false, false, false,false, null, null), 0, null);
             fail("exception should have been thrown");
         }
         catch (BadGGEPBlockException bgbe) {
@@ -903,7 +976,7 @@ public final class QueryReplyTest extends com.limegroup.gnutella.util.LimeTestCa
 
     public void testBadPushProxyInput() throws Exception {
         byte[] badBytes = new byte[6];
-        GGEP ggep = null;
+        GGEP ggep;
         // test a bad ip
         // 0.0.0.0 is a bad address
 
@@ -978,7 +1051,7 @@ public final class QueryReplyTest extends com.limegroup.gnutella.util.LimeTestCa
 
     public void testManualPushProxyInput() throws Exception {
         Random rand = new Random();
-        GGEP ggep = null;
+        GGEP ggep;
         for (int i = 0; i < 10; i++) {
             byte[] bytes = new byte[6*(i+1)];
             rand.nextBytes(bytes);
@@ -1130,12 +1203,13 @@ public final class QueryReplyTest extends com.limegroup.gnutella.util.LimeTestCa
         MessageFactory messageFactory = injector.getInstance(MessageFactory.class);
         QueryRequestFactory queryRequestFactory = injector.getInstance(QueryRequestFactory.class);
         FileManager fileManager = injector.getInstance(FileManager.class);
+        SharedFilesKeywordIndex keywordIndex = injector.getInstance(SharedFilesKeywordIndex.class);
+        injector.getInstance(ServiceRegistry.class).initialize();
         addFilesToLibrary();
         addAlternateLocationsToFiles();
         
         boolean checked = false;
-		for(int i = 0; i < fileManager.getNumFiles(); i++) {
-			FileDesc fd = fileManager.get(i);
+        for(FileDesc fd : fileManager.getGnutellaFileList()) {
 			Response testResponse = responseFactory.createResponse(fd);
 
             String name = fd.getFileName();
@@ -1148,7 +1222,7 @@ public final class QueryReplyTest extends com.limegroup.gnutella.util.LimeTestCa
             }
             
 			QueryRequest qr = queryRequestFactory.createQuery(fd.getFileName());
-			Response[] hits = fileManager.query(qr);
+			Response[] hits = keywordIndex.query(qr);
 			assertNotNull("didn't get a response for query " + qr, hits);
 			// we can only do this test on 'unique' names, so if we get more than
 			// one response, don't test.
@@ -1193,11 +1267,12 @@ public final class QueryReplyTest extends com.limegroup.gnutella.util.LimeTestCa
         MessageFactory messageFactory = injector.getInstance(MessageFactory.class);
         QueryRequestFactory queryRequestFactory = injector.getInstance(QueryRequestFactory.class);
         FileManager fileManager = injector.getInstance(FileManager.class);
+        SharedFilesKeywordIndex keywordIndex = injector.getInstance(SharedFilesKeywordIndex.class);
+        injector.getInstance(ServiceRegistry.class).initialize();
         addFilesToLibrary();
         addCreationTimeToFiles();
         boolean checked = false;
-		for(int i = 0; i < fileManager.getNumFiles(); i++) {
-			FileDesc fd = fileManager.get(i);
+        for(FileDesc fd : fileManager.getGnutellaFileList()) {
 			long expectTime = (fd.getIndex() + 1) * 10013;
 			Response testResponse = responseFactory.createResponse(fd);
 			assertEquals(fd.toString(), expectTime, testResponse.getCreateTime());
@@ -1212,7 +1287,7 @@ public final class QueryReplyTest extends com.limegroup.gnutella.util.LimeTestCa
             }
             
 			QueryRequest qr = queryRequestFactory.createQuery(fd.getFileName());
-			Response[] hits = fileManager.query(qr);
+			Response[] hits = keywordIndex.query(qr);
 			assertNotNull("didn't get a response for query " + qr, hits);
 			// we can only do this test on 'unique' names, so if we get more than
 			// one response, don't test.
@@ -1330,17 +1405,17 @@ public final class QueryReplyTest extends com.limegroup.gnutella.util.LimeTestCa
         ByteArrayOutputStream payload = new ByteArrayOutputStream();        
         GGEP ggep = new GGEP(true);
         QueryReply reply = newSecureQueryReply(ggep, indexes, payload);
-        assertEquals(SecureMessage.INSECURE, reply.getSecureStatus());
-        reply.setSecureStatus(SecureMessage.FAILED);
-        assertEquals(SecureMessage.FAILED, reply.getSecureStatus());
-        reply.setSecureStatus(SecureMessage.SECURE);
-        assertEquals(SecureMessage.SECURE, reply.getSecureStatus());
+        assertEquals(Status.INSECURE, reply.getSecureStatus());
+        reply.setSecureStatus(Status.FAILED);
+        assertEquals(Status.FAILED, reply.getSecureStatus());
+        reply.setSecureStatus(Status.SECURE);
+        assertEquals(Status.SECURE, reply.getSecureStatus());
     }
     
     public void testSecurityTokenBytesSetAndParsed() throws IllegalArgumentException, IOException, BadPacketException {
         QueryReplyFactory queryReplyFactory = injector.getInstance(QueryReplyFactory.class);
         ResponseFactory responseFactory = injector.getInstance(ResponseFactory.class);
-        Response r = responseFactory.createResponse(0, 1, "test");
+        Response r = responseFactory.createResponse(0, 1, "test", UrnHelper.SHA1);
         QueryReply query = queryReplyFactory.createQueryReply(GUID.makeGuid(), (byte)1, 1459,
                 InetAddress.getLocalHost().getAddress(), 30945L, new Response[] { r }, GUID.makeGuid(), new byte[0], false, false,
                 false, false, false, false, false, IpPort.EMPTY_SET, _token);
@@ -1394,7 +1469,7 @@ public final class QueryReplyTest extends com.limegroup.gnutella.util.LimeTestCa
         ByteUtils.short2leb((short)6346, out); // port
         out.write(IP); // ip
         ByteUtils.int2leb(1, out);
-        Response r = responseFactory.createResponse(0, 1, "test");
+        Response r = responseFactory.createResponse(0, 1, "test", UrnHelper.SHA1);
         r.writeToStream(out);
         out.write(new byte[] { 'L', 'I', 'M', 'E' });
         out.write(4); // common payload length
@@ -1434,29 +1509,27 @@ public final class QueryReplyTest extends com.limegroup.gnutella.util.LimeTestCa
                 // use files with a $ because they'll generally
                 // trigger a single-response return, which is
                 // easier to check
-                return SharingUtils.isFilePhysicallyShareable(file) && file.getName().indexOf("$") != -1;
+                return LibraryUtils.isFileManagable(file) && file.getName().indexOf("$") != -1;
             }
         });
 
         assertNotNull("no files to test against", testFiles);
         assertNotEquals("no files to test against", 0, testFiles.length);
 
-        for (int i = 0; i < testFiles.length; i++) {
-            File shared = new File(_sharedDir, testFiles[i].getName() + "." + EXTENSION);
-            assertTrue("unable to get file", FileUtils.copy(testFiles[i], shared));
+        FileManagerTestUtils.waitForLoad(fileManager, 5000);
+        for(File file : testFiles) {
+            fileManager.getGnutellaFileList().add(file).get(1, TimeUnit.SECONDS);
         }
 
-        fileManager.loadSettingsAndWait(5000);
-        assertEquals("unexpected number of shared files", testFiles.length, fileManager.getNumFiles());
+        assertEquals("unexpected number of shared files", testFiles.length, fileManager.getGnutellaFileList().size());
     }
     
     private void addAlternateLocationsToFiles() throws Exception {
         AltLocManager altLocManager = injector.getInstance(AltLocManager.class);
         AlternateLocationFactory alternateLocationFactory = injector.getInstance(AlternateLocationFactory.class);
         FileManager fileManager = injector.getInstance(FileManager.class);
-        FileDesc[] fds = fileManager.getAllSharedFileDescriptors();
-        for(int i = 0; i < fds.length; i++) {
-            URN urn = fds[i].getSHA1Urn();
+        for(FileDesc fd : fileManager.getGnutellaFileList()) {
+            URN urn = fd.getSHA1Urn();
             for(int j = 0; j < MAX_LOCATIONS + 5; j++) {
                 altLocManager.add(alternateLocationFactory.create("1.2.3." + j, urn), null);
             }
@@ -1466,11 +1539,10 @@ public final class QueryReplyTest extends com.limegroup.gnutella.util.LimeTestCa
     private void addCreationTimeToFiles() throws Exception {
         CreationTimeCache creationTimeCache = injector.getInstance(CreationTimeCache.class);
         FileManager fileManager = injector.getInstance(FileManager.class);
-        FileDesc[] fds = fileManager.getAllSharedFileDescriptors();
-        for(int i = 0; i < fds.length; i++) {
-            long time = (fds[i].getIndex() + 1) * 10013;
-            creationTimeCache.addTime(fds[i].getSHA1Urn(), time);
-            creationTimeCache.commitTime(fds[i].getSHA1Urn());
+        for(FileDesc fd : fileManager.getGnutellaFileList()) {
+            long time = (fd.getIndex() + 1) * 10013;
+            creationTimeCache.addTime(fd.getSHA1Urn(), time);
+            creationTimeCache.commitTime(fd.getSHA1Urn());
         }
     }        
     
@@ -1543,7 +1615,7 @@ public final class QueryReplyTest extends com.limegroup.gnutella.util.LimeTestCa
         out.write(IP); // ip
         ByteUtils.int2leb(1, out);
         for (int i = 0; i < limit; i++) 
-            responseFactory.createResponse(i, 1, "test"+i).writeToStream(out);
+            responseFactory.createResponse(i, 1, "test"+i, UrnHelper.SHA1).writeToStream(out);
         
         out.write(new byte[] { 'L', 'I', 'M', 'E' });
         out.write(4); // common payload length
@@ -1583,7 +1655,6 @@ public final class QueryReplyTest extends com.limegroup.gnutella.util.LimeTestCa
         private static int off2;
         private static int len2;
 
-        @SuppressWarnings("deprecation")
         protected Object engineGetParameter(String arg0) throws InvalidParameterException {
             return null;
         }
@@ -1600,7 +1671,6 @@ public final class QueryReplyTest extends com.limegroup.gnutella.util.LimeTestCa
         protected void engineInitVerify(PublicKey arg0) throws InvalidKeyException {
         }
 
-        @SuppressWarnings("deprecation")
         protected void engineSetParameter(String arg0, Object arg1) throws InvalidParameterException {
         }
 
@@ -1900,5 +1970,142 @@ public final class QueryReplyTest extends com.limegroup.gnutella.util.LimeTestCa
         ByteArrayInputStream bais = 
             new ByteArrayInputStream(baos.toByteArray());
         return (QueryReplyImpl) messageFactory.read(bais, Network.TCP);
+    }
+    
+    public void testMassageGetVendor() throws UnknownHostException, BadPacketException {
+        QueryReplyFactory queryReplyFactory = injector.getInstance(QueryReplyFactory.class);
+
+        payload=new byte[11+11+16];
+		payload[0]=1;            //Number of results
+		payload[1]=1;            //non-zero port
+		payload[3]=1;            //non-blank ip
+		payload[11+8]=(byte)65;  //The character 'A'
+
+		QueryReply queryReply = queryReplyFactory.createFromNetwork(new byte[16], (byte)5,
+                (byte)0, payload);
+        
+        assertEquals("", queryReply.getVendor());
+
+    }
+    
+    public void testMassageIsChatEnabled() throws UnknownHostException, BadPacketException {
+        QueryReplyFactory queryReplyFactory = injector.getInstance(QueryReplyFactory.class);
+        ResponseFactory responseFactory = injector.getInstance(ResponseFactory.class);
+        Response r = responseFactory.createResponse(0, 1, "test", UrnHelper.SHA1);
+
+        QueryReply queryReply = getQueryReplyWithChatEnabledInputs(queryReplyFactory, r, false, false);
+        assertEquals(false, queryReply.getSupportsChat());
+
+        queryReply = getQueryReplyWithChatEnabledInputs(queryReplyFactory, r, false, true);
+        assertEquals(false, queryReply.getSupportsChat());
+
+        queryReply = getQueryReplyWithChatEnabledInputs(queryReplyFactory, r, true, false);
+        assertEquals(true, queryReply.getSupportsChat());
+
+        queryReply = getQueryReplyWithChatEnabledInputs(queryReplyFactory, r, true, true);
+        assertEquals(false, queryReply.getSupportsChat());
+    }
+
+    private QueryReply getQueryReplyWithChatEnabledInputs(QueryReplyFactory queryReplyFactory, Response r, boolean supportsChat, boolean isFirewalled) throws UnknownHostException, BadPacketException {
+        // needsPush is a shorthand for isFirewalled, if isMulticast = false
+        return queryReplyFactory.createQueryReply(GUID.makeGuid(), (byte)1, 1459,
+                InetAddress.getLocalHost().getAddress(), 30945L, new Response[] { r }, GUID.makeGuid(), new byte[0], isFirewalled, false,
+                false, false, supportsChat, false, false, IpPort.EMPTY_SET, _token);
+    }
+
+    public void testMassageGetSpeed() throws UnknownHostException, BadPacketException {
+        QueryReplyFactory queryReplyFactory = injector.getInstance(QueryReplyFactory.class);
+        ResponseFactory responseFactory = injector.getInstance(ResponseFactory.class);
+        Response r = responseFactory.createResponse(0, 1, "test", UrnHelper.SHA1);
+
+        // isReplyToMulticast = false
+        QueryReply query = queryReplyFactory.createQueryReply(GUID.makeGuid(), (byte)1, 1459,
+                InetAddress.getLocalHost().getAddress(), 30945L, new Response[] { r }, GUID.makeGuid(), new byte[0], false, false,
+                false, false, false, false, false, IpPort.EMPTY_SET, _token);
+
+        assertEquals(30945L, query.getSpeed());
+
+        // isReplyToMulticast = true
+        query = queryReplyFactory.createQueryReply(GUID.makeGuid(), (byte)1, 1459,
+                InetAddress.getLocalHost().getAddress(), 30945L, new Response[] { r }, GUID.makeGuid(), new byte[0], false, false,
+                false, false, false, true, false, IpPort.EMPTY_SET, _token);
+
+        query.setMulticastAllowed(true);
+        assertEquals(Integer.MAX_VALUE, query.getSpeed());
+    }
+    
+    public void testMassageIsFirewalled() throws UnknownHostException, BadPacketException {        
+
+        QueryReply queryReply = getQueryReplyWithFirewallInputs(false, false, false);
+        assertEquals(false, queryReply.isFirewalled());
+
+        queryReply = getQueryReplyWithFirewallInputs(false, false, true);
+        assertEquals(false, queryReply.isFirewalled());
+        
+        queryReply = getQueryReplyWithFirewallInputs(false, true, false);
+        assertEquals(true, queryReply.isFirewalled());
+        
+        queryReply = getQueryReplyWithFirewallInputs(false, true, true);
+        assertEquals(false, queryReply.isFirewalled());
+        
+        queryReply = getQueryReplyWithFirewallInputs(true, false, false);
+        assertEquals(true, queryReply.isFirewalled());
+
+        queryReply = getQueryReplyWithFirewallInputs(true, false, true);
+        assertEquals(false, queryReply.isFirewalled());
+        
+        queryReply = getQueryReplyWithFirewallInputs(true, true, false);
+        assertEquals(true, queryReply.isFirewalled());
+        
+        queryReply = getQueryReplyWithFirewallInputs(true, true, true);
+        assertEquals(false, queryReply.isFirewalled());
+        
+        payload=new byte[11+11+16];
+		payload[0]=1;            //Number of results
+		payload[1]=1;            //non-zero port
+		payload[3]=1;            //non-blank ip
+		payload[11+8]=(byte)65;  //The character 'A'
+
+		queryReply = injector.getInstance(QueryReplyFactory.class).createFromNetwork(new byte[16], (byte)5,
+                (byte)0, payload);
+        try {
+			queryReply.getNeedsPush();
+			fail("qr should have been invalid");
+		} catch (BadPacketException e) { }
+        
+        assertEquals(true, queryReply.isFirewalled());
+        
+    }
+
+    private QueryReply getQueryReplyWithFirewallInputs(boolean needsPush, final boolean isPrivateAddress, final boolean isReplyToMulticast) throws UnknownHostException, BadPacketException {
+        Mockery mockery = new Mockery();
+        final NetworkInstanceUtils mockNetworkInstanceUtils = mockery.mock(NetworkInstanceUtils.class);
+        mockery.checking(new Expectations() {{
+            atLeast(0).of(mockNetworkInstanceUtils).isPrivate();
+            will(returnValue(isPrivateAddress));
+            atLeast(0).of(mockNetworkInstanceUtils).isPrivateAddress(InetAddress.getLocalHost());
+            will(returnValue(isPrivateAddress));
+            atLeast(0).of(mockNetworkInstanceUtils).isPrivateAddress(InetAddress.getLocalHost().getAddress());
+            will(returnValue(isPrivateAddress));
+            atLeast(0).of(mockNetworkInstanceUtils).isPrivateAddress(NetworkUtils.ip2string(InetAddress.getLocalHost().getAddress()));
+            will(returnValue(isPrivateAddress));
+        }});
+        
+        Injector injector = LimeTestUtils.createInjector(new AbstractModule() {
+            @Override
+            protected void configure() {
+                bind(NetworkInstanceUtils.class).toInstance(mockNetworkInstanceUtils);
+            }
+	    });
+        
+        QueryReplyFactory queryReplyFactory = injector.getInstance(QueryReplyFactory.class);
+        ResponseFactory responseFactory = injector.getInstance(ResponseFactory.class);
+        Response r = responseFactory.createResponse(0, 1, "test", UrnHelper.SHA1);
+        
+        QueryReply query = queryReplyFactory.createQueryReply(GUID.makeGuid(), (byte)1, 1459,
+            InetAddress.getLocalHost().getAddress(), 30945L, new Response[] { r }, GUID.makeGuid(), new byte[0], needsPush, false,
+            false, false, false, isReplyToMulticast, false, IpPort.EMPTY_SET, _token);
+        query.setMulticastAllowed(true);
+        return query;
     }
 }

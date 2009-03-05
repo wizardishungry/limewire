@@ -11,9 +11,7 @@ import java.util.Map;
 import javax.swing.JPanel;
 
 import com.limegroup.gnutella.gui.GUIMediator;
-import com.limegroup.gnutella.gui.GuiCoreMediator;
 import com.limegroup.gnutella.gui.I18n;
-import com.limegroup.gnutella.gui.SettingsWarningManager;
 import com.limegroup.gnutella.gui.options.panes.SharedDirPaneItem;
 import com.limegroup.gnutella.gui.options.panes.StoreSaveDirPaneItem;
 
@@ -119,8 +117,8 @@ public final class OptionsPaneManager {
 		SharedDirPaneItem sharedPane = FACTORY.getSharedPane();
 	    StoreSaveDirPaneItem storePane = FACTORY.getStorePane();
 		if(sharedPane.isDirty() || storePane.isDirty()) {
-		    GuiCoreMediator.getFileManager().loadWithNewDirectories
-		    (sharedPane.getDirectoriesToShare(), sharedPane.getDirectorieToExclude());
+//		    GuiCoreMediator.getFileManager().loadWithNewDirectories
+//		    (sharedPane.getDirectoriesToShare(), sharedPane.getDirectorieToExclude());
 		    sharedPane.resetDirtyState();
 		    storePane.resetDirtyState();
         }
@@ -129,7 +127,7 @@ public final class OptionsPaneManager {
             GUIMediator.showMessage(I18n.tr("One or more options will take effect the next time LimeWire is restarted."));
         
         
-        SettingsWarningManager.checkSettingsLoadSaveFailure();
+//        SettingsWarningManager.checkSettingsLoadSaveFailure();
 	}
 	
 	/**

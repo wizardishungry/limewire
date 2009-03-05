@@ -10,6 +10,7 @@ import java.util.Map;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.limewire.io.NetworkUtils;
+import org.limewire.lifecycle.Service;
 import org.limewire.mojito.KUID;
 import org.limewire.mojito.concurrent.DHTFuture;
 import org.limewire.mojito.concurrent.DHTFutureAdapter;
@@ -37,7 +38,7 @@ import com.limegroup.gnutella.dht.util.KUIDUtils;
  * file. Also re-attempts to publish the peer if DHT was not available.
  */
 @Singleton
-public class DHTPeerPublisherImpl implements DHTPeerPublisher {
+public class DHTPeerPublisherImpl implements DHTPeerPublisher, Service {
 
     private static final Log LOG = LogFactory.getLog(DHTPeerPublisher.class);
 
@@ -71,20 +72,34 @@ public class DHTPeerPublisherImpl implements DHTPeerPublisher {
         this.torrentManager = torrentManager;
     }
 
+    @Inject
+    void register(org.limewire.lifecycle.ServiceRegistry registry) {
+        registry.register(this);
+    }
+    
     /**
      * Adds a <code>TorrentEventListener</code> to <code>TorrentManager</code>
-     * and a DHTEventListener to DHTManager.This method should only be called
-     * once.
+     * and a <code>DHTEventListener</code> to <code>DHTManager</code>. This 
+     * method should only be called once.
      */
-    public void init() {
+    public void initialize() {
         // listens for the TorrentEvent FIRST_CHUNK_VERIFIED to start publishing
         torrentManager.get().addEventListener(new TorrentEventListenerForPublisher());
         // listens for the DHTEvent CONNECTED to re-attempt publishing
         dhtManager.get().addEventListener(new DHTEventListenerForPublisher());
     }
+    
+    public String getServiceName() {
+        return org.limewire.i18n.I18nMarker.marktr("DHT Peer Publisher");
+    }  
+    
+    public void start() {
+    }  
+    public void stop() {
+    }
 
     /**
-     * Publishes the local host in DHT as a peer sharing the given torrent .
+     * Publishes the local host in DHT as a peer sharing the given torrent.
      * Torrent's infoHash is used as the key.
      * 
      * @param urn SHA1 hash of the torrent file.
@@ -206,8 +221,8 @@ public class DHTPeerPublisherImpl implements DHTPeerPublisher {
     }
 
     /**
-     * This class listens to see if the peer was published successfully. If
-     * publishing was unsuccessful, then ....
+     * This class listens to see if the peer was published successfully and 
+     * ignores unsuccessful publish attempts.
      */
     private class PublishYourselfResultHandler extends DHTFutureAdapter<StoreResult> {
 

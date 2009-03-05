@@ -10,6 +10,8 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 import org.hsqldb.jdbcDriver;
 import org.limewire.io.BadGGEPBlockException;
 import org.limewire.io.GGEP;
@@ -25,6 +27,8 @@ import com.google.inject.Singleton;
 
 @Singleton
 public class SearcherDatabaseImpl implements SearcherDatabase {
+    
+    private static final Log LOG = LogFactory.getLog(SearcherDatabaseImpl.class);
 
     private Connection connection;
 
@@ -79,7 +83,8 @@ public class SearcherDatabaseImpl implements SearcherDatabase {
      * 
      * @see {@link java.sql.Statement#executeUpdate(String)}
      */
-    private int executeUpdate(final String sql, final Object... values) throws DatabaseExecutionException {
+    private int executeUpdate(final String sql, final Object... values)
+            throws DatabaseExecutionException {
         try {
             final PreparedStatement statement = connection.prepareStatement(sql);
             try {
@@ -131,7 +136,8 @@ public class SearcherDatabaseImpl implements SearcherDatabase {
      * Returns the total number of affected rows and executing multiple updates synchronously.
      * 
      * @param stmts statements to execute
-     * @return the total number of affected rows and executing multiple updates synchronously.
+     * @return the total number of affected rows and executing multiple updates
+     *         synchronously.
      * @throws DatabaseExecutionException
      */
     private synchronized int executeUpdates(Stmt... stmts) throws DatabaseExecutionException {
@@ -145,6 +151,7 @@ public class SearcherDatabaseImpl implements SearcherDatabase {
     /**
      * Creates a statement and runs the given SQL, then returns the results of a
      * call to "CALL IDENTITY()"
+     * 
      * @throws DatabaseExecutionException
      */
     private long executeInsert(final String sql, final Object... values) throws DatabaseExecutionException {
@@ -181,9 +188,10 @@ public class SearcherDatabaseImpl implements SearcherDatabase {
                 stmt("DROP TABLE keywords IF EXISTS"),
                 stmt("DROP TABLE entries IF EXISTS"),
                 stmt("DROP TABLE binders IF EXISTS"),
-                stmt("CREATE CACHED TABLE entries (" + "entry_id IDENTITY, "
-                        + "unique_id BIGINT, " + "probability_num FLOAT, " + "type_byte TINYINT, "
-                        + "valid_start_dt DATETIME, " + "valid_end_dt DATETIME, entry_ggep BINARY )"),
+                stmt("CREATE CACHED TABLE entries (" + "entry_id IDENTITY, " + "unique_id BIGINT, "
+                        + "probability_num FLOAT, " + "type_byte TINYINT, "
+                        + "valid_start_dt DATETIME, "
+                        + "valid_end_dt DATETIME, entry_ggep BINARY )"),
                 stmt("CREATE CACHED TABLE keywords ("
                         + "keyword_id IDENTITY, "
                         + "binder_unique_name VARCHAR(1000),"
@@ -227,7 +235,13 @@ public class SearcherDatabaseImpl implements SearcherDatabase {
         } catch (SQLException ex) {
             throw new RuntimeException("SQLException during query.", ex);
         } catch (PromotionException ex) {
-            throw new RuntimeException("PromotionException caught.", ex);
+            // ignore -- internal problem with the promotion,
+            // and we'll notice the error on the server side.
+            // most typical reason is the cert is invalid
+            // (perhaps because DNS cached the cert hash,
+            //  but the bucket is signed using a newer cert)
+            LOG.error("promotion error", ex);
+            return null;
         } finally {
             if (statement != null) {
                 try {
@@ -275,9 +289,11 @@ public class SearcherDatabaseImpl implements SearcherDatabase {
     /**
      * Does the actual ingestion of the given promo entry, inserting it into the
      * db. Package-visible for testing.
+     * 
      * @throws DatabaseExecutionException
      */
-    synchronized void ingest(final PromotionMessageContainer promo, final String binderUniqueName) throws DatabaseExecutionException {
+    synchronized void ingest(final PromotionMessageContainer promo, final String binderUniqueName)
+            throws DatabaseExecutionException {
         executeUpdate("DELETE FROM entries WHERE unique_id = ?", promo.getUniqueID());
         final long entryID = executeInsert(
                 "INSERT INTO entries "

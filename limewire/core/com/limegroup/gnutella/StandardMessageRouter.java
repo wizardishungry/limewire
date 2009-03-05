@@ -2,28 +2,27 @@ package com.limegroup.gnutella;
 
 
 import java.io.IOException;
-import java.io.UnsupportedEncodingException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.LinkedList;
 import java.util.List;
-import java.util.Set;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.limewire.core.settings.ConnectionSettings;
+import org.limewire.core.settings.MessageSettings;
 import org.limewire.inspection.InspectionPoint;
+import org.limewire.io.GUID;
 import org.limewire.io.IpPort;
 import org.limewire.io.IpPortImpl;
 import org.limewire.io.NetworkUtils;
 import org.limewire.net.SocketsManager;
 import org.limewire.security.MACCalculatorRepositoryManager;
-import org.limewire.security.SecurityToken;
 
 import com.google.inject.Inject;
 import com.google.inject.Provider;
@@ -32,13 +31,17 @@ import com.google.inject.name.Named;
 import com.limegroup.gnutella.auth.ContentManager;
 import com.limegroup.gnutella.connection.RoutedConnection;
 import com.limegroup.gnutella.dht.DHTManager;
+import com.limegroup.gnutella.filters.URNFilter;
 import com.limegroup.gnutella.guess.OnDemandUnicaster;
+import com.limegroup.gnutella.library.FileManager;
+import com.limegroup.gnutella.library.SharedFilesKeywordIndex;
 import com.limegroup.gnutella.messagehandlers.InspectionRequestHandler;
 import com.limegroup.gnutella.messagehandlers.LimeACKHandler;
 import com.limegroup.gnutella.messagehandlers.OOBHandler;
 import com.limegroup.gnutella.messagehandlers.UDPCrawlerPingHandler;
 import com.limegroup.gnutella.messages.FeatureSearchData;
 import com.limegroup.gnutella.messages.Message;
+import com.limegroup.gnutella.messages.OutgoingQueryReplyFactory;
 import com.limegroup.gnutella.messages.PingReply;
 import com.limegroup.gnutella.messages.PingReplyFactory;
 import com.limegroup.gnutella.messages.PingRequest;
@@ -52,17 +55,12 @@ import com.limegroup.gnutella.messages.Message.MessageCounter;
 import com.limegroup.gnutella.messages.vendor.HeadPongFactory;
 import com.limegroup.gnutella.messages.vendor.ReplyNumberVendorMessage;
 import com.limegroup.gnutella.messages.vendor.ReplyNumberVendorMessageFactory;
+import com.limegroup.gnutella.routing.QRPUpdater;
 import com.limegroup.gnutella.search.QueryDispatcher;
 import com.limegroup.gnutella.search.QueryHandlerFactory;
 import com.limegroup.gnutella.search.SearchResultHandler;
-import com.limegroup.gnutella.settings.ChatSettings;
-import com.limegroup.gnutella.settings.ConnectionSettings;
-import com.limegroup.gnutella.settings.MessageSettings;
 import com.limegroup.gnutella.simpp.SimppManager;
-import com.limegroup.gnutella.util.DataUtils;
 import com.limegroup.gnutella.version.UpdateHandler;
-import com.limegroup.gnutella.xml.LimeXMLDocumentHelper;
-import com.limegroup.gnutella.xml.LimeXMLUtils;
 
 /**
  * This class is the message routing implementation for TCP messages.
@@ -82,6 +80,8 @@ public class StandardMessageRouter extends MessageRouterImpl {
     private final MessageCounter notServiced = new Message.MessageCounter(500);
     @InspectionPoint("ignored busy queries")
     private final MessageCounter ignoredBusy = new Message.MessageCounter(500);
+    
+    private final SharedFilesKeywordIndex sharedFilesKeywordIndex;
     
     @Inject
     public StandardMessageRouter(NetworkManager networkManager,
@@ -113,10 +113,14 @@ public class StandardMessageRouter extends MessageRouterImpl {
             Provider<UDPCrawlerPingHandler> udpCrawlerPingHandlerFactory,
             Statistics statistics,
             ReplyNumberVendorMessageFactory replyNumberVendorMessageFactory,
-            PingRequestFactory pingRequestFactory, MessageHandlerBinder messageHandlerBinder,
+            PingRequestFactory pingRequestFactory,
+            MessageHandlerBinder messageHandlerBinder,
             Provider<OOBHandler> oobHandlerFactory,
             Provider<MACCalculatorRepositoryManager> MACCalculatorRepositoryManager,
-            Provider<LimeACKHandler> limeACKHandler) {
+            Provider<LimeACKHandler> limeACKHandler,
+            OutgoingQueryReplyFactory outgoingQueryReplyFactory,
+            SharedFilesKeywordIndex sharedFilesKeywordIndex,
+            QRPUpdater qrpUpdater, URNFilter urnFilter) {
         super(networkManager, queryRequestFactory, queryHandlerFactory,
                 onDemandUnicaster, headPongFactory, pingReplyFactory,
                 connectionManager, forMeReplyHandler, queryUnicaster,
@@ -126,12 +130,14 @@ public class StandardMessageRouter extends MessageRouterImpl {
                 messageDispatcher, multicastService, queryDispatcher,
                 activityCallback, connectionServices, applicationServices,
                 backgroundExecutor, pongCacher, simppManager, updateHandler,
-                guidMapManager, udpReplyHandlerCache, inspectionRequestHandlerFactory, 
-                udpCrawlerPingHandlerFactory, 
+                guidMapManager, udpReplyHandlerCache,
+                inspectionRequestHandlerFactory, udpCrawlerPingHandlerFactory, 
                 pingRequestFactory, messageHandlerBinder, oobHandlerFactory, 
-                MACCalculatorRepositoryManager, limeACKHandler);
+                MACCalculatorRepositoryManager, limeACKHandler,
+                outgoingQueryReplyFactory, qrpUpdater, urnFilter);
         this.statistics = statistics;
         this.replyNumberVendorMessageFactory = replyNumberVendorMessageFactory;
+        this.sharedFilesKeywordIndex = sharedFilesKeywordIndex;
     }
     
     /**
@@ -145,37 +151,45 @@ public class StandardMessageRouter extends MessageRouterImpl {
     @Override
     protected void respondToPingRequest(PingRequest ping,
                                         ReplyHandler handler) {
-        //If this wasn't a handshake or crawler ping, check if we can accept
-        //incoming connection for old-style unrouted connections, ultrapeers, or
-        //leaves.  TODO: does this mean leaves always respond to pings?
-        int hops = ping.getHops();
-        int ttl = ping.getTTL();
-        if (   (hops+ttl > 2) 
-            && !connectionManager.allowAnyConnection())
+        // The ping has already been hopped
+        byte hops = ping.getHops();
+        byte ttl = ping.getTTL();
+        // If hops + ttl > 2 this is not a heartbeat or a crawler ping. Check 
+        // if we can accept an incoming connection for old-style unrouted
+        // connections, ultrapeers, or leaves.
+        if(hops + ttl > 2 && !connectionManager.allowAnyConnection()) {
+            if(LOG.isDebugEnabled())
+                LOG.debug("Not responding to ordinary ping (1) " + ping);
             return;
+        }
             
         // Only send pongs for ourself if we have a valid address & port.
-        if(NetworkUtils.isValidAddress(networkManager.getAddress()) &&
-           NetworkUtils.isValidPort(networkManager.getPort())) {    
-            //SPECIAL CASE: for crawler ping
-            // TODO:: this means that we can never send TTL=2 pings without
-            // them being interpreted as from the crawler!!
-            if(hops ==1 && ttl==1) {
+        if(networkManager.isIpPortValid()) {    
+            // If hops == 1 and ttl == 1 this is a crawler ping. We don't send
+            // our own pong since the crawler already knows our address, but
+            // we send the addresses of our leaves.
+            if(hops == 1 && ttl == 1) {
+                if(LOG.isDebugEnabled())
+                    LOG.debug("Responding to crawler ping " + ping);
                 handleCrawlerPing(ping, handler);
                 return;
-                //Note that the while handling crawler ping, we dont send our
-                //own pong, as that is unnecessary, since crawler already has
-                //our address.
             }
     
-            // handle heartbeat pings specially -- bypass pong caching code
+            // If hops == 1 and ttl == 0 this is a heartbeat ping. Bypass
+            // the pong caching code and reply. TODO: why does this require a
+            // valid address and port? Don't we want to respond to heartbeat
+            // pings on LAN connections?
             if(ping.isHeartbeat()) {
+                if(LOG.isDebugEnabled())
+                    LOG.debug("Responding to heartbeat ping " + ping);
                 sendPingReply(pingReplyFactory.create(ping.getGUID(), (byte)1), 
-                    handler);
+                        handler);
                 return;
             }
-    
-            //send its own ping in all the cases
+            
+            // TODO: why would hops + ttl be less than 3 at this point? We've
+            // already dealt with crawler and heartbeat pings. And why is the
+            // ttl of the pong greater than the hop count of the ping?
             int newTTL = hops+1;
             if ( (hops+ttl) <=2)
                 newTTL = 1;        
@@ -184,10 +198,15 @@ public class StandardMessageRouter extends MessageRouterImpl {
             // daily uptime is more than 1/2 hour
             if(connectionManager.hasFreeSlots()  ||
                statistics.calculateDailyUptime() > 60*30) {
+                if(LOG.isDebugEnabled())
+                    LOG.debug("Responding to ordinary ping " + ping);
                 PingReply pr = 
                     pingReplyFactory.create(ping.getGUID(), (byte)newTTL);
                 
                 sendPingReply(pr, handler);
+            } else {
+                if(LOG.isDebugEnabled())
+                    LOG.debug("Not responding to ordinary ping (2) " + ping);
             }
         }
         
@@ -219,11 +238,6 @@ public class StandardMessageRouter extends MessageRouterImpl {
         if(!networkManager.isIpPortValid())
             return;
         
-        IpPort ipport = null;
-        if (request.requestsIP()) {
-            ipport = new IpPortImpl(addr);
-        }
-        
         List<IpPort> dhthosts = Collections.emptyList();
         int maxHosts = ConnectionSettings.NUM_RETURN_PONGS.getValue();
         
@@ -253,8 +267,8 @@ public class StandardMessageRouter extends MessageRouterImpl {
         } 
         
         PingReply reply;
-    	if (ipport != null)
-    	    reply = pingReplyFactory.create(request.getGUID(), (byte)1, ipport, gnuthosts, dhthosts);
+    	if (request.requestsIP())
+    	    reply = pingReplyFactory.create(request.getGUID(), (byte)1, new IpPortImpl(addr), gnuthosts, dhthosts);
     	else
     	    reply = pingReplyFactory.create(request.getGUID(), (byte)1, gnuthosts, dhthosts);
         
@@ -269,36 +283,30 @@ public class StandardMessageRouter extends MessageRouterImpl {
 	}
 
     /**
-     * Handles the crawler ping of Hops=0 & TTL=2, by sending pongs 
-     * corresponding to all its leaves
-     * @param m The ping request received
+     * Responds to a crawler ping with hops 0 and ttl 2 (before hopping) by
+     * sending a pong for each leaf. Ultrapeer neighbours will send their own
+     * pongs when the ping is forwarded to them. TODO: where is the ping
+     * forwarded to them?
+     * @param ping the ping request received
      * @param handler the <tt>ReplyHandler</tt> that should handle any
      *  replies
      */
-    private void handleCrawlerPing(PingRequest m, ReplyHandler handler) {
-        //TODO: why is this any different than the standard pong?  In other
-        //words, why no ultrapong marking, proper address calculation, etc?
-        
+    private void handleCrawlerPing(PingRequest ping, ReplyHandler handler) {
         //send the pongs for leaves
-        List<RoutedConnection> leafConnections = connectionManager.getInitializedClientConnections();
-        
+        List<RoutedConnection> leafConnections =
+            connectionManager.getInitializedClientConnections();
         for(RoutedConnection connection : leafConnections) {
             //create the pong for this connection
             PingReply pr = 
-                pingReplyFactory.createExternal(m.getGUID(), (byte)2, 
-                                         connection.getPort(),
-                                         connection.getInetAddress().getAddress(),
-                                         false);
-                                                    
-            
+                pingReplyFactory.createExternal(ping.getGUID(), (byte)2, 
+                                    connection.getPort(),
+                                    connection.getInetAddress().getAddress(),
+                                    false);
             //hop the message, as it is ideally coming from the connected host
             pr.hop();
             
             sendPingReply(pr, handler);
         }
-        
-        //pongs for the neighbors will be sent by neighbors themselves
-        //as ping will be broadcasted to them (since TTL=2)        
     }
     
     @Override
@@ -322,12 +330,11 @@ public class StandardMessageRouter extends MessageRouterImpl {
                                                 
         // Ensure that we have a valid IP & Port before we send the response.
         // Otherwise the QueryReply will fail on creation.
-        if( !NetworkUtils.isValidPort(networkManager.getPort()) ||
-            !NetworkUtils.isValidAddress(networkManager.getAddress()))
+        if(!networkManager.isIpPortValid())
             return false;
                                                      
         // Run the local query
-        Response[] responses = fileManager.query(queryRequest);
+        Response[] responses = sharedFilesKeywordIndex.query(queryRequest);
         if (responses.length == 0)
             falsePositives.countMessage(queryRequest);
         return sendResponses(responses, queryRequest, handler);
@@ -344,12 +351,11 @@ public class StandardMessageRouter extends MessageRouterImpl {
 
         // if we cannot service a regular query, only send back results for
         // application-shared metafiles, if any.
-        if (!uploadManager.isServiceable()) {
-        	
+        if (!uploadManager.isServiceable()) {        	
         	List<Response> filtered = new ArrayList<Response>(responses.length);
         	for(Response r : responses) {
         		if (r.isMetaFile() && 
-        				fileManager.isFileApplicationShared(r.getName()))
+        				fileManager.getGnutellaFileList().isFileApplicationShare(r.getName()))
         			filtered.add(r);
         	}
         	
@@ -436,158 +442,4 @@ public class StandardMessageRouter extends MessageRouterImpl {
                                         ReplyHandler handler) {
         return query.matchesReplyAddress(handler.getInetAddress().getAddress());
     }
-
-    /** 
-     * Creates a <tt>List</tt> of <tt>QueryReply</tt> instances with
-     * compressed XML data, if requested.
-     *
-     * @return a new <tt>List</tt> of <tt>QueryReply</tt> instances
-     */
-    @Override
-    protected List<QueryReply> createQueryReply(byte[] guid, byte ttl,
-                                    long speed, Response[] res,
-                                    byte[] clientGUID, 
-                                    boolean busy, boolean uploaded, 
-                                    boolean measuredSpeed, 
-                                    boolean isFromMcast,
-                                    boolean isFWTransfer,
-                                    SecurityToken securityToken) {
-        
-        List<QueryReply> queryReplies = new ArrayList<QueryReply>();
-        QueryReply queryReply = null;
-
-        // pick the right address & port depending on multicast & fwtrans
-        // if we cannot find a valid address & port, exit early.
-        int port = -1;
-        byte[] ip = null;
-        // first try using multicast addresses & ports, but if they're
-        // invalid, fallback to non multicast.
-        if(isFromMcast) {
-            ip = networkManager.getNonForcedAddress();
-            port = networkManager.getNonForcedPort();
-            if(!NetworkUtils.isValidPort(port) ||
-               !NetworkUtils.isValidAddress(ip))
-                isFromMcast = false;
-        }
-        
-        if(!isFromMcast) {
-            
-            // see if we have a valid FWTrans address.  if not, fall back.
-            if(isFWTransfer) {
-                port = udpService.getStableUDPPort();
-                ip = networkManager.getExternalAddress();
-                if(!NetworkUtils.isValidAddress(ip) 
-                        || !NetworkUtils.isValidPort(port))
-                    isFWTransfer = false;
-            }
-            
-            // if we still don't have a valid address here, exit early.
-            if(!isFWTransfer) {
-                ip = networkManager.getAddress();
-                port = networkManager.getPort();
-                if(!NetworkUtils.isValidAddress(ip) ||
-                        !NetworkUtils.isValidPort(port))
-                    return Collections.emptyList();
-            }
-        }
-        
-        // get the xml collection string...
-        String xmlCollectionString = 
-        LimeXMLDocumentHelper.getAggregateString(res);
-        if (xmlCollectionString == null)
-            xmlCollectionString = "";
-
-        byte[] xmlBytes = null;
-        try {
-            xmlBytes = xmlCollectionString.getBytes("UTF-8");
-        } catch(UnsupportedEncodingException ueex) {
-            throw new IllegalStateException(ueex);
-        }
-        
-        // get the *latest* push proxies if we have not accepted an incoming
-        // connection in this session
-        boolean notIncoming = !networkManager.acceptedIncomingConnection();
-        Set<? extends IpPort> proxies = notIncoming ? connectionManager.getPushProxies() : null;
-        
-        // it may be too big....
-        if (xmlBytes.length > QueryReply.XML_MAX_SIZE) {
-            // ok, need to partition responses up once again and send out
-            // multiple query replies.....
-            List<Response[]> splitResps = new LinkedList<Response[]>();
-            splitAndAddResponses(splitResps, res);
-
-            while (!splitResps.isEmpty()) {
-                Response[] currResps = splitResps.remove(0);
-                String currXML = LimeXMLDocumentHelper.getAggregateString(currResps);
-                byte[] currXMLBytes = null;
-                try {
-                    currXMLBytes = currXML.getBytes("UTF-8");
-                } catch(UnsupportedEncodingException ueex) {
-                    throw new IllegalStateException(ueex);
-                }
-                if ((currXMLBytes.length > QueryReply.XML_MAX_SIZE) &&
-                                                        (currResps.length > 1)) 
-                    splitAndAddResponses(splitResps, currResps);
-                else {
-                    // create xml bytes if possible...
-                    byte[] xmlCompressed = null;
-                    if (!currXML.equals(""))
-                        xmlCompressed = LimeXMLUtils.compress(currXMLBytes);
-                    else //there is no XML
-                        xmlCompressed = DataUtils.EMPTY_BYTE_ARRAY;
-                    
-                    // create the new queryReply
-                    queryReply = queryReplyFactory.createQueryReply(guid, ttl,
-                            port, ip, speed, currResps, _clientGUID,
-                            xmlCompressed, notIncoming, busy, uploaded, measuredSpeed,
-                            ChatSettings.CHAT_ENABLED.getValue(), isFromMcast, isFWTransfer, proxies, securityToken);
-                    queryReplies.add(queryReply);
-                }
-            }
-
-        }
-        else {  // xml is small enough, no problem.....
-            // get xml bytes if possible....
-            byte[] xmlCompressed = null;
-            if (!xmlCollectionString.equals(""))
-                xmlCompressed = 
-                    LimeXMLUtils.compress(xmlBytes);
-            else //there is no XML
-                xmlCompressed = DataUtils.EMPTY_BYTE_ARRAY;
-            
-            // create the new queryReply
-            queryReply = queryReplyFactory.createQueryReply(guid, ttl, port,
-                    ip, speed, res, _clientGUID, xmlCompressed, notIncoming,
-                    busy, uploaded, measuredSpeed, ChatSettings.CHAT_ENABLED.getValue(), isFromMcast, isFWTransfer,
-                    proxies, securityToken);
-            queryReplies.add(queryReply);
-        }
-
-        return queryReplies;
-    }
-    
-
-    
-    /** @return Simply splits the input array into two (almost) equally sized
-     *  arrays.
-     */
-    private Response[][] splitResponses(Response[] in) {
-        int middle = in.length/2;
-        Response[][] retResps = new Response[2][];
-        retResps[0] = new Response[middle];
-        retResps[1] = new Response[in.length-middle];
-        for (int i = 0; i < middle; i++)
-            retResps[0][i] = in[i];
-        for (int i = 0; i < (in.length-middle); i++)
-            retResps[1][i] = in[i+middle];
-        return retResps;
-    }
-
-    private void splitAndAddResponses(List<Response[]> addTo, Response[] toSplit) {
-        Response[][] splits = splitResponses(toSplit);
-        addTo.add(splits[0]);
-        addTo.add(splits[1]);
-    }
-
-    
 }

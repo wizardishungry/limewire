@@ -18,7 +18,13 @@ import junit.framework.Test;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.limewire.core.api.connection.FirewallStatus;
+import org.limewire.core.api.connection.FirewallStatusEvent;
+import org.limewire.core.settings.ConnectionSettings;
 import org.limewire.io.IOUtils;
+import org.limewire.io.NetworkUtils;
+import org.limewire.listener.EventListener;
+import org.limewire.listener.ListenerSupport;
 import org.limewire.net.ConnectionAcceptor;
 import org.limewire.net.ConnectionDispatcher;
 import org.limewire.net.SocketsManager;
@@ -30,8 +36,8 @@ import org.limewire.util.OSUtils;
 import com.google.inject.AbstractModule;
 import com.google.inject.Injector;
 import com.google.inject.Key;
+import com.google.inject.TypeLiteral;
 import com.google.inject.name.Names;
-import com.limegroup.gnutella.settings.ConnectionSettings;
 import com.limegroup.gnutella.util.LimeTestCase;
 
 public class AcceptorTest extends LimeTestCase {
@@ -72,6 +78,8 @@ public class AcceptorTest extends LimeTestCase {
             }
         });
 
+       injector.getInstance(Key.get(new TypeLiteral<ListenerSupport<FirewallStatusEvent>>(){})).addListener(activityCallback);
+
         connectionDispatcher = injector.getInstance(Key.get(ConnectionDispatcher.class, Names.named("global")));
         socketsManager = injector.getInstance(SocketsManager.class);
         
@@ -109,7 +117,9 @@ public class AcceptorTest extends LimeTestCase {
         Thread.sleep(500); // Make sure the resetter gets scheduled.
         
         // Turn incoming on, make sure it triggers a change...
+        activityCallback.resetLatch();
         acceptor.setIncoming(true);
+        activityCallback.waitForSingleChange(true);
         assertEquals(1, activityCallback.getChanges());
         assertTrue(activityCallback.getLastStatus());
         
@@ -121,7 +131,9 @@ public class AcceptorTest extends LimeTestCase {
         assertEquals(2, activityCallback.getChanges());
        
         // Turn incoming on, make sure we get the status...
+        activityCallback.resetLatch();
         acceptor.setIncoming(true);
+        activityCallback.waitForSingleChange(true);
         assertEquals(3, activityCallback.getChanges());
         assertTrue(activityCallback.getLastStatus());
         
@@ -175,7 +187,7 @@ public class AcceptorTest extends LimeTestCase {
             acceptor.setListeningPort(portToTry);
             assertTrue("had no trouble binding UDP port!", false);
         } catch (IOException expected) {
-            udp.close();
+            IOUtils.close(udp);
         }
     }
         
@@ -205,9 +217,7 @@ public class AcceptorTest extends LimeTestCase {
                 fail("had no trouble binding TCP port!");
         }
         catch (IOException expected) {
-            try {
-                tcp.close();
-            } catch (IOException ignored) {}
+            IOUtils.close(tcp);
         }
     }
 
@@ -391,6 +401,25 @@ public class AcceptorTest extends LimeTestCase {
          assertNotEquals(1000,localPort); 
      }
      
+     /**
+      * Ensures the external address is returned as forced address if the client
+      * accepts incoming connections. This can happen if port forwarding is configured
+      * in the firewall but not in the client.
+      * 
+      * This is necessary to ensure that the client advertises its external address
+      * correctly to peers. 
+      */
+     public void testGetAddressReturnsForcedExternalAddressIfAcceptedIncoming() throws Exception {
+         acceptor.setAcceptedIncoming(true);
+         assertTrue(acceptor.acceptedIncoming());
+         acceptor.setExternalAddress(InetAddress.getByName("129.0.0.2"));
+         assertTrue(NetworkUtils.isValidAddress(acceptor.getExternalAddress()));
+         assertFalse(ConnectionSettings.FORCE_IP_ADDRESS.getValue());
+         assertNotEquals(new byte[] { (byte)129, 0, 0, 2}, acceptor.getAddress(false));
+         
+         assertEquals(new byte[] { (byte)129, 0, 0, 2}, acceptor.getAddress(true));
+     }
+     
      private int bindAcceptor() throws Exception {
         for (int p = 2000; p < Integer.MAX_VALUE; p++) {
             try {
@@ -464,17 +493,30 @@ public class AcceptorTest extends LimeTestCase {
         }
     }
     
-    private static class StubAC extends ActivityCallbackAdapter {
+    private static class StubAC extends ActivityCallbackAdapter implements EventListener<FirewallStatusEvent> {
         private volatile int changes = 0;
         private volatile boolean lastStatus = false;
         private volatile CountDownLatch latch;
+        private volatile CountDownLatch singleChangeLatch;
+        
+        void resetLatch() {
+            singleChangeLatch = new CountDownLatch(1);
+        }
         
         @Override
-        public void acceptedIncomingChanged(boolean status) {
+        public void handleEvent(FirewallStatusEvent event) {
             changes++;
-            lastStatus = status;
+            lastStatus = event.getSource() == FirewallStatus.NOT_FIREWALLED;
             if(latch != null)
                 latch.countDown();
+            if(singleChangeLatch != null) {
+                singleChangeLatch.countDown();
+            }
+        }
+        
+        int waitForSingleChange(boolean expect) throws Exception {
+            assertEquals(expect, singleChangeLatch.await(500, TimeUnit.MILLISECONDS));
+            return changes;
         }
         
         int getChanges() {

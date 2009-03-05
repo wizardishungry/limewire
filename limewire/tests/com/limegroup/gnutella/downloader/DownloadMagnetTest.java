@@ -7,6 +7,9 @@ import java.util.Set;
 
 import junit.framework.Test;
 
+import org.limewire.core.settings.DHTSettings;
+import org.limewire.core.settings.NetworkSettings;
+import org.limewire.io.GUID;
 import org.limewire.io.IOUtils;
 import org.limewire.io.IpPortImpl;
 import org.limewire.mojito.MojitoDHT;
@@ -17,7 +20,6 @@ import org.limewire.util.PrivilegedAccessor;
 import com.limegroup.gnutella.Downloader;
 import com.limegroup.gnutella.ExtendedEndpoint;
 import com.limegroup.gnutella.FileDetails;
-import com.limegroup.gnutella.GUID;
 import com.limegroup.gnutella.HostCatcher;
 import com.limegroup.gnutella.URN;
 import com.limegroup.gnutella.browser.MagnetOptions;
@@ -27,8 +29,6 @@ import com.limegroup.gnutella.dht.DHTManager.DHTMode;
 import com.limegroup.gnutella.dht.db.PushProxiesValue;
 import com.limegroup.gnutella.dht.db.PushProxiesValueImpl;
 import com.limegroup.gnutella.dht.util.KUIDUtils;
-import com.limegroup.gnutella.settings.DHTSettings;
-import com.limegroup.gnutella.settings.NetworkSettings;
 import com.limegroup.gnutella.xml.LimeXMLDocument;
 
 /**
@@ -77,7 +77,7 @@ public class DownloadMagnetTest extends DownloadTestCase {
     public void testDirectAlternateGuidLocationIsFoundAndDownloadedFrom() throws Exception {
         GUID guid = new GUID();
 
-        MagnetOptions magnet = MagnetOptions.createMagnet(createFileDetails(guid));
+        MagnetOptions magnet = MagnetOptions.createMagnet(createFileDetails(), null, guid.bytes());
  
         List<MojitoDHT> dhts = Collections.emptyList();
         try {
@@ -108,7 +108,7 @@ public class DownloadMagnetTest extends DownloadTestCase {
     public void testFirewalledAlternateGuidLocationIsFoundAndDownloadedFrom() throws Exception {
         GUID guid = new GUID();
 
-        MagnetOptions magnet = MagnetOptions.createMagnet(createFileDetails(guid));
+        MagnetOptions magnet = MagnetOptions.createMagnet(createFileDetails(), null, guid.bytes());
                 
         List<MojitoDHT> dhts = Collections.emptyList();
         try {
@@ -146,24 +146,16 @@ public class DownloadMagnetTest extends DownloadTestCase {
         dht.put(KUIDUtils.toKUID(guid), value).get();
     }
     
-    private FileDetails createFileDetails(final GUID guid) {
+    private FileDetails createFileDetails() {
         
         FileDetails fileDetails = new FileDetails() {
-
-            public byte[] getClientGUID() {
-                return guid.bytes();
-            }
 
             public String getFileName() {
                 return "filename";
             }
 
-            public long getFileSize() {
+            public long getSize() {
                 return TestFile.length();
-            }
-
-            public InetSocketAddress getInetSocketAddress() {
-                return null;
             }
 
             public URN getSHA1Urn() {
@@ -178,10 +170,13 @@ public class DownloadMagnetTest extends DownloadTestCase {
                 return null;
             }
 
-            public boolean isFirewalled() {
-                return true;
+            public long getIndex() {
+                return 0;  //To change body of implemented methods use File | Settings | File Templates.
             }
-            
+
+            public long getCreationTime() {
+                return 0;  //To change body of implemented methods use File | Settings | File Templates.
+            }
         };
         
        return fileDetails;

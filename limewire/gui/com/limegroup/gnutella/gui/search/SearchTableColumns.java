@@ -8,13 +8,14 @@ import java.util.List;
 
 import javax.swing.Icon;
 
+import org.limewire.core.settings.SearchSettings;
+
 import com.limegroup.gnutella.gui.GUIMediator;
 import com.limegroup.gnutella.gui.GuiCoreMediator;
 import com.limegroup.gnutella.gui.I18n;
 import com.limegroup.gnutella.gui.tables.ChatHolder;
 import com.limegroup.gnutella.gui.tables.LimeTableColumn;
 import com.limegroup.gnutella.licenses.License;
-import com.limegroup.gnutella.settings.SearchSettings;
 import com.limegroup.gnutella.xml.LimeXMLSchema;
 import com.limegroup.gnutella.xml.SchemaFieldInfo;
 

@@ -2,13 +2,13 @@ package com.limegroup.gnutella.gui.shell;
 
 import java.util.Collection;
 
+import org.limewire.core.settings.QuestionsHandler;
 import org.limewire.i18n.I18nMarker;
 
 import com.limegroup.gnutella.gui.DialogOption;
 import com.limegroup.gnutella.gui.GUIMediator;
 import com.limegroup.gnutella.gui.I18n;
 import com.limegroup.gnutella.gui.actions.ConfigureOptionsAction;
-import com.limegroup.gnutella.settings.QuestionsHandler;
 
 /**
  * Stores all the LimeAssociationOptions that LimeWire is set to use.

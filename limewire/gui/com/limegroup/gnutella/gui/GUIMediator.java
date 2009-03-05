@@ -33,6 +33,11 @@ import javax.swing.SwingUtilities;
 
 import org.limewire.concurrent.AbstractLazySingletonProvider;
 import org.limewire.concurrent.ThreadExecutor;
+import org.limewire.core.settings.ApplicationSettings;
+import org.limewire.core.settings.PlayerSettings;
+import org.limewire.core.settings.QuestionsHandler;
+import org.limewire.core.settings.SWTBrowserSettings;
+import org.limewire.core.settings.StartupSettings;
 import org.limewire.i18n.I18nMarker;
 import org.limewire.io.Connectable;
 import org.limewire.lws.server.LWSConnectionListener;
@@ -48,12 +53,8 @@ import org.limewire.util.StringUtils;
 import org.limewire.util.VersionUtils;
 
 import com.google.inject.Provider;
-import com.limegroup.bittorrent.gui.TorrentUploadCanceller;
 import com.limegroup.gnutella.bugs.FatalBugManager;
-import com.limegroup.gnutella.chat.InstantMessenger;
 import com.limegroup.gnutella.gui.actions.AbstractAction;
-import com.limegroup.gnutella.gui.chat.ChatFrame;
-import com.limegroup.gnutella.gui.chat.ChatUIManager;
 import com.limegroup.gnutella.gui.connection.ConnectionMediator;
 import com.limegroup.gnutella.gui.download.DownloadMediator;
 import com.limegroup.gnutella.gui.library.LibraryMediator;
@@ -65,18 +66,12 @@ import com.limegroup.gnutella.gui.playlist.PlaylistMediator;
 import com.limegroup.gnutella.gui.properties.ResultProperties;
 import com.limegroup.gnutella.gui.properties.ResultPropertiesDialog;
 import com.limegroup.gnutella.gui.search.SearchMediator;
-import com.limegroup.gnutella.gui.search.TableLine;
 import com.limegroup.gnutella.gui.shell.LimeAssociations;
 import com.limegroup.gnutella.gui.shell.ShellAssociationManager;
 import com.limegroup.gnutella.gui.tabs.LibraryPlayListTab;
 import com.limegroup.gnutella.gui.themes.ThemeMediator;
 import com.limegroup.gnutella.gui.themes.ThemeSettings;
 import com.limegroup.gnutella.gui.upload.UploadMediator;
-import com.limegroup.gnutella.settings.ApplicationSettings;
-import com.limegroup.gnutella.settings.PlayerSettings;
-import com.limegroup.gnutella.settings.QuestionsHandler;
-import com.limegroup.gnutella.settings.SWTBrowserSettings;
-import com.limegroup.gnutella.settings.StartupSettings;
 import com.limegroup.gnutella.util.LaunchException;
 import com.limegroup.gnutella.util.Launcher;
 import com.limegroup.gnutella.util.LimeWireUtils;
@@ -369,14 +364,14 @@ public final class GUIMediator {
 	 * Notification that the the core has been initialized.
 	 */
 	public void coreInitialized() {
-		startTimer();
+//		startTimer();
 		createEventListeners();
 	}
 	
-	private final void startTimer() {
-		RefreshTimer timer = new RefreshTimer();
-		timer.startTimer();
-	}
+//	private final void startTimer() {
+//		UpTimeTimer timer = new UpTimeTimer();
+//		timer.startTimer();
+//	}
 	
 	private void createEventListeners() {
         GuiCoreMediator.getLWSManager().addConnectionListener(new LWSConnectionListener() {
@@ -385,7 +380,7 @@ public final class GUIMediator {
             }
         });
             
-		TorrentUploadCanceller.createAndRegister(GuiCoreMediator.getTorrentManager());
+		//TorrentUploadCanceller.createAndRegister(GuiCoreMediator.getTorrentManager());
 	}
 
 	/**
@@ -480,8 +475,8 @@ public final class GUIMediator {
 	}
 
 	/** Displays the search result properties dialog box. */
-    public static void showProperties(TableLine line) {
-        ResultPropertiesDialog dialog = new ResultPropertiesDialog(new ResultProperties(line));
+    public static void showProperties(ResultProperties resultProperties) {
+        ResultPropertiesDialog dialog = new ResultPropertiesDialog(resultProperties);
         GUIUtils.centerOnScreen(dialog.getDialog());
         GUIUtils.addHideAction(dialog.getDialog());
         dialog.getDialog().setVisible(true);
@@ -620,10 +615,9 @@ public final class GUIMediator {
 		}
 
         // update the status panel
-        int sharedFiles  = GuiCoreMediator.getFileManager().getNumFiles();
-        int pendingShare = GuiCoreMediator.getFileManager().getNumPendingFiles();
+        int sharedFiles  = GuiCoreMediator.getFileManager().getGnutellaFileList().size();
         int quality      = getConnectionQuality();
-        STATUS_LINE.setStatistics(sharedFiles, pendingShare);
+        STATUS_LINE.setStatistics(sharedFiles);
         if(quality != StatusLine.STATUS_DISCONNECTED 
                 && quality != StatusLine.STATUS_CONNECTING) {
             hideDisposableMessage(DISCONNECTED_MESSAGE);
@@ -954,17 +948,17 @@ public final class GUIMediator {
             // that we want
 
             // cache whether or not to use our little hack, since setAppVisible
-            // changes the value of _visibleOnce
-            boolean doHack = false;
-            if (!_visibleOnce)
-                doHack = true;
-			GUIMediator.setAppVisible(true);
-            if (ApplicationSettings.DISPLAY_TRAY_ICON.getValue())
-                GUIMediator.showTrayIcon();
-            else
-                GUIMediator.hideTrayIcon();
-            if (doHack)
-                restoreView();
+//            // changes the value of _visibleOnce
+//            boolean doHack = false;
+//            if (!_visibleOnce)
+//                doHack = true;
+//			GUIMediator.setAppVisible(true);
+//            if (ApplicationSettings.DISPLAY_TRAY_ICON.getValue())
+//                GUIMediator.showTrayIcon();
+//            else
+//                GUIMediator.hideTrayIcon();
+//            if (doHack)
+//                restoreView();
 		}
 
         // If shutdown sequence was initiated, cancel it.  Auto shutdown is
@@ -997,8 +991,8 @@ public final class GUIMediator {
             //com.apple.eawt.ApplicationListener.handleReOpenApplication event
             //in order to restore the GUI.
             GUIMediator.setAppVisible(false);
-        } else if (ApplicationSettings.SHUTDOWN_AFTER_TRANSFERS.getValue()) {
-			GUIMediator.shutdownAfterTransfers();
+//        } else if (ApplicationSettings.SHUTDOWN_AFTER_TRANSFERS.getValue()) {
+//			GUIMediator.shutdownAfterTransfers();
 		} else {
 		    shutdown();
         }
@@ -1055,7 +1049,7 @@ public final class GUIMediator {
      * next time the program is started.
      */
     public static void applyWindowSettings()  {
-        ApplicationSettings.RUN_ONCE.setValue(true);
+//        ApplicationSettings.RUN_ONCE.setValue(true);
         if (GUIMediator.isAppVisible()) {            
             if((GUIMediator.getAppFrame().getExtendedState() & Frame.MAXIMIZED_BOTH) == Frame.MAXIMIZED_BOTH) {
                 ApplicationSettings.MAXIMIZE_WINDOW.setValue(true);
@@ -1586,16 +1580,6 @@ public final class GUIMediator {
 	}
 
 	/**
-	 * Adds the <tt>FinalizeListener</tt> class to the list of classes that
-	 * should be notified of finalize events.
-	 *
-	 * @param fin the <tt>FinalizeListener</tt> class that should be notified
-	 */
-	public static void addFinalizeListener(FinalizeListener fin) {
-	    Finalizer.addFinalizeListener(fin);
-	}
-
-	/**
 	 * Sets the searching or not searching status of the application.
 	 *
 	 * @param searching the searching status of the application
@@ -1773,13 +1757,6 @@ public final class GUIMediator {
 	public void setFrameCursor(Cursor cursor) {
 		FRAME.setCursor(cursor);
 	}
-    
-    public static ChatFrame createChat(String host, int port) {
-        InstantMessenger chatter = GuiCoreMediator.getChatManager().createConnection(host, port);
-        ChatFrame frame = ChatUIManager.instance().acceptChat(chatter);
-        chatter.start();
-        return frame;
-    }
     
 }
 

@@ -12,7 +12,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -30,13 +29,22 @@ import org.limewire.collection.FixedsizeHashMap;
 import org.limewire.collection.NoMoreStorageException;
 import org.limewire.concurrent.ExecutorsHelper;
 import org.limewire.concurrent.ManagedThread;
+import org.limewire.core.settings.ConnectionSettings;
+import org.limewire.core.settings.DownloadSettings;
+import org.limewire.core.settings.FilterSettings;
+import org.limewire.core.settings.MessageSettings;
+import org.limewire.core.settings.SearchSettings;
+import org.limewire.i18n.I18nMarker;
 import org.limewire.inspection.Inspectable;
 import org.limewire.inspection.InspectablePrimitive;
 import org.limewire.inspection.InspectionHistogram;
 import org.limewire.inspection.InspectionPoint;
+import org.limewire.io.GUID;
 import org.limewire.io.IOUtils;
 import org.limewire.io.IpPort;
 import org.limewire.io.NetworkUtils;
+import org.limewire.lifecycle.ServiceRegistry;
+import org.limewire.lifecycle.ServiceStage;
 import org.limewire.net.SocketsManager;
 import org.limewire.net.SocketsManager.ConnectType;
 import org.limewire.security.AddressSecurityToken;
@@ -47,6 +55,7 @@ import org.limewire.setting.evt.SettingEvent;
 import org.limewire.setting.evt.SettingListener;
 import org.limewire.util.Base32;
 import org.limewire.util.ByteUtils;
+import org.limewire.util.Objects;
 
 import com.google.inject.Inject;
 import com.google.inject.Provider;
@@ -57,8 +66,10 @@ import com.limegroup.gnutella.connection.ConnectionLifecycleEvent;
 import com.limegroup.gnutella.connection.ConnectionLifecycleListener;
 import com.limegroup.gnutella.connection.RoutedConnection;
 import com.limegroup.gnutella.dht.DHTManager;
+import com.limegroup.gnutella.filters.URNFilter;
 import com.limegroup.gnutella.guess.GUESSEndpoint;
 import com.limegroup.gnutella.guess.OnDemandUnicaster;
+import com.limegroup.gnutella.library.FileManager;
 import com.limegroup.gnutella.messagehandlers.DualMessageHandler;
 import com.limegroup.gnutella.messagehandlers.InspectionRequestHandler;
 import com.limegroup.gnutella.messagehandlers.LimeACKHandler;
@@ -67,6 +78,7 @@ import com.limegroup.gnutella.messagehandlers.OOBHandler;
 import com.limegroup.gnutella.messagehandlers.UDPCrawlerPingHandler;
 import com.limegroup.gnutella.messages.BadPacketException;
 import com.limegroup.gnutella.messages.Message;
+import com.limegroup.gnutella.messages.OutgoingQueryReplyFactory;
 import com.limegroup.gnutella.messages.PingReply;
 import com.limegroup.gnutella.messages.PingReplyFactory;
 import com.limegroup.gnutella.messages.PingRequest;
@@ -99,6 +111,7 @@ import com.limegroup.gnutella.messages.vendor.UDPCrawlerPing;
 import com.limegroup.gnutella.messages.vendor.UpdateRequest;
 import com.limegroup.gnutella.messages.vendor.UpdateResponse;
 import com.limegroup.gnutella.messages.vendor.VendorMessage;
+import com.limegroup.gnutella.routing.QRPUpdater;
 import com.limegroup.gnutella.routing.PatchTableMessage;
 import com.limegroup.gnutella.routing.QueryRouteTable;
 import com.limegroup.gnutella.routing.ResetTableMessage;
@@ -108,11 +121,6 @@ import com.limegroup.gnutella.search.QueryHandler;
 import com.limegroup.gnutella.search.QueryHandlerFactory;
 import com.limegroup.gnutella.search.ResultCounter;
 import com.limegroup.gnutella.search.SearchResultHandler;
-import com.limegroup.gnutella.settings.ConnectionSettings;
-import com.limegroup.gnutella.settings.DownloadSettings;
-import com.limegroup.gnutella.settings.FilterSettings;
-import com.limegroup.gnutella.settings.MessageSettings;
-import com.limegroup.gnutella.settings.SearchSettings;
 import com.limegroup.gnutella.simpp.SimppManager;
 import com.limegroup.gnutella.util.LimeWireUtils;
 import com.limegroup.gnutella.version.UpdateHandler;
@@ -326,12 +334,16 @@ public abstract class MessageRouterImpl implements MessageRouter {
     private final Provider<OOBHandler> oobHandlerFactory;
     private final Provider<MACCalculatorRepositoryManager> MACCalculatorRepositoryManager;
     protected final Provider<LimeACKHandler> limeAckHandler;
+    protected final QRPUpdater qrpUpdater;
+    private final URNFilter urnFilter;
     
     private final PingRequestFactory pingRequestFactory;
 
     private final MessageHandlerBinder messageHandlerBinder;
 
     private final ConnectionListener connectionListener = new ConnectionListener();
+    
+    private final OutgoingQueryReplyFactory outgoingQueryReplyFactory;
     
     /**
      * Creates a MessageRouter. Must call initialize before using.
@@ -377,7 +389,8 @@ public abstract class MessageRouterImpl implements MessageRouter {
             PingRequestFactory pingRequestFactory, MessageHandlerBinder messageHandlerBinder,
             Provider<OOBHandler> oobHandlerFactory,
             Provider<MACCalculatorRepositoryManager> MACCalculatorRepositoryManager,
-            Provider<LimeACKHandler> limeACKHandler) {
+            Provider<LimeACKHandler> limeACKHandler, OutgoingQueryReplyFactory outgoingQueryReplyFactory,
+            QRPUpdater qrpUpdater, URNFilter urnFilter) {
         this.networkManager = networkManager;
         this.queryRequestFactory = queryRequestFactory;
         this.queryHandlerFactory = queryHandlerFactory;
@@ -410,12 +423,15 @@ public abstract class MessageRouterImpl implements MessageRouter {
         this.udpCrawlerPingHandlerFactory = udpCrawlerPingHandlerFactory;
         this.pingRequestFactory = pingRequestFactory;
         this.messageHandlerBinder = messageHandlerBinder;
+        this.outgoingQueryReplyFactory = outgoingQueryReplyFactory;
         this.multicastGuidMap = guidMapManager.getMap();
         this.udpReplyHandlerCache = udpReplyHandlerCache;
         this.inspectionRequestHandlerFactory = inspectionRequestHandlerFactory;
         this.oobHandlerFactory = oobHandlerFactory;
         this.MACCalculatorRepositoryManager = MACCalculatorRepositoryManager;
         this.limeAckHandler = limeACKHandler;
+        this.qrpUpdater = qrpUpdater;
+        this.urnFilter = urnFilter;
 
         _clientGUID = applicationServices.getMyGUID();
         _bypassedResultsCache = new BypassedResultsCache(activityCallback, downloadManager);
@@ -526,7 +542,16 @@ public abstract class MessageRouterImpl implements MessageRouter {
         return multicastMessageHandlers.get(clazz);
     }
     
+    @Inject
+    void register(ServiceRegistry registry) {
+        registry.register(this).in(ServiceStage.EARLY);
+    }
+    
     public void initialize() {
+    }
+    
+    public String getServiceName() {
+        return I18nMarker.marktr("Message Routing");
     }
     
     /* (non-Javadoc)
@@ -707,6 +732,10 @@ public abstract class MessageRouterImpl implements MessageRouter {
      * @see com.limegroup.gnutella.MessageRouter#handleUDPMessage(com.limegroup.gnutella.messages.Message, java.net.InetSocketAddress)
      */	
 	public void handleUDPMessage(Message msg, InetSocketAddress addr) {
+	    if (LOG.isTraceEnabled()) {
+	        LOG.debug("handling udp message: " + msg + " from: " + addr);
+	    }
+	    
 	    // Increment hops and decrement TTL.
 	    msg.hop();
 
@@ -836,9 +865,8 @@ public abstract class MessageRouterImpl implements MessageRouter {
 
 	
     /**
-     * The handler for PingRequests received in
-     * RoutedConnection.loopForMessages().  Checks the routing table to see
-     * if the request has already been seen.  If not, calls handlePingRequest.
+     * Checks the routing table to see if the request has already been seen.
+     * If not, calls handlePingRequest.
      */
     final void handlePingRequestPossibleDuplicate(
         PingRequest request, ReplyHandler handler) {
@@ -847,9 +875,8 @@ public abstract class MessageRouterImpl implements MessageRouter {
     }
 
     /**
-     * The handler for PingRequests received in
-     * RoutedConnection.loopForMessages().  Checks the routing table to see
-     * if the request has already been seen.  If not, calls handlePingRequest.
+     * Checks the routing table to see if the request has already been seen.
+     * If not, calls handlePingRequest.
      */
     final void handleUDPPingRequestPossibleDuplicate(													 
         PingRequest request, ReplyHandler handler, InetSocketAddress  addr) {
@@ -858,9 +885,8 @@ public abstract class MessageRouterImpl implements MessageRouter {
     }
 
     /**
-     * The handler for QueryRequests received in
-     * RoutedConnection.loopForMessages().  Checks the routing table to see
-     * if the request has already been seen.  If not, calls handleQueryRequest.
+     * Checks the routing table to see if the request has already been seen.
+     * If not, calls handleQueryRequest.
      */
     final void handleQueryRequestPossibleDuplicate(
         QueryRequest request, ReplyHandler receivingConnection) {
@@ -963,24 +989,12 @@ public abstract class MessageRouterImpl implements MessageRouter {
         // pings on this connection.
         if(ping.isHeartbeat() || handler.allowNewPings()) {
             respondToPingRequest(ping, handler);
-        } 
+        }
     }
 
 
     /**
-     * The default handler for PingRequests received in
-     * RoutedConnection.loopForMessages().  This implementation updates stats,
-     * does the broadcast, and generates a response.
-     *
-     * You can customize behavior in three ways:
-     *   1. Override. You can assume that duplicate messages
-     *      (messages with the same GUID that arrived via different paths) have
-     *      already been filtered.  If you want stats updated, you'll
-     *      have to call super.handlePingRequest.
-     *   2. Override broadcastPingRequest.  This allows you to use the default
-     *      handling framework and just customize request routing.
-     *   3. Implement respondToPingRequest.  This allows you to use the default
-     *      handling framework and just customize responses.
+     * Responds to a UDP ping or query key request.
      */
     protected void handleUDPPingRequest(PingRequest pingRequest,
 										ReplyHandler handler, 
@@ -993,8 +1007,8 @@ public abstract class MessageRouterImpl implements MessageRouter {
     
 
     /**
-     * Generates a AddressSecurityToken for the source (described by addr) and sends the
-     * AddressSecurityToken to it via a AddressSecurityToken pong....
+     * Generates an AddressSecurityToken for the source (described by addr)
+     * and sends it in an AddressSecurityToken pong
      */
     protected void sendQueryKeyPong(PingRequest pr, InetSocketAddress addr) {
 
@@ -1032,20 +1046,14 @@ public abstract class MessageRouterImpl implements MessageRouter {
 
         // do not process the pong if different from the host
         // described in the reply 
-        if((reply.getPort() != port) || 
-           (!reply.getInetAddress().equals(address))) {
-            return;
-		}
-        
-        // normal pong processing...
-        handlePingReply(reply, handler);
+        if(reply.getPort() == port && reply.getInetAddress().equals(address))
+            handlePingReply(reply, handler);
     }
 
     
     /**
-     * The default handler for QueryRequests received in
-     * RoutedConnection.loopForMessages().  This implementation updates stats,
-     * does the broadcast, and generates a response.
+     * The default handler for QueryRequests. This implementation updates
+     * stats, does the broadcast, and generates a response.
      *
      * You can customize behavior in three ways:
      *   1. Override. You can assume that duplicate messages
@@ -1108,15 +1116,15 @@ public abstract class MessageRouterImpl implements MessageRouter {
             multicastQueryRequest(request);
             
 			if(handler.isGoodLeaf()) {
-				sendDynamicQuery(queryHandlerFactory.createHandlerForNewLeaf(request, 
-																	  handler,
-                                                                      counter), 
-								 handler);
+				sendDynamicQuery(queryHandlerFactory.createHandlerForNewLeaf(
+                                                                request, 
+																handler,
+                                                                counter));
 			} else {
-				sendDynamicQuery(queryHandlerFactory.createHandlerForOldLeaf(request,
-																	  handler,
-                                                                      counter), 
-								 handler);
+				sendDynamicQuery(queryHandlerFactory.createHandlerForOldLeaf(
+                                                                request,
+																handler,
+                                                                counter));
 			}
 		} else if(request.getTTL() > 0 && connectionServices.isSupernode()) {
             // send the request to intra-Ultrapeer connections -- this does
@@ -1171,12 +1179,8 @@ public abstract class MessageRouterImpl implements MessageRouter {
      * @see {@link #getQueryLocs(GUID)} for retrieval
      */
     public boolean addBypassedSource(QueryReply reply, ReplyHandler handler) {
-        try {
-            if (reply.getHostData().isFirewalled())
-                return false;
-        } catch (BadPacketException bpe){
+        if (reply.isFirewalled())
             return false;
-        }
         GUESSEndpoint ep = new GUESSEndpoint(handler.getInetAddress(), handler.getPort());
         return _bypassedResultsCache.addBypassedSource(new GUID(reply.getGUID()), ep);
     }
@@ -1273,8 +1277,9 @@ public abstract class MessageRouterImpl implements MessageRouter {
 
         // mutating twice restores the original guid
         UDPService.mutateGUID(guidToUse.bytes(), addrToContact, portToContact);
-        PingRequest pr = pingRequestFactory.createPingRequest(guidToUse.bytes(), (byte) 1,
-                (byte) 0);
+        PingRequest pr =
+            pingRequestFactory.createPingRequest(guidToUse.bytes(),
+                                                 (byte)1, (byte)0);
         udpService.send(pr, addrToContact, portToContact);
     }
     
@@ -1406,15 +1411,14 @@ public abstract class MessageRouterImpl implements MessageRouter {
                 ErrorService.error(uhe); // impossible
             }
 
-            // 1)
-            PushProxyAcknowledgement ack = 
-                new PushProxyAcknowledgement(addr,networkManager.getPort(),
-                                             ppReq.getClientGUID());
-            source.send(ack);
-            
-            // 2)
-            _pushRouteTable.routeReply(ppReq.getClientGUID().bytes(), source);
-            source.setPushProxyFor(true);
+            if(_pushRouteTable.routeReply(ppReq.getClientGUID().bytes(), source) != null) {
+                source.setPushProxyFor(true);
+
+                PushProxyAcknowledgement ack =
+                    new PushProxyAcknowledgement(addr,networkManager.getPort(),
+                                                 ppReq.getClientGUID());
+                source.send(ack);
+            }
         }
     }
 
@@ -1442,12 +1446,8 @@ public abstract class MessageRouterImpl implements MessageRouter {
      */
     public void sendPingRequest(PingRequest request,
                                 RoutedConnection connection) {
-        if(request == null) {
-            throw new NullPointerException("null ping");
-        }
-        if(connection == null) {
-            throw new NullPointerException("null connection");
-        }
+        Objects.nonNull(request, "ping");
+        Objects.nonNull(connection, "connection");
         _pingRouteTable.routeReply(request.getGUID(), forMeReplyHandler);
         connection.send(request);
     }
@@ -1457,12 +1457,8 @@ public abstract class MessageRouterImpl implements MessageRouter {
      */
     public void sendQueryRequest(QueryRequest request,
                                  RoutedConnection connection) {        
-        if(request == null) {
-            throw new NullPointerException("null query");
-        }
-        if(connection == null) {
-            throw new NullPointerException("null connection");
-        }
+        Objects.nonNull(request, "query");
+        Objects.nonNull(connection, "connection");
         _queryRouteTable.routeReply(request.getGUID(), forMeReplyHandler);
         connection.send(request);
     }
@@ -1471,9 +1467,7 @@ public abstract class MessageRouterImpl implements MessageRouter {
      * @see com.limegroup.gnutella.MessageRouter#broadcastPingRequest(com.limegroup.gnutella.messages.PingRequest)
      */
     public void broadcastPingRequest(PingRequest ping) {
-		if(ping == null) {
-			throw new NullPointerException("null ping");
-		}
+        Objects.nonNull(ping, "ping");
         _pingRouteTable.routeReply(ping.getGUID(), forMeReplyHandler);
         broadcastPingRequest(ping, forMeReplyHandler, connectionManager);
     }
@@ -1482,18 +1476,14 @@ public abstract class MessageRouterImpl implements MessageRouter {
      * @see com.limegroup.gnutella.MessageRouter#sendDynamicQuery(com.limegroup.gnutella.messages.QueryRequest)
      */
 	public void sendDynamicQuery(QueryRequest query) {
-		if(query == null) {
-			throw new NullPointerException("null QueryHandler");
-		}
-		
+        Objects.nonNull(query, "query");
 		// get the result counter so we can track the number of results
 		ResultCounter counter = 
-			_queryRouteTable.routeReply(query.getGUID(), 
-										forMeReplyHandler);
+			_queryRouteTable.routeReply(query.getGUID(), forMeReplyHandler);
 		if(connectionServices.isSupernode()) {
-			sendDynamicQuery(queryHandlerFactory.createHandlerForMe(query, 
-                                                             counter), 
-							 forMeReplyHandler);
+            QueryHandler qh =
+                queryHandlerFactory.createHandlerForMe(query, counter);
+			sendDynamicQuery(qh);
 		} else {
             originateLeafQuery(query);
 		} 
@@ -1526,18 +1516,9 @@ public abstract class MessageRouterImpl implements MessageRouter {
 	 *
 	 * @param qh the <tt>QueryHandler</tt> instance that generates
 	 *  queries for this dynamic query
-     * @param handler the <tt>ReplyHandler</tt> for routing replies for
-     *  this query
-	 * @throws <tt>NullPointerException</tt> if the <tt>ResultCounter</tt>
-	 *  for the guid cannot be found -- this should never happen, or if any
-	 *  of the arguments is <tt>null</tt>
 	 */
-	private void sendDynamicQuery(QueryHandler qh, ReplyHandler handler) {
-		if(qh == null) {
-			throw new NullPointerException("null QueryHandler");
-		} else if(handler == null) {
-			throw new NullPointerException("null ReplyHandler");
-		} 
+	private void sendDynamicQuery(QueryHandler qh) {
+        Objects.nonNull(qh, "query handler");
         queryDispatcher.addQuery(qh);
 	}
 
@@ -1545,7 +1526,10 @@ public abstract class MessageRouterImpl implements MessageRouter {
      * Broadcasts the ping request to all initialized connections that
      * are not the receivingConnection, setting up the routing
      * to the designated PingReplyHandler.  This is called from the default
-     * handlePingRequest and the default broadcastPingRequest(PingRequest)
+     * handlePingRequest and the default broadcastPingRequest(PingRequest). If
+     * there are more than 3 initialized connections, most will be skipped.
+     * Unstable connections are skipped, and leaves only send their own pings
+     * to their ultrapeers.
      *
      * If different (smarter) broadcasting functionality is desired, override
      * as desired.  If you do, note that receivingConnection may be null (for
@@ -1556,34 +1540,15 @@ public abstract class MessageRouterImpl implements MessageRouter {
                                       ConnectionManager manager) {
         // Note the use of initializedConnections only.
         // Note that we have zero allocations here.
-
-        //Broadcast the ping to other connected nodes (supernodes or older
-        //nodes), but DON'T forward any ping not originating from me 
-        //along leaf to ultrapeer connections.
         List<RoutedConnection> list = manager.getInitializedConnections();
-        int size = list.size();
-
-        boolean randomlyForward = false;
-        if(size > 3) randomlyForward = true;
-        double percentToIgnore;
-        for(int i=0; i<size; i++) {
-            RoutedConnection mc = list.get(i);
-            if(!mc.isStable()) continue;
-            if (receivingConnection == forMeReplyHandler || 
-                (mc != receivingConnection && 
-                 !mc.getConnectionCapabilities().isClientSupernodeConnection())) {
-
-                if(mc.supportsPongCaching()) {
-                    percentToIgnore = 0.70;
-                } else {
-                    percentToIgnore = 0.90;
-                }
-                if(randomlyForward && 
-                   (Math.random() < percentToIgnore)) {
-                    continue;
-                } else {
+        boolean randomlyForward = list.size() > 3;
+        for(RoutedConnection mc : list) {
+            if(mc == receivingConnection || !mc.isStable()) continue;
+            if(receivingConnection == forMeReplyHandler || 
+               !mc.getConnectionCapabilities().isClientSupernodeConnection()) {
+                double percentToIgnore = mc.supportsPongCaching() ? 0.7 : 0.9;
+                if(!randomlyForward || Math.random() >= percentToIgnore)
                     mc.send(request);
-                }
             }
         }
     }
@@ -1599,8 +1564,7 @@ public abstract class MessageRouterImpl implements MessageRouter {
         //table has been received
         List<RoutedConnection> list = connectionManager.getInitializedClientConnections();
         List<RoutedConnection> hitConnections = new ArrayList<RoutedConnection>();
-        for(int i=0; i<list.size(); i++) {
-            RoutedConnection mc = list.get(i);
+        for(RoutedConnection mc : list) {
             if(mc == handler) continue;
             if(mc.shouldForwardQuery(query)) {
                 hitConnections.add(mc);
@@ -1616,9 +1580,7 @@ public abstract class MessageRouterImpl implements MessageRouter {
                 hitConnections.subList(startIndex, startIndex+hitConnections.size()/4);
         }
         
-        for(int i=0; i<hitConnections.size(); i++) {
-            RoutedConnection mc = hitConnections.get(i);
-            
+        for(RoutedConnection mc : hitConnections) {
             // sendRoutedQueryToHost is not called because 
             // we have already ensured it hits the routing table
             // by filling up the 'hitsConnection' list.
@@ -1695,11 +1657,9 @@ public abstract class MessageRouterImpl implements MessageRouter {
 		//along leaf to ultrapeer connections.
 	 
 		List<RoutedConnection> list = connectionManager.getInitializedConnections();
-        int limit = list.size();
 
         int forwarded = 0;
-		for(int i=0; i<limit; i++) {
-			RoutedConnection mc = list.get(i);      
+		for(RoutedConnection mc : list) {      
             forwarded += forwardQueryToUltrapeer(query, handler, mc) ? 1 : 0;  
         }
 		if (query.getTTL() == 1)
@@ -1822,11 +1782,8 @@ public abstract class MessageRouterImpl implements MessageRouter {
      * @see com.limegroup.gnutella.MessageRouter#originateQuery(com.limegroup.gnutella.messages.QueryRequest, com.limegroup.gnutella.RoutedConnection)
      */
     public boolean sendInitialQuery(QueryRequest query, RoutedConnection mc) {
-        if( query == null )
-            throw new NullPointerException("null query");
-        if( mc == null )
-            throw new NullPointerException("null connection");
-    
+        Objects.nonNull(query, "query");
+        Objects.nonNull(mc, "connection");
         // if this is a feature query & the other side doesn't
         // support it, then don't send it
         // This is an optimization of network traffic, and doesn't
@@ -1879,9 +1836,8 @@ public abstract class MessageRouterImpl implements MessageRouter {
                                                      ReplyHandler handler);
 
     /**
-     * The default handler for PingRequests received in
-     * RoutedConnection.loopForMessages().  This implementation
-     * uses the ping route table to route a ping reply.  If an appropriate route
+     * The default handler for PingRequests.  This implementation uses the
+     * ping route table to route a ping reply.  If an appropriate route
      * doesn't exist, records the error statistics.  On sucessful routing,
      * the PingReply count is incremented.<p>
      *
@@ -1917,9 +1873,9 @@ public abstract class MessageRouterImpl implements MessageRouter {
         //prevalent, this may consume too much bandwidth.
 		//Also forward any GUESS pongs to all leaves.
         if (newAddress && (reply.isUltrapeer() || supportsUnicast)) {
-            List<RoutedConnection> list=connectionManager.getInitializedClientConnections();
-            for (int i=0; i<list.size(); i++) {
-                RoutedConnection c = list.get(i);
+            List<RoutedConnection> list =
+                connectionManager.getInitializedClientConnections();
+            for(RoutedConnection c : list) {
                 assert c != null : "null c.";
                 if (c!=handler && c!=replyHandler && c.allowNewPongs()) {
                     c.handlePingReply(reply, handler);
@@ -1933,12 +1889,8 @@ public abstract class MessageRouterImpl implements MessageRouter {
      */
     public void handleQueryReply(QueryReply queryReply,
                                  ReplyHandler handler) {
-        if(queryReply == null) {
-            throw new NullPointerException("null query reply");
-        }
-        if(handler == null) {
-            throw new NullPointerException("null ReplyHandler");
-        }
+        Objects.nonNull(queryReply, "query reply");
+        Objects.nonNull(handler, "reply handler");
         
         // check the altloc count
         if (!altCountOk(queryReply))
@@ -1947,12 +1899,13 @@ public abstract class MessageRouterImpl implements MessageRouter {
         //For flow control reasons, we keep track of the bytes routed for this
         //GUID.  Replies with less volume have higher priorities (i.e., lower
         //numbers).
+        int classC = ByteUtils.beb2int(queryReply.getIPBytes(), 0);
         RouteTable.ReplyRoutePair rrp =
             _queryRouteTable.getReplyHandler(queryReply.getGUID(),
                                              queryReply.getTotalLength(),
 											 queryReply.getUniqueResultCount(),
 											 queryReply.getPartialResultCount(),
-                                             ByteUtils.beb2int(queryReply.getIPBytes(), 0));
+                                             classC, urnFilter.allow(queryReply));
 
         if(rrp != null) {
             queryReply.setPriority(rrp.getBytesRouted());
@@ -2045,6 +1998,7 @@ public abstract class MessageRouterImpl implements MessageRouter {
 
         // drop the reply if we've already sent more than the specified number
         // of results for this GUID
+        // FIXME: could this cause spam to kill queries?
         if(resultsRouted > 100) {
             droppedReplyCounter.tooManyResults((short)resultsRouted);
             return true;
@@ -2053,13 +2007,14 @@ public abstract class MessageRouterImpl implements MessageRouter {
         int bytesRouted = rrp.getBytesRouted();
         // send replies with ttl above 2 if we've routed under 50K 
         if(ttl > 2 && bytesRouted < 50    * 1024) return false;
-        // send replies with ttl 1 if we've routed under 1000K 
+        // send replies with ttl 1 if we've routed under 200K 
         if(ttl == 1 && bytesRouted < 200 * 1024) return false;
-        // send replies with ttl 2 if we've routed under 333K 
+        // send replies with ttl 2 if we've routed under 100K 
         if(ttl == 2 && bytesRouted < 100  * 1024) return false;
 
         droppedReplyCounter.ttlByteDrop(ttl, bytesRouted);
         // if none of the above conditions holds true, drop the reply
+        // FIXME: could this cause spam to kill queries?
         return true;
     }
 
@@ -2151,14 +2106,8 @@ public abstract class MessageRouterImpl implements MessageRouter {
      * stats are updated.
      */
     protected void sendPingReply(PingReply pong, ReplyHandler handler) {
-        if(pong == null) {
-            throw new NullPointerException("null pong");
-        }
-
-        if(handler == null) {
-            throw new NullPointerException("null reply handler");
-        }
- 
+        Objects.nonNull(pong, "pong");
+        Objects.nonNull(handler, "reply handler");
         handler.handlePingReply(pong, null);
     }
 
@@ -2168,12 +2117,8 @@ public abstract class MessageRouterImpl implements MessageRouter {
      * stats are updated.
      * @throws IOException if no appropriate route exists.
      */
-    protected void sendQueryReply(QueryReply queryReply)
-        throws IOException {
-        
-        if(queryReply == null) {
-            throw new NullPointerException("null reply");
-        }
+    protected void sendQueryReply(QueryReply queryReply) throws IOException {
+        Objects.nonNull(queryReply, "query reply");
         //For flow control reasons, we keep track of the bytes routed for this
         //GUID.  Replies with less volume have higher priorities (i.e., lower
         //numbers).
@@ -2181,8 +2126,7 @@ public abstract class MessageRouterImpl implements MessageRouter {
             _queryRouteTable.getReplyHandler(queryReply.getGUID(),
                                              queryReply.getTotalLength(),
 											 queryReply.getResultCount(),
-											 queryReply.getPartialResultCount(),
-                                             0);
+											 queryReply.getPartialResultCount());
 
         if(rrp != null) {
             queryReply.setPriority(rrp.getBytesRouted());
@@ -2195,13 +2139,8 @@ public abstract class MessageRouterImpl implements MessageRouter {
     /* (non-Javadoc)
      * @see com.limegroup.gnutella.MessageRouter#sendPushRequest(com.limegroup.gnutella.messages.PushRequest)
      */
-    public void sendPushRequest(PushRequest push)
-        throws IOException {
-        if(push == null) {
-            throw new NullPointerException("null push");
-        }
-        
-
+    public void sendPushRequest(PushRequest push) throws IOException {
+        Objects.nonNull(push, "push");
         // Note the use of getClientGUID() here, not getGUID()
         ReplyHandler replyHandler = getPushHandler(push.getClientGUID());
 
@@ -2215,10 +2154,7 @@ public abstract class MessageRouterImpl implements MessageRouter {
      * @see com.limegroup.gnutella.MessageRouter#sendMulticastPushRequest(com.limegroup.gnutella.messages.PushRequest)
      */
     public void sendMulticastPushRequest(PushRequest push) {
-        if(push == null) {
-            throw new NullPointerException("null push");
-        }
-        
+        Objects.nonNull(push, "push");
         // must have a TTL of 1
         assert push.getTTL() == 1 : "multicast push ttl not 1";
         
@@ -2252,25 +2188,7 @@ public abstract class MessageRouterImpl implements MessageRouter {
     public Iterable<QueryReply> responsesToQueryReplies(Response[] responses,
                                              QueryRequest queryRequest,
                                              final int REPLY_LIMIT, SecurityToken securityToken) {
-
-        //List to store Query Replies
-        List<QueryReply> queryReplies = new LinkedList<QueryReply>();
-        
-        // get the appropriate queryReply information
-        byte[] guid = queryRequest.getGUID();
-        byte ttl = (byte)(queryRequest.getHops() + 1);
-
-        //Return measured speed if possible, or user's speed otherwise.
-        long speed = uploadManager.measuredUploadSpeed();
-        boolean measuredSpeed=true;
-        if (speed==-1) {
-            speed=ConnectionSettings.CONNECTION_SPEED.getValue();
-            measuredSpeed=false;
-        }
-
         int numResponses = responses.length;
-        int index = 0;
-
         int numHops = queryRequest.getHops();
 
         // limit the responses if we're not delivering this 
@@ -2290,92 +2208,10 @@ public abstract class MessageRouterImpl implements MessageRouter {
             responses = newResponses;
             numResponses = responses.length;
         }
-        while (numResponses > 0) {
-            int arraySize;
-            // if there are more than 255 responses,
-            // create an array of 255 to send in the queryReply
-            // otherwise, create an array of whatever size is left.
-            if (numResponses < REPLY_LIMIT) {
-                // break;
-                arraySize = numResponses;
-            }
-            else
-                arraySize = REPLY_LIMIT;
-
-            Response[] res;
-            // a special case.  in the common case where there
-            // are less than 256 responses being sent, there
-            // is no need to copy one array into another.
-            if ( (index == 0) && (arraySize < REPLY_LIMIT) ) {
-                res = responses;
-            }
-            else {
-                res = new Response[arraySize];
-                // copy the reponses into bite-size chunks
-                for(int i =0; i < arraySize; i++) {
-                    res[i] = responses[index];
-                    index++;
-                }
-            }
-
-            // decrement the number of responses we have left
-            numResponses-= arraySize;
-
-			// see if there are any open slots
-            // Note: if we are busy, non-metafile results would be filtered.
-            // by this point.
-			boolean busy = !uploadManager.mayBeServiceable();
-            boolean uploaded = uploadManager.hadSuccesfulUpload();
-			
-            // We only want to return a "reply to multicast query" QueryReply
-            // if the request travelled a single hop.
-			boolean mcast = queryRequest.isMulticast() && 
-                (queryRequest.getTTL() + queryRequest.getHops()) == 1;
-			
-            // We should mark our hits if the remote end can do a firewalled
-            // transfer AND so can we AND we don't accept tcp incoming AND our
-            // external address is valid (needed for input into the reply)
-            final boolean fwTransfer = 
-                queryRequest.canDoFirewalledTransfer() && 
-                networkManager.canDoFWT() &&
-                !networkManager.acceptedIncomingConnection();
-            
-			if ( mcast ) {
-                ttl = 1; // not strictly necessary, but nice.
-            }
-            
-            List<QueryReply> replies =
-                createQueryReply(guid, ttl, speed, res, 
-                                 _clientGUID, busy, uploaded, 
-                                 measuredSpeed, mcast,
-                                 fwTransfer, securityToken);
-
-            //add to the list
-            queryReplies.addAll(replies);
-
-        }//end of while
         
-        return queryReplies;
+        // decrement the number of responses we have left
+        return outgoingQueryReplyFactory.createReplies(responses, queryRequest, securityToken, REPLY_LIMIT);
     }
-
-    /**
-     * Abstract method for creating query hits.  Subclasses must specify
-     * how this list is created.
-     * 
-     * @param securityToken might be null, otherwise must be sent in GGEP
-     * of QHD with header "SO"
-     *
-     * @return a <tt>List</tt> of <tt>QueryReply</tt> instances
-     */
-    protected abstract List<QueryReply> createQueryReply(byte[] guid, byte ttl,
-                                            long speed, 
-                                             Response[] res, byte[] clientGUID, 
-                                             boolean busy, 
-                                             boolean uploaded, 
-                                             boolean measuredSpeed, 
-                                             boolean isFromMcast,
-                                             boolean shouldMarkForFWTransfer,
-                                             SecurityToken securityToken);
 
     /**
      * Handles a message to reset the query route table for the given
@@ -2447,18 +2283,6 @@ public abstract class MessageRouterImpl implements MessageRouter {
         
         if (!(handler instanceof Connection)) 
             return;
-        
-        Connection c = (Connection) handler;
-        QueryReply update = staticMessages.getUpdateReply();
-        if (request.getHops() == 1 && c.getConnectionCapabilities().isOldLimeWire()) {
-            if (update != null) {
-                QueryReply qr = queryReplyFactory.createQueryReply(request.getGUID(), update);
-                try {
-                    sendQueryReply(qr);
-                } catch (IOException ignored) {
-                }
-            }
-        }
     }
 
     /**
@@ -2513,14 +2337,13 @@ public abstract class MessageRouterImpl implements MessageRouter {
 		long time = System.currentTimeMillis();
 
 		//For all connections to new hosts c needing an update...
-		List<RoutedConnection> list=connectionManager.getInitializedConnections();
+		List<RoutedConnection> list =
+            connectionManager.getInitializedConnections();
 		QueryRouteTable table = null;
 		List<RouteTableMessage> patches = null;
 		QueryRouteTable lastSent = null;
 		
-		for(int i=0; i<list.size(); i++) {                        
-			RoutedConnection c = list.get(i);
-			
+		for(RoutedConnection c : list) {
 
 			// continue if I'm an Ultrapeer and the node on the
 			// other end doesn't support Ultrapeer-level query
@@ -2601,7 +2424,7 @@ public abstract class MessageRouterImpl implements MessageRouter {
      */
     //default access for testing
     QueryRouteTable createRouteTable() {
-        QueryRouteTable ret = fileManager.getQRT();
+        QueryRouteTable ret = qrpUpdater.getQRT();
         
         // Add leaves' files if we're an Ultrapeer.
         if(connectionServices.isSupernode()) {
@@ -2622,10 +2445,10 @@ public abstract class MessageRouterImpl implements MessageRouter {
 	 * @param qrt the <tt>QueryRouteTable</tt> to add to
 	 */
 	private void addQueryRoutingEntriesForLeaves(QueryRouteTable qrt) {
-		List<RoutedConnection> leaves = connectionManager.getInitializedClientConnections();
+		List<RoutedConnection> leaves =
+            connectionManager.getInitializedClientConnections();
 		
-		for(int i=0; i<leaves.size(); i++) {
-			RoutedConnection mc = leaves.get(i);
+		for(RoutedConnection mc : leaves) {
         	synchronized (mc.getQRPLock()) {
         	    //	Don't include busy leaves
         	    if( !mc.isBusyLeaf() ){
@@ -2843,13 +2666,13 @@ public abstract class MessageRouterImpl implements MessageRouter {
             
             // state changed? don't bother the ultrapeer with information
             // that it already knows. we need to inform new ultrapeers, though.
-            final List<RoutedConnection> connections = connectionManager.getInitializedConnections();
+            final List<RoutedConnection> connections =
+                connectionManager.getInitializedConnections();
             final HopsFlowVendorMessage hops = 
                 new HopsFlowVendorMessage(isBusy ? BUSY_HOPS_FLOW :
                                           FREE_HOPS_FLOW);
             if (isBusy == _oldBusyState) {
-                for (int i = 0; i < connections.size(); i++) {
-                    RoutedConnection c = connections.get(i);
+                for(RoutedConnection c : connections) {
                     // Yes, we may tell a new ultrapeer twice, but
                     // without a buffer of some kind, we might forget
                     // some ultrapeers. The clean solution would be
@@ -2862,8 +2685,7 @@ public abstract class MessageRouterImpl implements MessageRouter {
                 }
             } else { 
                 _oldBusyState = isBusy;
-                for (int i = 0; i < connections.size(); i++) {
-                    RoutedConnection c = connections.get(i);
+                for(RoutedConnection c : connections) {
                     if (c != null && c.getConnectionCapabilities().isClientSupernodeConnection())
                         c.send(hops);
                 }

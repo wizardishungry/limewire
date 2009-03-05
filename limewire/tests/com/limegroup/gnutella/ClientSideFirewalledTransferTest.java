@@ -22,6 +22,8 @@ import java.util.concurrent.TimeUnit;
 
 import junit.framework.Test;
 
+import org.limewire.core.settings.ConnectionSettings;
+import org.limewire.io.GUID;
 import org.limewire.io.IpPort;
 import org.limewire.io.IpPortImpl;
 import org.limewire.io.IpPortSet;
@@ -29,9 +31,11 @@ import org.limewire.rudp.RUDPUtils;
 import org.limewire.rudp.messages.SynMessage;
 import org.limewire.util.Base32;
 
-import com.google.inject.AbstractModule;
 import com.google.inject.Injector;
 import com.google.inject.Singleton;
+import com.google.inject.Stage;
+import com.limegroup.gnutella.helpers.UrnHelper;
+import com.limegroup.gnutella.library.FileManager;
 import com.limegroup.gnutella.messages.Message;
 import com.limegroup.gnutella.messages.MessageFactory;
 import com.limegroup.gnutella.messages.PushRequest;
@@ -44,8 +48,6 @@ import com.limegroup.gnutella.messages.Message.Network;
 import com.limegroup.gnutella.messages.vendor.MessagesSupportedVendorMessage;
 import com.limegroup.gnutella.messages.vendor.PushProxyAcknowledgement;
 import com.limegroup.gnutella.messages.vendor.PushProxyRequest;
-import com.limegroup.gnutella.search.HostData;
-import com.limegroup.gnutella.settings.ConnectionSettings;
 import com.limegroup.gnutella.stubs.ActivityCallbackStub;
 import com.limegroup.gnutella.stubs.NetworkManagerStub;
 
@@ -96,12 +98,8 @@ public class ClientSideFirewalledTransferTest extends ClientSideTestCase {
         UDP_ACCESS = new DatagramSocket(9000);
         UDP_ACCESS.setSoTimeout(TIMEOUT*2);
         networkManagerStub = new NetworkManagerStub();
-        injector = LimeTestUtils.createInjector(MyActivityCallback.class, new AbstractModule() {
-            @Override
-            protected void configure() {
-                bind(NetworkManager.class).toInstance(networkManagerStub);
-            } 
-        });
+        injector = LimeTestUtils.createInjector(Stage.PRODUCTION, MyActivityCallback.class,
+                new LimeTestUtils.NetworkManagerStubModule(networkManagerStub));
         super.setUp(injector);
 
         fileManager = injector.getInstance(FileManager.class);
@@ -173,7 +171,7 @@ public class ClientSideFirewalledTransferTest extends ClientSideTestCase {
         drainUDP();
 
         // make sure leaf is sharing
-        assertEquals(2, fileManager.getNumFiles());
+        assertEquals(2, fileManager.getGnutellaFileList().size());
 
         // send a query that should be answered
         QueryRequest query = queryRequestFactory.createQueryRequest(GUID.makeGuid(), (byte)2,
@@ -274,7 +272,7 @@ public class ClientSideFirewalledTransferTest extends ClientSideTestCase {
         Set<IpPort> proxies = new IpPortSet();
         proxies.add(new IpPortImpl("127.0.0.1", 7000));
         Response[] res = new Response[1];
-        res[0] = responseFactory.createResponse(10, 10, "boalt.org");
+        res[0] = responseFactory.createResponse(10, 10, "boalt.org", UrnHelper.SHA1);
         m = queryReplyFactory.createQueryReply(m.getGUID(), (byte) 1, 9000,
                 myIP(), 0, res, clientGUID, new byte[0], true, false, true,
                 true, false, false, true, proxies, null);
@@ -283,8 +281,7 @@ public class ClientSideFirewalledTransferTest extends ClientSideTestCase {
 
         final RemoteFileDesc rfd = callback.getRFD(); 
         assertNotNull(rfd);
-        assertNotNull(rfd.getPushAddr());
-        assertTrue(rfd.needsPush());
+        assertTrue(rfd.getAddress() instanceof PushEndpoint);
 
         // tell the leaf to download the file, should result in push proxy
         // request
@@ -405,7 +402,7 @@ public class ClientSideFirewalledTransferTest extends ClientSideTestCase {
 
         @Override
         public void handleQueryResult(RemoteFileDesc rfd,
-                                      HostData data,
+                                      QueryReply queryReply,
                                       Set locs) {
             this.rfd = rfd;
             latch.countDown();

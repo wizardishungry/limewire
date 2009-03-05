@@ -4,7 +4,10 @@ import java.io.File;
 import java.io.IOException;
 import java.util.concurrent.ScheduledExecutorService;
 
+import org.limewire.core.api.download.SaveLocationException;
+import org.limewire.core.api.download.SaveLocationManager;
 import org.limewire.io.InvalidDataException;
+import org.limewire.net.SocketsManager;
 
 import com.google.inject.Inject;
 import com.google.inject.Provider;
@@ -12,14 +15,9 @@ import com.google.inject.name.Named;
 import com.limegroup.gnutella.ApplicationServices;
 import com.limegroup.gnutella.DownloadCallback;
 import com.limegroup.gnutella.DownloadManager;
-import com.limegroup.gnutella.FileManager;
 import com.limegroup.gnutella.MessageRouter;
 import com.limegroup.gnutella.NetworkManager;
-import com.limegroup.gnutella.SaveLocationException;
-import com.limegroup.gnutella.SaveLocationManager;
-import com.limegroup.gnutella.SavedFileManager;
 import com.limegroup.gnutella.URN;
-import com.limegroup.gnutella.UrnCache;
 import com.limegroup.gnutella.altlocs.AltLocManager;
 import com.limegroup.gnutella.altlocs.AlternateLocationFactory;
 import com.limegroup.gnutella.auth.ContentManager;
@@ -28,7 +26,9 @@ import com.limegroup.gnutella.downloader.serial.InNetworkDownloadMemento;
 import com.limegroup.gnutella.downloader.serial.InNetworkDownloadMementoImpl;
 import com.limegroup.gnutella.filters.IPFilter;
 import com.limegroup.gnutella.guess.OnDemandUnicaster;
-import com.limegroup.gnutella.library.SharingUtils;
+import com.limegroup.gnutella.library.FileManager;
+import com.limegroup.gnutella.library.LibraryUtils;
+import com.limegroup.gnutella.library.UrnCache;
 import com.limegroup.gnutella.messages.QueryRequest;
 import com.limegroup.gnutella.messages.QueryRequestFactory;
 import com.limegroup.gnutella.tigertree.HashTreeCache;
@@ -55,17 +55,18 @@ class InNetworkDownloaderImpl extends ManagedDownloaderImpl implements InNetwork
             QueryRequestFactory queryRequestFactory, OnDemandUnicaster onDemandUnicaster,
             DownloadWorkerFactory downloadWorkerFactory, AltLocManager altLocManager,
             ContentManager contentManager, SourceRankerFactory sourceRankerFactory,
-            UrnCache urnCache, SavedFileManager savedFileManager,
+            UrnCache urnCache,
             VerifyingFileFactory verifyingFileFactory, DiskController diskController,
              IPFilter ipFilter, @Named("backgroundExecutor") ScheduledExecutorService backgroundExecutor,
             Provider<MessageRouter> messageRouter, Provider<HashTreeCache> tigerTreeCache,
-            ApplicationServices applicationServices, RemoteFileDescFactory remoteFileDescFactory, Provider<PushList> pushListProvider) throws SaveLocationException {
+            ApplicationServices applicationServices, RemoteFileDescFactory remoteFileDescFactory, Provider<PushList> pushListProvider,
+            SocketsManager socketsManager) throws SaveLocationException {
         super(saveLocationManager, downloadManager, fileManager, incompleteFileManager,
                 downloadCallback, networkManager, alternateLocationFactory, requeryManagerFactory,
                 queryRequestFactory, onDemandUnicaster, downloadWorkerFactory, altLocManager,
-                contentManager, sourceRankerFactory, urnCache, savedFileManager,
+                contentManager, sourceRankerFactory, urnCache, 
                 verifyingFileFactory, diskController, ipFilter, backgroundExecutor, messageRouter,
-                tigerTreeCache, applicationServices, remoteFileDescFactory, pushListProvider);
+                tigerTreeCache, applicationServices, remoteFileDescFactory, pushListProvider, socketsManager);
     }
     
     /* (non-Javadoc)
@@ -101,7 +102,7 @@ class InNetworkDownloaderImpl extends ManagedDownloaderImpl implements InNetwork
     @Override
     protected File getIncompleteFile(String name, URN urn,
                                      long length) throws IOException {
-        return incompleteFileManager.getFile(name, urn, length, new File(SharingUtils.PREFERENCE_SHARE, "Incomplete"));
+        return incompleteFileManager.getFile(name, urn, length, new File(LibraryUtils.PREFERENCE_SHARE, "Incomplete"));
     }
     
     /**

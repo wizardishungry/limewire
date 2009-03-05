@@ -1,10 +1,11 @@
 package com.limegroup.gnutella;
 
+import org.limewire.core.settings.ApplicationSettings;
+
 import junit.framework.Test;
 
-import com.limegroup.gnutella.settings.ApplicationSettings;
 
-@SuppressWarnings( { "unchecked", "cast" } )
+@SuppressWarnings( { "cast" } )
 public class StatisticsTest extends com.limegroup.gnutella.util.LimeTestCase { 
     //Most of this code assumes a window factor W of 7 days.
 
@@ -83,7 +84,7 @@ public class StatisticsTest extends com.limegroup.gnutella.util.LimeTestCase {
             ApplicationSettings.FRACTIONAL_UPTIME.getValue(), DELTA);
 
         //Test shutdown method too.
-        stats.shutdown();
+        stats.stop();
         assertEquals(clock.now(), 
             ApplicationSettings.LAST_SHUTDOWN_TIME.getValue());
         assertEquals(3.0f/7.0f, 
@@ -97,7 +98,7 @@ public class StatisticsTest extends com.limegroup.gnutella.util.LimeTestCase {
             clock.addNow(MSECS_PER_HOUR);
             Statistics stats=new Statistics(clock);    //start
             clock.addNow(2*MSECS_PER_HOUR);
-            stats.shutdown();                             //stop
+            stats.stop();                             //stop
         }
 
         assertEquals(2.0f/3.0f, 
@@ -131,7 +132,7 @@ public class StatisticsTest extends com.limegroup.gnutella.util.LimeTestCase {
             ApplicationSettings.FRACTIONAL_UPTIME.getValue(), 0.0f);
 
         //Test shutdown method too.
-        stats.shutdown();
+        stats.stop();
         assertEquals(clock.now(),
             ApplicationSettings.LAST_SHUTDOWN_TIME.getValue());
         assertEquals(0.5f,
@@ -155,7 +156,7 @@ public class StatisticsTest extends com.limegroup.gnutella.util.LimeTestCase {
             ApplicationSettings.FRACTIONAL_UPTIME.getValue(), 0.0f);
 
         //Test shutdown method too.
-        stats.shutdown();
+        stats.stop();
         assertEquals(clock.now(),
             ApplicationSettings.LAST_SHUTDOWN_TIME.getValue());
         assertEquals(0.5f,

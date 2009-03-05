@@ -3,6 +3,8 @@ package com.limegroup.bittorrent;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -11,27 +13,36 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import org.apache.commons.logging.Log;
+
+import org.limewire.logging.LogFactory;
+import org.limewire.security.SHA1;
 import org.limewire.service.ErrorService;
 import org.limewire.util.BEncoder;
 import org.limewire.util.CommonUtils;
 import org.limewire.util.StringUtils;
+import org.limewire.util.URIUtils;
 
 import com.limegroup.gnutella.Constants;
-import com.limegroup.gnutella.security.SHA1;
 
 /**
- * A struct-like class which contains typesafe representations
- * of everything we understand in in a .torrent file.
- * 
- * This will throw a ValueException if the data is malformed or
+ * Contains type safe representations of all understand information
+ * in in a .torrent file.
+ * <p>
+ * This will throw a <code>ValueException</code> if the data is malformed or
  * not what we expect it to be.  UTF-8 versions of Strings are
  * preferred over ASCII versions, wherever possible.
  */
 public class BTDataImpl implements BTData {
     
+    private static final Log LOG = LogFactory.getLog(BTDataImpl.class);
+    
     /** The URL of the tracker. */
     // TODO: add support for UDP & multiple trackers.
     private final String announce;
+    
+    /** The webseed addresses */
+    private final URI[] webSeeds;
     
     /** All the pieces as one big array.  Non-final 'cause it's big & we want to clear it. */
     private /*final*/ byte[] pieces;
@@ -58,6 +69,8 @@ public class BTDataImpl implements BTData {
     private final boolean isPrivate;
     
     /** Constructs a new BTData out of the map of properties. */
+    //See http://wiki.theory.org/BitTorrentSpecification#Info_Dictionary
+    //for more information
     public BTDataImpl(Map<?, ?> torrentFileMap) throws ValueException {
         Object tmp;
         
@@ -66,7 +79,8 @@ public class BTDataImpl implements BTData {
             announce = StringUtils.getASCIIString((byte[])tmp);
         else
             throw new ValueException("announce missing or invalid!");
-        
+
+        webSeeds = parseWebSeeds(torrentFileMap);
         tmp = torrentFileMap.get("info");
         if(tmp == null || !(tmp instanceof Map))
             throw new ValueException("info missing or invalid!");
@@ -136,21 +150,58 @@ public class BTDataImpl implements BTData {
                 
                 //Don't try ASCII if UTF-8 succeeds.
                 try {
-                    parseFiles(fileMap, ln, files, folders, true);
+                    parseFiles(fileMap, ln, files, folders, true);                       
                     doASCII = false;
                 } catch(ValueException ignored) {}
                 
                 if(doASCII)
-                    parseFiles(fileMap, ln, files, folders, false);
+                    parseFiles(fileMap, ln, files, folders, false);                
             }
         } else if(tmp != null) {
             throw new ValueException("info->files is non-null, but not a list!");
         } else {
-            files = null;
+            files = null;            
             folders = null;
         }
     }
-    
+
+    /**
+     * Parses the webseed addresses from the torrent file. The web seed addresses
+     * should be in a parameter "url-list". url-list can either be a list or 
+     * a single webseed address.
+     */
+    @SuppressWarnings("unchecked")
+    private URI[] parseWebSeeds(Map<?, ?> torrentFileMap) {
+        List<URI> webSeedsArray = new ArrayList<URI>();
+        URI[] webSeeds = null;
+        Object tmp = torrentFileMap.get("url-list");
+        if (tmp != null) {
+            if (tmp instanceof List) {
+                List<byte[]> uris = (List<byte[]>) tmp;
+                if (uris.size() > 0) {
+                    webSeeds = new URI[uris.size()];
+                    for (byte[] uri : uris) {
+                        addURI(webSeedsArray, StringUtils.getASCIIString(uri));
+                    }
+                }
+            } else if (tmp instanceof byte[]) {
+                String uri =  StringUtils.getASCIIString((byte[])tmp);
+                addURI(webSeedsArray, uri);
+            }
+        }
+        webSeeds = webSeedsArray.toArray(new URI[webSeedsArray.size()]);
+        return webSeeds;
+    }
+
+    private void addURI(List<URI> uris, String uriString) {
+        try {
+            URI uri = URIUtils.toURI(uriString);
+            uris.add(uri);
+        } catch (URISyntaxException e) {
+            LOG.warn("Error parsing uri: " + uriString, e);
+        }
+    }
+
     /** Parses the List of Maps of file data. */
     private void parseFiles(Map<?, ?> fileMap, Long ln, List<BTData.BTFileData> fileData,
                             Set<String> folderData, boolean utf8) throws ValueException {
@@ -226,7 +277,6 @@ public class BTDataImpl implements BTData {
      * it is guaranteed that any two maps with identical keys & values
      * will have the same info hash when decoded & recoded.
      * 
-     * @param infoMap
      * @return the infoHash of the infoMap
      */
     private byte[] calculateInfoHash(Map<?, ?> infoMap) {
@@ -318,5 +368,12 @@ public class BTDataImpl implements BTData {
         pieces = null;
     }
 
+    /*
+     * (non-Javadoc)
+     * @see com.limegroup.bittorrent.BTData#getWebSeeds()
+     */
+    public URI[] getWebSeeds() {
+        return webSeeds;
+    }
     
 }

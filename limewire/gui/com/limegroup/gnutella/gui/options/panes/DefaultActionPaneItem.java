@@ -6,12 +6,12 @@ import javax.swing.Box;
 import javax.swing.ButtonGroup;
 import javax.swing.JRadioButton;
 
+import org.limewire.core.settings.QuestionsHandler;
 import org.limewire.i18n.I18nMarker;
 
 import com.limegroup.gnutella.gui.BoxPanel;
 import com.limegroup.gnutella.gui.I18n;
 import com.limegroup.gnutella.gui.download.DownloaderDialog;
-import com.limegroup.gnutella.settings.QuestionsHandler;
 
 /**
  * This class defines the panel in the options

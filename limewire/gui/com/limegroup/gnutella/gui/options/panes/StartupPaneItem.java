@@ -2,13 +2,13 @@ package com.limegroup.gnutella.gui.options.panes;
 
 import javax.swing.JCheckBox;
 
+import org.limewire.core.settings.StartupSettings;
 import org.limewire.i18n.I18nMarker;
 import org.limewire.util.OSUtils;
 
 import com.limegroup.gnutella.gui.I18n;
 import com.limegroup.gnutella.gui.LabeledComponent;
 import com.limegroup.gnutella.gui.WindowsUtils;
-import com.limegroup.gnutella.settings.StartupSettings;
 import com.limegroup.gnutella.util.MacOSXUtils;
 
 /**

@@ -1,8 +1,8 @@
 package com.limegroup.gnutella.gui.wizard;
 
-import java.awt.BorderLayout;
-import java.awt.Color;
-import java.awt.Font;
+import com.limegroup.gnutella.gui.I18n;
+import com.limegroup.gnutella.gui.URLLabel;
+import com.limegroup.gnutella.gui.init.ApplySettingsException;
 
 import javax.swing.BorderFactory;
 import javax.swing.JLabel;
@@ -10,12 +10,9 @@ import javax.swing.JPanel;
 import javax.swing.JTextArea;
 import javax.swing.LookAndFeel;
 import javax.swing.UIManager;
-import javax.swing.border.EmptyBorder;
-
-import com.limegroup.gnutella.gui.GUIMediator;
-import com.limegroup.gnutella.gui.I18n;
-import com.limegroup.gnutella.gui.URLLabel;
-import com.limegroup.gnutella.gui.wizard.Status.Severity;
+import java.awt.BorderLayout;
+import java.awt.Color;
+import java.awt.Font;
 
 /**
  * This abstract class creates a <tt>JPanel</tt> that uses <tt>BoxLayout</tt>
@@ -49,12 +46,14 @@ public abstract class WizardPage extends JPanel {
 	/**
 	 * The dialog that displays the page.
 	 */
-	protected Wizard wizard;
+	private Wizard wizard;
 
-	/** The label displaying the status icon and message. */
-	protected JLabel statusLabel; 
-	
-	/**
+    /** UI Components Here */
+    // --------------------------------------------------
+    private JPanel topPanel; 
+
+
+    /**
 	 * Creates a new wizard page with the specified label.
 	 * 
 	 * @param key a unique identifier for this page
@@ -66,110 +65,111 @@ public abstract class WizardPage extends JPanel {
 	 *            the key for locale-specific label to be displayed in the
 	 *            window
 	 */
-	public WizardPage(String key, String titleKey, String descriptionKey) {
+	protected WizardPage(String key, String titleKey, String descriptionKey) {
 		this.key = key;
 		this.titleKey = titleKey;
 		this.descriptionKey = descriptionKey;
 	}
 	
-	public WizardPage(String titleKey, String descriptionKey) {
+	protected WizardPage(String titleKey, String descriptionKey) {
 		this(titleKey, titleKey, descriptionKey);
 	}
 
 	/**
 	 * Creates the wizard page controls. 
 	 *
-	 * @see #createPageContent(JPanel)
+	 * @see #createPageContent()
 	 */
 	protected void createPage() {
-		removeAll();
-		setLayout(new BorderLayout());
+        initLayout();
 
-		// JPanel jpTop = new DitherPanel(new Ditherer(15,
-		// ThemeFileHandler.FILTER_TITLE_TOP_COLOR.getValue(),
-		// ThemeFileHandler.FILTER_TITLE_COLOR.getValue()));
-		// JPanel jpTop = new DitherPanel(new Ditherer(30, new Color(254, 254,
-		// 2), new Color(73, 136, 19).brighter()));
-		// JPanel jpTop = new DitherPanel(new Ditherer(new Color(73, 136,
-		// 19).brighter(), Color.WHITE, Ditherer.X_AXIS, new
-		// Ditherer.PolygonShader(1.1f)));
-		JPanel topPanel = new JPanel();
-		topPanel.setLayout(new BorderLayout());
-		topPanel.setBackground(Color.white);
-		topPanel.setBorder(BorderFactory.createEtchedBorder());
-		add(topPanel, BorderLayout.NORTH);
+        topPanel = setTopPanel();
 
-		JPanel titlePanel = new JPanel(new BorderLayout());
-		titlePanel.setOpaque(false);
-		topPanel.add(titlePanel, BorderLayout.CENTER);
+        JPanel titlePanel = setTitlePanel();
 
-		JLabel titleLabel = new JLabel(I18n.tr(titleKey));
-		titleLabel.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
-		titleLabel.setFont(new Font("Dialog", Font.BOLD, 16));
-		titleLabel.setForeground(Color.black);
-		titleLabel.setOpaque(false);
-		titlePanel.add(titleLabel, BorderLayout.NORTH);
-
-		MultiLineLabel descriptionLabel = new MultiLineLabel(I18n
-				.tr(descriptionKey));
-		descriptionLabel.setOpaque(false);
-		descriptionLabel.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
-		descriptionLabel.setForeground(Color.black);
-		descriptionLabel.setFont(descriptionLabel.getFont().deriveFont(Font.PLAIN));
-		titlePanel.add(descriptionLabel, BorderLayout.CENTER);
+        setTitleLabel(titlePanel);
+        setMultiLineLabel(titlePanel);
 
 		if (url != null) {
-			String label = (urlLabelKey != null) ? I18n.tr(urlLabelKey) : url;
-			JLabel urlLabel = new URLLabel(url, label);
-			urlLabel.setOpaque(false);
-			urlLabel.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
-			urlLabel.setForeground(Color.black);
-			urlLabel.setOpaque(false);
-			titlePanel.add(urlLabel, BorderLayout.SOUTH);
+            setMoreInfoUrlLabel(titlePanel);
 		}
 
-//		JLabel iconLabel = new JLabel();
-//		iconLabel.setOpaque(false);
-//		iconLabel.setIcon(getIcon());
-//		iconLabel.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
-//		topPanel.add(iconLabel, BorderLayout.EAST);
-
-		JPanel mainPanel = new JPanel();
-		mainPanel.setBorder(new EmptyBorder(10, 5, 10, 5));
-		add(mainPanel, BorderLayout.CENTER);
-
-		statusLabel = new JLabel(" ");
-		statusLabel.setBorder(new EmptyBorder(0, 5, 0, 5));
-		add(statusLabel, BorderLayout.SOUTH);
+        setOtherComponents();
 		
-		createPageContent(mainPanel);
-		revalidate();
-	}
+		createPageContent();
+    }
 
-	public boolean canFlipToNextPage() {
+    /**
+     * Adds any other additional components (such as a status label)
+     * to the wizard page.
+     *
+     * By default do nothing
+     */
+    protected void setOtherComponents() { }
+
+
+    private void setMoreInfoUrlLabel(JPanel titlePanel) {
+        String label = (urlLabelKey != null) ? I18n.tr(urlLabelKey) : url;
+        JLabel urlLabel = new URLLabel(url, label);
+        urlLabel.setOpaque(false);
+        urlLabel.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
+        urlLabel.setForeground(Color.black);
+        urlLabel.setOpaque(false);
+        titlePanel.add(urlLabel, BorderLayout.SOUTH);
+    }
+
+    private void setMultiLineLabel(JPanel titlePanel) {
+        WizardMultiLineLabel descriptionLabel = new WizardMultiLineLabel(I18n
+                .tr(descriptionKey));
+        descriptionLabel.setOpaque(false);
+        descriptionLabel.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
+        descriptionLabel.setForeground(Color.black);
+        descriptionLabel.setFont(descriptionLabel.getFont().deriveFont(Font.PLAIN));
+        titlePanel.add(descriptionLabel, BorderLayout.CENTER);
+    }
+
+    private void setTitleLabel(JPanel titlePanel) {
+        JLabel titleLabel = new JLabel(I18n.tr(titleKey));
+        titleLabel.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
+        titleLabel.setFont(new Font("Dialog", Font.BOLD, 16));
+        titleLabel.setForeground(Color.black);
+        titleLabel.setOpaque(false);
+        titlePanel.add(titleLabel, BorderLayout.NORTH);
+    }
+
+    private JPanel setTitlePanel() {
+        JPanel titlePanel = new JPanel(new BorderLayout());
+        titlePanel.setOpaque(false);
+        this.topPanel.add(titlePanel, BorderLayout.CENTER);
+        return titlePanel;
+    }
+
+    private JPanel setTopPanel() {
+        JPanel topPanel = new JPanel();
+        topPanel.setLayout(new BorderLayout());
+        topPanel.setBackground(Color.white);
+        topPanel.setBorder(BorderFactory.createEtchedBorder());
+        add(topPanel, BorderLayout.NORTH);
+        return topPanel;
+    }
+
+    private void initLayout() {
+        removeAll();
+        setLayout(new BorderLayout());
+    }
+
+
+    public boolean canFlipToNextPage() {
 		return isPageComplete() && getNext() != null;
 	}
 	
 	/**
-	 * Creates the main controls of the wizard page. 
+	 * Creates the main controls of the wizard page.
+     * Also creates the panels the controls need to be added to.
 	 * 
-	 * @param panel the panel the controls need to be added to
 	 */
-	protected abstract void createPageContent(JPanel panel);
+	protected abstract void createPageContent();
 
-//	/**
-//	 * Accessor for the name of the panel
-//	 * 
-//	 * @return the unique identifying name for this panel
-//	 */
-//	public String getName() {
-//		// GTK L&F calls this method before the constructor has finished,
-//		// so we can't do a lookup with a null key.
-//		if (key == null)
-//			return null;
-//		else
-//			return GUIMediator.getStringResource(key);
-//	}
 
 	/**
 	 * Accessor for the unique identifying key of the window in the
@@ -181,12 +181,6 @@ public abstract class WizardPage extends JPanel {
 		return key;
 	}
 
-//	/**
-//	 * Mutator for the labelKey.
-//	 */
-//	protected void setLabelKey(String newKey) {
-//		labelKey = newKey;
-//	}
 
 	/**
 	 * Accessor for the next page in the sequence.
@@ -206,85 +200,50 @@ public abstract class WizardPage extends JPanel {
 		return (wizard != null) ?  wizard.getPreviousPage(this) : null;
 	}
 
-	/**
-	 * Returns the wizard instance holding this page.
-	 * 
-	 * @return null, if the page has not been added to a wizard
-	 */
-	public Wizard getWizard() {
-		return wizard;
-	}
-	
-	/**
-	 * Returns true, if input is valid and the user may proceed to the following
-	 * wizard page or close the wizard if this is the last page.
-	 */
-	public abstract boolean isPageComplete();
+    /**
+     * Is input valid to leave this page (next page or finish wizard)
+     *
+     * @return true, if input is valid and the user may proceed to the following
+	 * wizard page or close the wizard if this is the last page. Else return false.
+     */
+    public abstract boolean isPageComplete();
 
 	/**
-	 * Invoked when the page becomes the active page. Validates the input and
+	 * Invoked immediately after the page becomes the active page. Validates the input and
 	 * updates the buttons of the wizard.
 	 */
-	public void pageShown() {
+	public void afterPageShown() {
 		validateInput();
-		wizard.updateButtons();
-	}
+        updateButtons();
+    }
+
 
 	/**
-	 * Displays message with severity {@link Severity#ERROR} in the status area
-	 * of the wizard page.
-	 * 
-	 * @param message the message to display; if null, no message is displayed
-	 * @see #setStatusMessage(Severity, String)
+	 * Applies the settings currently set in this window.
+	 *
+	 * If loadCoreComponents is false, core components should not be loaded.
+	 * This is useful when you just want to temporarily save the current settings,
+	 * but do not plan on finishing this step immediately.
+	 * <p>
+	 * @param loadCoreComponents true if settings should be applied
+	 * AND core components should be loaded.  false if only settings
+	 * should be applied (but components shouldn't be loaded).
+	 *
+	 * @throws com.limegroup.gnutella.gui.init.ApplySettingsException if there was a problem applying the
+	 *         settings
 	 */
-	public void setSatusMessage(String message) {
-		setStatusMessage(Severity.ERROR, message);
-	}
+    public void applySettings(boolean loadCoreComponents) throws ApplySettingsException {}
 
-	/**
-	 * Displays message in the status area of the wizard page. 
-	 * 
-	 * @param severity
-	 * @param message
-	 */
-	public void setStatusMessage(Severity severity, String message) {
-		if (message == null) {
-			statusLabel.setText(" ");
-			statusLabel.setIcon(null);
-		} else {
-			statusLabel.setText(message);
-			if (severity == Severity.ERROR) {
-				statusLabel.setIcon(GUIMediator.getThemeImage("stop_small"));
-			} else if (severity == Severity.INFO) {
-				statusLabel.setIcon(GUIMediator.getThemeImage("annotate_small"));
-			} else {
-				statusLabel.setIcon(null);
-			}
-		}
-	}
-	
-	/**
+
+    /**
 	 * Subclasses should reimplement this method to validate input.
 	 *
 	 * @see #isPageComplete()
 	 */
-	public void validateInput() {
-	}
-	
-	/**
-	 * Updates the message 
-	 * 
-	 * @param status if null or status.length == 0, no status 
-	 */
-	public void updateStatus(Status... status) {
-		if (status == null || status.length == 0) {
-			setSatusMessage(null);
-		} else {
-			setStatusMessage(status[0].getSeverity(), status[0].getMessage());
-		}
-	}
-	
-	public void setWizard(Wizard wizard) {
+	public void validateInput() {}
+
+
+    void setWizard(Wizard wizard) {
 		this.wizard = wizard;
 	}
 	
@@ -301,11 +260,28 @@ public abstract class WizardPage extends JPanel {
 		this.url = url;
 		this.urlLabelKey = urlLabelKey;
 	}
-	
-	/**
+
+
+    protected JPanel getTopPanel() {
+        return topPanel;
+    }
+
+    /**
+     * Method called prior to wizard page being displayed
+     */
+    protected void beforePageShown() {}
+
+    /**
+     * Update the buttons (enabled, disabled for prev/next/finish/cancel buttons)
+     */
+    public void updateButtons() {
+        wizard.updateButtons();
+    }
+
+    /**
 	 * Label that wraps text. Used to display the description.
 	 */
-	private static class MultiLineLabel extends JTextArea {
+	protected static class WizardMultiLineLabel extends JTextArea {
 
 		/**
 		 * Creates a label that can have multiple lines and that has the default
@@ -314,7 +290,7 @@ public abstract class WizardPage extends JPanel {
 		 * @param s
 		 *            the <tt>String</tt> to display in the label
 		 */
-		public MultiLineLabel(String s) {
+		public WizardMultiLineLabel(String s) {
 			setEditable(false);
 			setLineWrap(true);
 			setWrapStyleWord(true);
@@ -326,7 +302,7 @@ public abstract class WizardPage extends JPanel {
 			setText(s);
 		}
 
-		public MultiLineLabel() {
+		public WizardMultiLineLabel() {
 			this(" ");
 		}
 

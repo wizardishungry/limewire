@@ -17,7 +17,10 @@ import java.util.Set;
 import junit.framework.Test;
 
 import org.limewire.collection.FixedsizePriorityQueue;
+import org.limewire.core.settings.ConnectionSettings;
+import org.limewire.core.settings.FilterSettings;
 import org.limewire.io.GGEP;
+import org.limewire.io.GUID;
 import org.limewire.io.IpPortImpl;
 import org.limewire.io.LocalSocketAddressProvider;
 import org.limewire.io.NetworkInstanceUtils;
@@ -41,8 +44,6 @@ import com.limegroup.gnutella.messages.PingReplyFactory;
 import com.limegroup.gnutella.messages.PingRequest;
 import com.limegroup.gnutella.messages.PingRequestFactory;
 import com.limegroup.gnutella.messages.Message.Network;
-import com.limegroup.gnutella.settings.ConnectionSettings;
-import com.limegroup.gnutella.settings.FilterSettings;
 import com.limegroup.gnutella.stubs.ConnectionManagerStub;
 import com.limegroup.gnutella.util.LimeTestCase;
 
@@ -77,7 +78,7 @@ public class HostCatcherTest extends LimeTestCase {
         
         injector = LimeTestUtils.createInjector();
         hostCatcher = injector.getInstance(HostCatcher.class);
-        hostCatcher.initialize();
+        hostCatcher.start();
     }
     
     /**
@@ -176,7 +177,7 @@ public class HostCatcherTest extends LimeTestCase {
             }
         });
         hostCatcher = injector.getInstance(HostCatcher.class);
-        hostCatcher.initialize();
+        hostCatcher.start();
         
         assertEquals(0, hostCatcher.getNumHosts());   
         
@@ -210,7 +211,7 @@ public class HostCatcherTest extends LimeTestCase {
      */
     public void testIgnoreExpiredHosts() throws Exception {
         Endpoint expiredHost = new Endpoint("20.4.5.7", 6346);
-        hostCatcher.initialize();
+        hostCatcher.start();
         hostCatcher.add(expiredHost,true);
         assertEquals("unexpected number of hosts", 1, hostCatcher.getNumHosts());
         Endpoint accessedHost = hostCatcher.getAnEndpoint();
@@ -229,7 +230,7 @@ public class HostCatcherTest extends LimeTestCase {
      */
     public void testIgnoreProbatedHosts() throws Exception {
         Endpoint probatedHost = new Endpoint("20.4.5.7", 6346);
-        hostCatcher.initialize();
+        hostCatcher.start();
         hostCatcher.add(probatedHost,true);
         assertEquals("unexpected number of hosts", 1, hostCatcher.getNumHosts());
         Endpoint accessedHost = hostCatcher.getAnEndpoint();
@@ -266,7 +267,7 @@ public class HostCatcherTest extends LimeTestCase {
         assertEquals("unexpected number of hosts", 0, hostCatcher.getNumHosts());
         
         // Start the probation recovery sequence...
-        hostCatcher.initialize();        
+        hostCatcher.start();        
         
         // Sleep until the recovery operation takes place...
         Thread.sleep(waitTime+200);
@@ -844,7 +845,7 @@ public class HostCatcherTest extends LimeTestCase {
         });
         
         hostCatcher = injector.getInstance(HostCatcher.class);
-        hostCatcher.initialize();       
+        hostCatcher.start();       
         
         PingReplyFactory pingReplyFactory = injector.getInstance(PingReplyFactory.class);
         Acceptor acceptor = injector.getInstance(Acceptor.class);
@@ -870,7 +871,7 @@ public class HostCatcherTest extends LimeTestCase {
         s.setSoTimeout(3000);
                 
         // make it send udp pings
-        acceptor.init();
+        acceptor.bindAndStartUpnp();
         acceptor.start();
         messageRouter.start();
         hostCatcher.expire();

@@ -7,17 +7,21 @@ import java.io.InputStreamReader;
 import java.util.Set;
 import java.util.Vector;
 
+import org.limewire.core.api.download.DownloadAction;
+import org.limewire.core.api.download.SaveLocationException;
+import org.limewire.io.GUID;
 import org.limewire.io.IpPort;
 import org.limewire.net.SocketsManager.ConnectType;
 
 import com.google.inject.Guice;
 import com.google.inject.Injector;
 import com.google.inject.Singleton;
+import com.google.inject.Stage;
+import com.limegroup.bittorrent.ManagedTorrent;
 import com.limegroup.gnutella.browser.MagnetOptions;
-import com.limegroup.gnutella.chat.InstantMessenger;
 import com.limegroup.gnutella.connection.ConnectionLifecycleEvent;
 import com.limegroup.gnutella.connection.RoutedConnection;
-import com.limegroup.gnutella.search.HostData;
+import com.limegroup.gnutella.messages.QueryReply;
 import com.limegroup.gnutella.version.UpdateInformation;
 
 /**
@@ -25,7 +29,7 @@ import com.limegroup.gnutella.version.UpdateInformation;
  */
 public class Main {
     public static void main(String args[]) {
-        Injector injector = Guice.createInjector(new LimeWireCoreModule(MainCallback.class));
+        Injector injector = Guice.createInjector(Stage.PRODUCTION, new LimeWireCoreModule(MainCallback.class));
         LimeWireCore core = injector.getInstance(LimeWireCore.class);
         core.getLifecycleManager().start();        
         NetworkManager networkManager = core.getNetworkManager();
@@ -174,9 +178,9 @@ public class Main {
     //      }
     //     }
     
-        public void handleQueryResult(RemoteFileDesc rfd ,HostData data, Set<? extends IpPort> loc) {
+        public void handleQueryResult(RemoteFileDesc rfd , QueryReply queryReply, Set<? extends IpPort> loc) {
             synchronized(System.out) {
-                System.out.println("Query hit from "+rfd.getHost()+":"+rfd.getPort()+":");
+                System.out.println("Query hit from "+rfd.getAddress() + ":");
                 System.out.println("   "+rfd.getFileName());
             }
         }
@@ -214,7 +218,7 @@ public class Main {
     
         public void addDownload(Downloader mgr) {}
     
-        public void removeDownload(Downloader mgr) {}
+        public void downloadCompleted(Downloader mgr) {}
     
         public void addUpload(Uploader mgr) {}
     
@@ -222,23 +226,9 @@ public class Main {
     
         public boolean warnAboutSharingSensitiveDirectory(final File dir) { return false; }
         
-        public void handleFileEvent(FileManagerEvent evt) {}
-        
         public void handleSharedFileUpdate(File file) {}
     
-        public void fileManagerLoading() {}
-    
-        public void acceptChat(InstantMessenger chat) {}
-    
-        public void receiveMessage(InstantMessenger chat, String message) {}
-        
-        public void chatUnavailable(InstantMessenger chatter) {}
-    
-        public void chatErrorMessage(InstantMessenger chatter, String st) {}
-            
         public void downloadsComplete() {}    
-        
-        public void fileManagerLoaded() {}    
         
         public void uploadsComplete() {}
     
@@ -254,8 +244,6 @@ public class Main {
             return null;
         }
         public void browseHostFailed(GUID guid) {}
-    
-        public void setAnnotateEnabled(boolean enabled) {}
         
         public void updateAvailable(UpdateInformation update) {
             if (update.getUpdateCommand() != null)
@@ -270,24 +258,34 @@ public class Main {
             return false;
         }
         
-        public void componentLoading(String component) {
+        public void componentLoading(String state, String component) {
             System.out.println("Loading component: " + component);
         }
         
-        public boolean handleMagnets(final MagnetOptions[] magnets) {
-            return false;
+        public void handleMagnets(final MagnetOptions[] magnets) {
         }
     
     	public void handleTorrent(File torrentFile){}
-        
-        public void acceptedIncomingChanged(boolean status) { }
-    
+
         public void handleAddressStateChanged() {
         }
         
         public void handleConnectionLifecycleEvent(ConnectionLifecycleEvent evt) {
         }
         public void installationCorrupted() {
+            
+        }
+        public void handleDAAPConnectionError(Throwable t) {  }
+        public String translate(String s) { return s;}
+
+        @Override
+        public void handleSaveLocationException(DownloadAction downLoadAction,
+                SaveLocationException sle, boolean supportsNewSaveDir) {
+            
+        }
+
+        @Override
+        public void promptTorrentUploadCancel(ManagedTorrent torrent) {
             
         }
     }

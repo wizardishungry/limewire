@@ -4,7 +4,9 @@ import java.util.concurrent.ScheduledExecutorService;
 
 import org.limewire.http.httpclient.LimeHttpClient;
 import org.limewire.io.NetworkInstanceUtils;
+import org.limewire.lifecycle.ServiceRegistry;
 import org.limewire.net.ConnectionDispatcher;
+import org.limewire.net.FirewallService;
 import org.limewire.net.SocketsManager;
 import org.limewire.nio.NIODispatcher;
 import org.limewire.promotion.PromotionSearcher;
@@ -39,11 +41,10 @@ import com.limegroup.gnutella.bootstrap.UDPHostCacheFactory;
 import com.limegroup.gnutella.browser.ExternalControl;
 import com.limegroup.gnutella.browser.LocalAcceptor;
 import com.limegroup.gnutella.browser.LocalHTTPAcceptor;
-import com.limegroup.gnutella.chat.ChatManager;
-import com.limegroup.gnutella.chat.InstantMessengerFactory;
 import com.limegroup.gnutella.connection.ConnectionCheckerManager;
 import com.limegroup.gnutella.connection.MessageReaderFactory;
 import com.limegroup.gnutella.connection.RoutedConnectionFactory;
+import com.limegroup.gnutella.daap.DaapManager;
 import com.limegroup.gnutella.dht.DHTBootstrapperFactory;
 import com.limegroup.gnutella.dht.DHTControllerFactory;
 import com.limegroup.gnutella.dht.DHTManager;
@@ -62,6 +63,11 @@ import com.limegroup.gnutella.handshaking.HandshakeResponderFactory;
 import com.limegroup.gnutella.handshaking.HeadersFactory;
 import com.limegroup.gnutella.http.FeaturesWriter;
 import com.limegroup.gnutella.http.HttpExecutor;
+import com.limegroup.gnutella.library.CreationTimeCache;
+import com.limegroup.gnutella.library.FileManager;
+import com.limegroup.gnutella.library.LocalFileDetailsFactory;
+import com.limegroup.gnutella.library.SharedFilesKeywordIndex;
+import com.limegroup.gnutella.library.UrnCache;
 import com.limegroup.gnutella.licenses.LicenseCache;
 import com.limegroup.gnutella.licenses.LicenseFactory;
 import com.limegroup.gnutella.licenses.LicenseVerifier;
@@ -82,7 +88,6 @@ import com.limegroup.gnutella.messages.vendor.UDPCrawlerPongFactory;
 import com.limegroup.gnutella.messages.vendor.VendorMessageFactory;
 import com.limegroup.gnutella.metadata.MetaDataFactory;
 import com.limegroup.gnutella.metadata.MetaDataReader;
-import com.limegroup.gnutella.search.HostDataFactory;
 import com.limegroup.gnutella.search.QueryDispatcher;
 import com.limegroup.gnutella.search.QueryHandlerFactory;
 import com.limegroup.gnutella.search.SearchResultHandler;
@@ -140,10 +145,6 @@ public class LimeWireCore {
 
     public SocketsManager getSocketsManager() {
         return injector.getInstance(SocketsManager.class);
-    }
-
-    public HostDataFactory getHostDataFactory() {
-        return injector.getInstance(HostDataFactory.class);
     }
 
     public RoutedConnectionFactory getManagedConnectionFactory() {
@@ -358,10 +359,6 @@ public class LimeWireCore {
         return injector.getInstance(UrnCache.class);
     }
 
-    public FileManagerController getFileManagerController() {
-        return injector.getInstance(FileManagerController.class);
-    }
-
     public ResponseFactory getResponseFactory() {
         return injector.getInstance(ResponseFactory.class);
     }
@@ -372,10 +369,6 @@ public class LimeWireCore {
 
     public StaticMessages getStaticMessages() {
         return injector.getInstance(StaticMessages.class);
-    }
-
-    public SavedFileManager getSavedFileManager() {
-        return injector.getInstance(SavedFileManager.class);
     }
     
     public DownloadCallback getInNetworkCallback() {
@@ -390,10 +383,6 @@ public class LimeWireCore {
         return injector.getInstance(MulticastService.class);
     }
     
-    public ChatManager getChatManager() {
-        return injector.getInstance(ChatManager.class);
-    }
-
     public DiskManagerFactory getDiskManagerFactory() {
         return injector.getInstance(DiskManagerFactory.class);
     }
@@ -638,10 +627,6 @@ public class LimeWireCore {
         return injector.getInstance(MetaDataReader.class);
     }
 
-    public InstantMessengerFactory getInstantMessengerFactory() {
-        return injector.getInstance(InstantMessengerFactory.class);
-    }
-
     public BTUploaderFactory getBTUploaderFactory() {
         return injector.getInstance(BTUploaderFactory.class);
     }
@@ -712,5 +697,21 @@ public class LimeWireCore {
 
     public CachedGeoLocation getCachedGeoLocation() {
         return injector.getInstance(CachedGeoLocation.class);
+    }
+    
+    public ServiceRegistry getServiceRegistry() {
+        return injector.getInstance(ServiceRegistry.class);
+    }
+
+    public SharedFilesKeywordIndex getSharedFilesKeywordIndex() {
+        return injector.getInstance(SharedFilesKeywordIndex.class);
+    }
+    
+    public FirewallService getFirewallService() {
+        return injector.getInstance(FirewallService.class);
+    }
+
+    public DaapManager getDaapManager() {
+        return injector.getInstance(DaapManager.class);
     }
 }

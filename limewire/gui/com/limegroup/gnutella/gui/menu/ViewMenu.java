@@ -2,6 +2,7 @@ package com.limegroup.gnutella.gui.menu;
 
 import java.awt.event.ActionEvent;
 
+import org.limewire.core.settings.UISettings;
 import org.limewire.setting.BooleanSetting;
 
 import com.limegroup.gnutella.gui.GUIMediator;
@@ -13,7 +14,6 @@ import com.limegroup.gnutella.gui.actions.AbstractAction;
 import com.limegroup.gnutella.gui.actions.ToggleSettingAction;
 import com.limegroup.gnutella.gui.themes.ThemeMediator;
 import com.limegroup.gnutella.gui.themes.ThemeSettings;
-import com.limegroup.gnutella.settings.UISettings;
 
 
 /**

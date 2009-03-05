@@ -8,9 +8,13 @@ import java.net.UnknownHostException;
 import java.util.Properties;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import org.limewire.core.settings.ConnectionSettings;
+import org.limewire.core.settings.NetworkSettings;
 import org.limewire.io.IOUtils;
 import org.limewire.io.NetworkInstanceUtils;
 import org.limewire.io.NetworkUtils;
+import org.limewire.logging.Log;
+import org.limewire.logging.LogFactory;
 import org.limewire.net.SocketsManager.ConnectType;
 import org.limewire.nio.ssl.SSLUtils;
 import org.limewire.setting.StringSetting;
@@ -27,8 +31,6 @@ import com.limegroup.gnutella.messages.vendor.HeaderUpdateVendorMessage;
 import com.limegroup.gnutella.messages.vendor.MessagesSupportedVendorMessage;
 import com.limegroup.gnutella.messages.vendor.SimppVM;
 import com.limegroup.gnutella.messages.vendor.VendorMessage;
-import com.limegroup.gnutella.settings.ConnectionSettings;
-import com.limegroup.gnutella.settings.NetworkSettings;
 
 /**
  * A basic implementation of {@link Connection}. The only methods that
@@ -70,6 +72,8 @@ import com.limegroup.gnutella.settings.NetworkSettings;
  * </ul>
  */
 public abstract class AbstractConnection implements Connection {
+    
+    private static Log LOG = LogFactory.getLog(AbstractConnection.class);
 
     /** Lock for maintaining accurate data for when to allow ping forwarding. */
     private final Object pingLock = new Object();
@@ -238,6 +242,7 @@ public abstract class AbstractConnection implements Connection {
      * updated capabilities.
      */
     public void sendUpdatedCapabilities() {
+        LOG.debug("updated capabilities");
         try {
             if (getConnectionCapabilities().getHeadersRead().supportsVendorMessages() > 0)
                 send(capabilitiesVMFactory.getCapabilitiesVM());
@@ -330,21 +335,18 @@ public abstract class AbstractConnection implements Connection {
             throw new IllegalArgumentException("invalid port: " + port);
         this.port = port;
     }
+    
 
-    /*
-     * (non-Javadoc)
-     * 
-     * @see com.limegroup.gnutella.Connection#getInetSocketAddress()
-     */
+    @Override
+    public String getAddressDescription() {
+        return getInetSocketAddress().toString();
+    }
+    
+    
     public InetSocketAddress getInetSocketAddress() throws IllegalStateException {
         return new InetSocketAddress(getInetAddress(), getPort());
     }
 
-    /*
-     * (non-Javadoc)
-     * 
-     * @see com.limegroup.gnutella.Connection#getInetAddress()
-     */
     public InetAddress getInetAddress() throws IllegalStateException {
         if (socket == null) {
             throw new IllegalStateException("Not initialized");
@@ -559,6 +561,7 @@ public abstract class AbstractConnection implements Connection {
 
         // Notify the acceptor of our address.
         // TODO: move out of here!
+        // TODO store address in one place       
         acceptor.setAddress(localAddress);
     }
 
@@ -590,40 +593,47 @@ public abstract class AbstractConnection implements Connection {
      * Determines if the address should be changed and changes it if necessary.
      */
     // TODO: this really shouldn't be here -- use a listener pattern instead
-    private void updateAddress(HandshakeResponse readHeaders) {
-        String ip = readHeaders.getProperty(HeaderNames.REMOTE_IP);
-        if (ip == null) {
+    // package private for testing
+    void updateAddress(HandshakeResponse readHeaders) {
+        String ipStringFromHeader = readHeaders.getProperty(HeaderNames.REMOTE_IP);
+        if (ipStringFromHeader == null) {
             return;
         }
 
-        InetAddress ia = null;
+        InetAddress ipAddressFromHeader = null;
         try {
-            ia = InetAddress.getByName(ip);
+            ipAddressFromHeader = InetAddress.getByName(ipStringFromHeader);
         } catch (UnknownHostException uhe) {
             return; // invalid.
         }
 
         // invalid or private, exit
-        if (!NetworkUtils.isValidAddress(ia) || networkInstanceUtils.isPrivateAddress(ia))
+        if (!NetworkUtils.isValidAddress(ipAddressFromHeader) || networkInstanceUtils.isPrivateAddress(ipAddressFromHeader))
             return;
 
-        myIp = ia.getAddress();
+        // TODO store address in one place
+        myIp = ipAddressFromHeader.getAddress();
         
         // If we're forcing, change that if necessary.
         if (ConnectionSettings.FORCE_IP_ADDRESS.getValue()) {
             StringSetting addr = ConnectionSettings.FORCED_IP_ADDRESS_STRING;
-            if (!ip.equals(addr.getValue())) {
-                addr.setValue(ip);
+            if (!ipStringFromHeader.equals(addr.getValue())) {
+                // TODO store address in one place
+                addr.setValue(ipStringFromHeader);
                 networkManager.addressChanged();
             }
         }
         // Otherwise, if our current address is invalid, change.
         else if (!NetworkUtils.isValidAddress(networkManager.getAddress())) {
+            if (LOG.isDebugEnabled())
+                LOG.debugf("updating address {0}", ipAddressFromHeader);
             // will auto-call addressChanged.
-            acceptor.setAddress(ia);
+            // TODO store address in one place     
+            acceptor.setAddress(ipAddressFromHeader);
         }
 
-        acceptor.setExternalAddress(ia);
+        // TODO store address in one place      
+        acceptor.setExternalAddress(ipAddressFromHeader);
     }
 
     /*

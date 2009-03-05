@@ -2,6 +2,7 @@ package com.limegroup.gnutella.gui.options.panes;
 
 import java.io.IOException;
 
+import org.limewire.core.settings.SharingSettings;
 import org.limewire.i18n.I18nMarker;
 
 import com.limegroup.gnutella.gui.I18n;
@@ -9,7 +10,6 @@ import com.limegroup.gnutella.gui.LabeledComponent;
 import com.limegroup.gnutella.gui.SizedWholeNumberField;
 import com.limegroup.gnutella.gui.WholeNumberField;
 import com.limegroup.gnutella.gui.GUIUtils.SizePolicy;
-import com.limegroup.gnutella.settings.SharingSettings;
 
 /**
  * This class defines the panel in the options window that allows the user

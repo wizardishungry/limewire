@@ -37,6 +37,9 @@ import javax.swing.event.ChangeEvent;
 import javax.swing.event.ChangeListener;
 import javax.swing.plaf.TabbedPaneUI;
 
+import org.limewire.core.settings.ApplicationSettings;
+import org.limewire.core.settings.PlayerSettings;
+import org.limewire.core.settings.SWTBrowserSettings;
 import org.limewire.inspection.InspectionHistogram;
 import org.limewire.inspection.InspectionPoint;
 import org.limewire.setting.SettingsGroupManager;
@@ -59,15 +62,12 @@ import com.limegroup.gnutella.gui.tabs.ConsoleTab;
 import com.limegroup.gnutella.gui.tabs.LibraryPlayListTab;
 import com.limegroup.gnutella.gui.tabs.LoggingTab;
 import com.limegroup.gnutella.gui.tabs.MonitorUploadTab;
-import com.limegroup.gnutella.gui.tabs.SWTBrowserSearchTab;
+import com.limegroup.gnutella.gui.tabs.SwingBrowserSearchTab;
 import com.limegroup.gnutella.gui.tabs.SearchDownloadTab;
 import com.limegroup.gnutella.gui.tabs.Tab;
 import com.limegroup.gnutella.gui.themes.ThemeMediator;
 import com.limegroup.gnutella.gui.themes.ThemeObserver;
 import com.limegroup.gnutella.gui.upload.UploadMediator;
-import com.limegroup.gnutella.settings.ApplicationSettings;
-import com.limegroup.gnutella.settings.PlayerSettings;
-import com.limegroup.gnutella.settings.SWTBrowserSettings;
 import com.limegroup.gnutella.util.LogUtils;
 
 /**
@@ -422,7 +422,7 @@ public final class MainFrame implements RefreshListener, ThemeObserver {
         TABS.put(GUIMediator.Tabs.LIBRARY, new LibraryPlayListTab(LIBRARY_MEDIATOR));
         TABS.put(GUIMediator.Tabs.LOGGING, new LoggingTab(LOGGING_MEDIATOR));
         if (SWTBrowserSettings.USE_SWT_BROWSER.getValue() && GUIMediator.isBrowserCapable() ) {
-            TABS.put(GUIMediator.Tabs.LWS, new SWTBrowserSearchTab());
+            TABS.put(GUIMediator.Tabs.LWS, new SwingBrowserSearchTab());
         }
         
         if (LogUtils.isLog4JAvailable()) {
@@ -504,13 +504,13 @@ public final class MainFrame implements RefreshListener, ThemeObserver {
         // Set the location of our window based on whether or not
         // the user has run the program before, and therefore may have 
         // modified the location of the main window.
-        if(ApplicationSettings.RUN_ONCE.getValue()) {
-            locX = Math.max(insets.left, ApplicationSettings.WINDOW_X.getValue());
-            locY = Math.max(insets.top, ApplicationSettings.WINDOW_Y.getValue());
-        } else {
-            locX = (screenSize.width - appWidth) / 2;
-            locY = (screenSize.height - appHeight) / 2;
-        }
+//        if(ApplicationSettings.RUN_ONCE.getValue()) {
+//            locX = Math.max(insets.left, ApplicationSettings.WINDOW_X.getValue());
+//            locY = Math.max(insets.top, ApplicationSettings.WINDOW_Y.getValue());
+//        } else {
+//            locX = (screenSize.width - appWidth) / 2;
+//            locY = (screenSize.height - appHeight) / 2;
+//        }
         
         // Make sure the Window is visible and not for example 
         // somewhere in the very bottom right corner.

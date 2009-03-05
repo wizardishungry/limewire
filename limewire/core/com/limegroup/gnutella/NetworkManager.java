@@ -1,15 +1,17 @@
 package com.limegroup.gnutella;
 
 import java.io.IOException;
+import java.util.Set;
 
+import org.limewire.io.Connectable;
+import org.limewire.io.GUID;
+import org.limewire.io.NetworkUtils;
 import org.limewire.lifecycle.Service;
 import org.limewire.listener.ListenerSupport;
+import org.limewire.net.TLSManager;
+import org.limewire.net.address.AddressEvent;
 
-public interface NetworkManager extends Service, ListenerSupport<NetworkManagerEvent> {
-
-    public static enum EventType {
-        ADDRESS_CHANGE
-    }
+public interface NetworkManager extends Service, ListenerSupport<AddressEvent>, TLSManager {
 
     /** @return true if your IP and port information is valid.
      */
@@ -42,7 +44,7 @@ public interface NetworkManager extends Service, ListenerSupport<NetworkManagerE
     /**
      * Returns the port used for downloads and messaging connections.
      * Used to fill out the My-Address header in ManagedConnection.
-     * @see AcceptorImpl#getPort
+     * @see com.limegroup.gnutella.Acceptor#getPort
      */
     public int getPort();
 
@@ -75,6 +77,24 @@ public interface NetworkManager extends Service, ListenerSupport<NetworkManagerE
      */
     // TODO: Convert to listener pattern
     public boolean addressChanged();
+    
+    /**
+     * used to notify the <code>NetworkManager</code> of a change in
+     * the external IP.
+     */
+    public void externalAddressChanged();
+
+    /**
+     * used to notify the <code>NetworkManager</code> of a change in
+     * the port.
+     */
+    public void portChanged();
+
+    /**
+     * used to notify the <code>NetworkManager</code> of a new
+     * <code>MediatorAddress</code> (i.e., push proxy)
+     */
+    public void newPushProxies(Set<Connectable> pushProxies);
 
     /** 
      * Returns true if this has accepted an incoming connection, and hence
@@ -101,7 +121,13 @@ public interface NetworkManager extends Service, ListenerSupport<NetworkManagerE
     public GUID getSolicitedGUID();
     
     public int supportsFWTVersion();
-    
-    /** A convenience stub. */
-    public boolean isPrivateAddress(byte[] addr);
+
+    /**
+     * Returns the external, public address of this peer. Will return an 
+     * {@link NetworkUtils#isValidIpPort(org.limewire.io.IpPort) invalid}
+     * address if no address is known yet.
+     * <p>
+     * Will return the external address whether the peer is firewalled or not.
+     */
+    public Connectable getPublicAddress();
 }

@@ -2,16 +2,18 @@ package com.limegroup.gnutella;
 
 import java.net.InetAddress;
 
+import org.limewire.core.settings.SearchSettings;
+
 import junit.framework.Test;
 
 import com.limegroup.gnutella.connection.BlockingConnection;
 import com.google.inject.Injector;
+import com.google.inject.Stage;
 import com.limegroup.gnutella.messages.BadPacketException;
 import com.limegroup.gnutella.messages.QueryRequest;
 import com.limegroup.gnutella.messages.QueryRequestFactory;
 import com.limegroup.gnutella.messages.vendor.MessagesSupportedVendorMessage;
 import com.limegroup.gnutella.messages.vendor.MessagesSupportedVendorMessageStubHelper;
-import com.limegroup.gnutella.settings.SearchSettings;
 
 /**
  * First ultrapeer supports new out-of-band proxying control protocol.
@@ -37,7 +39,7 @@ public class ClientSideOOBProxyControlTest extends ClientSideTestCase {
 
     @Override
     protected void setUp() throws Exception {
-        Injector injector = LimeTestUtils.createInjector();
+        Injector injector = LimeTestUtils.createInjector(Stage.PRODUCTION);
         super.setUp(injector);
         messagesSupportedVendorMessage = injector.getInstance(MessagesSupportedVendorMessage.class);
         queryRequestFactory = injector.getInstance(QueryRequestFactory.class);

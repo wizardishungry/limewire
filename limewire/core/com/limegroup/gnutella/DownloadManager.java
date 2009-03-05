@@ -2,9 +2,14 @@ package com.limegroup.gnutella;
 
 import java.io.File;
 import java.net.Socket;
+import java.net.URI;
 import java.util.Collection;
 import java.util.List;
 
+import org.limewire.core.api.download.SaveLocationException;
+import org.limewire.core.api.download.SaveLocationManager;
+import org.limewire.io.Address;
+import org.limewire.io.GUID;
 import org.limewire.listener.ListenerSupport;
 
 import com.limegroup.bittorrent.BTMetaInfo;
@@ -17,6 +22,7 @@ import com.limegroup.gnutella.downloader.PushedSocketHandler;
 import com.limegroup.gnutella.messages.QueryReply;
 import com.limegroup.gnutella.messages.QueryRequest;
 import com.limegroup.gnutella.version.DownloadInformation;
+import com.limegroup.mozilla.MozillaDownload;
 
 
 /** 
@@ -47,7 +53,7 @@ LWSIntegrationServicesDelegate, PushedSocketHandler, ListenerSupport<DownloadMan
      * Initializes this manager. <b>This method must be called before any other
      * methods are used.</b> 
      */
-    public void initialize();
+    public void start();
 
     /**
      * Performs the slow, low-priority initialization tasks: reading in
@@ -204,6 +210,19 @@ LWSIntegrationServicesDelegate, PushedSocketHandler, ListenerSupport<DownloadMan
      */
     public Downloader download(DownloadInformation info, long now) throws SaveLocationException;
 
+    /**
+     * Downloads the torrent file from the specified URI then begins the torrent download as a seperate item.
+     */
+    public Downloader downloadTorrent(URI torrentURI, boolean overwrite) throws SaveLocationException;
+    
+    /**
+     * Opens the torrent for the specified file, and begins the torrent download.
+     */
+    public Downloader downloadTorrent(File torrentFile, boolean overwrite) throws SaveLocationException;
+    
+    /**
+     * Downloads the given torrent specified by the meta info object.
+     */
     public Downloader downloadTorrent(BTMetaInfo info, boolean overwrite)
             throws SaveLocationException;
 
@@ -226,8 +245,9 @@ LWSIntegrationServicesDelegate, PushedSocketHandler, ListenerSupport<DownloadMan
     /** 
      * Adds all responses (and alternates) in <code>qr</code> to any downloaders, if
      * appropriate.
+     * @param address can be null, otherwise overrides the address information in <code>qr</code>
      */
-    public void handleQueryReply(QueryReply qr);
+    public void handleQueryReply(QueryReply qr, Address address);
 
     /**
      * Removes downloader entirely from the list of current downloads.
@@ -278,5 +298,16 @@ LWSIntegrationServicesDelegate, PushedSocketHandler, ListenerSupport<DownloadMan
      *  at any time for checkpointing purposes.  Returns true if and only if the 
      *  file was successfully written. */
     public void writeSnapshot();
+
+    /**
+     * Creates a Downloader wrapping the MozillaDownloadListener. 
+     * Adds capability to track status of mozilla download.
+     */
+    public Downloader downloadFromMozilla(MozillaDownload listener);
+
+    /**
+     * Returns true if the given downloader is in either the waiting or active lists. 
+     */
+    public boolean contains(Downloader downloader);
 
 }

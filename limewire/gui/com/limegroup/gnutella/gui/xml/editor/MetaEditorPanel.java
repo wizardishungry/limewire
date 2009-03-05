@@ -19,9 +19,9 @@ import javax.swing.text.JTextComponent;
 
 import org.limewire.util.NameValue;
 
-import com.limegroup.gnutella.FileDesc;
 import com.limegroup.gnutella.gui.LimeTextField;
 import com.limegroup.gnutella.gui.xml.ComboBoxValue;
+import com.limegroup.gnutella.library.FileDesc;
 import com.limegroup.gnutella.licenses.CCConstants;
 import com.limegroup.gnutella.xml.LimeXMLDocument;
 import com.limegroup.gnutella.xml.LimeXMLSchema;

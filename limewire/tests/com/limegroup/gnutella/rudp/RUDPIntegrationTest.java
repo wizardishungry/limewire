@@ -8,15 +8,22 @@ import java.nio.channels.SelectableChannel;
 
 import junit.framework.Test;
 
+import org.limewire.core.settings.ConnectionSettings;
+import org.limewire.core.settings.FilterSettings;
+import org.limewire.core.settings.NetworkSettings;
 import org.limewire.nio.NIODispatcher;
 import org.limewire.nio.observer.IOErrorObserver;
 import org.limewire.rudp.RUDPContext;
 import org.limewire.rudp.UDPConnectionProcessor;
 import org.limewire.rudp.UDPSelectorProvider;
+import org.limewire.rudp.UDPSocketChannelConnectionEvent;
 import org.limewire.rudp.messages.RUDPMessage;
+import org.limewire.rudp.messages.SynMessage.Role;
 import org.limewire.util.PrivilegedAccessor;
+import org.limewire.listener.EventListenerList;
 
 import com.google.inject.Injector;
+import com.google.inject.Stage;
 import com.limegroup.gnutella.LifecycleManager;
 import com.limegroup.gnutella.LimeTestUtils;
 import com.limegroup.gnutella.MessageRouter;
@@ -25,12 +32,8 @@ import com.limegroup.gnutella.ReplyHandler;
 import com.limegroup.gnutella.UDPService;
 import com.limegroup.gnutella.messagehandlers.MessageHandler;
 import com.limegroup.gnutella.messages.Message;
-import com.limegroup.gnutella.rudp.messages.LimeRUDPMessageHandler;
 import com.limegroup.gnutella.rudp.messages.LimeRUDPMessageHelper;
 import com.limegroup.gnutella.rudp.messages.RUDPMessageHandlerHelper;
-import com.limegroup.gnutella.settings.ConnectionSettings;
-import com.limegroup.gnutella.settings.FilterSettings;
-import com.limegroup.gnutella.settings.NetworkSettings;
 import com.limegroup.gnutella.util.LimeTestCase;
 
 public class RUDPIntegrationTest extends LimeTestCase {
@@ -72,7 +75,7 @@ public class RUDPIntegrationTest extends LimeTestCase {
     @Override
     public void setUp() throws Exception {
         setSettings();
-        Injector injector = LimeTestUtils.createInjector();
+        Injector injector = LimeTestUtils.createInjector(Stage.PRODUCTION);
         
         lifecycleManager = injector.getInstance(LifecycleManager.class);
         selectorProvider = injector.getInstance(UDPSelectorProvider.class);
@@ -93,7 +96,7 @@ public class RUDPIntegrationTest extends LimeTestCase {
     public void testLimeRUDPMessageHandlerIsInstalled() throws Exception {
         Class[] handledMessageClasses = RUDPMessageHandlerHelper.getMessageClasses();
         for (Class clazz : handledMessageClasses) {
-            assertEquals(LimeRUDPMessageHandler.class, messageRouter.getUDPMessageHandler(clazz).getClass());
+            assertEquals("LimeRUDPMessageHandler", messageRouter.getUDPMessageHandler(clazz).getClass().getSimpleName());
         }
     }
     
@@ -128,7 +131,7 @@ public class RUDPIntegrationTest extends LimeTestCase {
     
     private SelectableChannel createUDPSocketChannel(UDPConnectionProcessor stub) throws Exception {
         Class clazz = Class.forName("org.limewire.rudp.UDPSocketChannel");
-        return (SelectableChannel)PrivilegedAccessor.invokeConstructor(clazz, new Object[] { stub }, new Class[] { UDPConnectionProcessor.class });
+        return (SelectableChannel)PrivilegedAccessor.invokeConstructor(clazz, new Object[] { stub, Role.UNDEFINED }, new Class[] { UDPConnectionProcessor.class, Role.class });
     }
     
     private void checkMessage(MessageObserver handler, Message m) throws Exception {
@@ -188,7 +191,7 @@ public class RUDPIntegrationTest extends LimeTestCase {
         private volatile boolean isConnecting;
         
         StubUDPConnectionProcessor(RUDPContext context) {
-            super(null, context);
+            super(null, context, Role.UNDEFINED, new EventListenerList<UDPSocketChannelConnectionEvent>());
         }
         
         @Override

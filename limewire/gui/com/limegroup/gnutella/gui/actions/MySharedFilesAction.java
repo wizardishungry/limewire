@@ -3,11 +3,7 @@ package com.limegroup.gnutella.gui.actions;
 import java.awt.event.ActionEvent;
 
 import javax.swing.AbstractAction;
-import javax.swing.Action;
 
-import com.limegroup.gnutella.FileEventListener;
-import com.limegroup.gnutella.FileManagerEvent;
-import com.limegroup.gnutella.gui.GUIMediator;
 import com.limegroup.gnutella.gui.GuiCoreMediator;
 import com.limegroup.gnutella.gui.I18n;
 import com.limegroup.gnutella.gui.search.SearchMediator;
@@ -32,20 +28,23 @@ public class MySharedFilesAction extends AbstractAction {
         super(createTitle());
         
         // TODO: change to polling
-        GuiCoreMediator.getFileManager().addFileEventListener(new FileEventListener() {
-            public void handleFileEvent(FileManagerEvent evt) {
-                switch (evt.getType()) {
-                    case ADD_FILE:
-                    case REMOVE_FILE:
-                        GUIMediator.safeInvokeLater(new Runnable() {
-                            public void run() {
-                                putValue(Action.NAME, createTitle());
-                            }
-                        });
-                        break;
-                }
-            }
-        });
+//        GuiCoreMediator.getFileManager().addFileEventListener(new EventListener<FileManagerEvent>() {
+//            public void handleEvent(FileManagerEvent evt) {
+//                switch (evt.getType()) {
+//                    case ADD_FILE:
+//                    if(!evt.getFileManager().getGnutellaSharedFileList().contains(evt.getNewFileDesc()) &&
+//                            !evt.getFileManager().getIncompleteFileList().contains(evt.getNewFileDesc()))
+//                        break;
+//                    case REMOVE_FILE:
+//                        GUIMediator.safeInvokeLater(new Runnable() {
+//                            public void run() {
+//                                putValue(Action.NAME, createTitle());
+//                            }
+//                        });
+//                        break;
+//                }
+//            }
+//        });
     }
 
     public void actionPerformed(ActionEvent e) {
@@ -53,6 +52,6 @@ public class MySharedFilesAction extends AbstractAction {
     }
 
     private static String createTitle() {
-        return I18n.tr("View My {0} Shared Files", GuiCoreMediator.getFileManager().getNumFiles());
+        return I18n.tr("View My {0} Shared Files", GuiCoreMediator.getFileManager().getGnutellaFileList().size());
     }
 }

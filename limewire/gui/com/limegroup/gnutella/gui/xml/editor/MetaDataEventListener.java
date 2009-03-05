@@ -1,9 +1,8 @@
 package com.limegroup.gnutella.gui.xml.editor;
 
-import com.limegroup.gnutella.FileDesc;
-import com.limegroup.gnutella.FileEventListener;
+import com.limegroup.gnutella.library.FileDesc;
 
-public interface MetaDataEventListener extends FileEventListener {
+public interface MetaDataEventListener /*extends EventListener<FileManagerEvent> */ {
 
 	void metaDataUnchanged(FileDesc fd);
 	

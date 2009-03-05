@@ -1,11 +1,14 @@
 package com.limegroup.gnutella;
 
-import java.util.Set;
-
 import org.limewire.concurrent.ThreadExecutor;
-import org.limewire.io.Connectable;
-import org.limewire.io.IpPort;
+import org.limewire.core.api.browse.BrowseListener;
+import org.limewire.core.api.friend.FriendPresence;
+import org.limewire.core.settings.FilterSettings;
+import org.limewire.core.settings.MessageSettings;
+import org.limewire.io.GUID;
 import org.limewire.util.DebugRunnable;
+import org.limewire.util.MediaType;
+import org.limewire.util.I18NConvert;
 
 import com.google.inject.Inject;
 import com.google.inject.Provider;
@@ -15,10 +18,9 @@ import com.limegroup.gnutella.messages.QueryRequest;
 import com.limegroup.gnutella.messages.QueryRequestFactory;
 import com.limegroup.gnutella.search.QueryDispatcher;
 import com.limegroup.gnutella.search.SearchResultHandler;
-import com.limegroup.gnutella.settings.FilterSettings;
-import com.limegroup.gnutella.settings.MessageSettings;
 import com.limegroup.gnutella.statistics.OutOfBandStatistics;
 import com.limegroup.gnutella.statistics.QueryStats;
+import com.limegroup.gnutella.util.QueryUtils;
 
 @Singleton
 public class SearchServicesImpl implements SearchServices {
@@ -61,22 +63,6 @@ public class SearchServicesImpl implements SearchServices {
         this.queryRequestFactory = queryRequestFactory;
         this.browseHostHandlerManager = browseHostHandlerManager;
         this.outOfBandStatistics = outOfBandStatistics;
-    }
-
-    /* (non-Javadoc)
-     * @see com.limegroup.gnutella.SearchServices#doAsynchronousBrowseHost(org.limewire.io.Connectable, com.limegroup.gnutella.GUID, com.limegroup.gnutella.GUID, java.util.Set, boolean)
-     */
-    public BrowseHostHandler doAsynchronousBrowseHost(
-      final Connectable host, GUID guid, GUID serventID, 
-      final Set<? extends IpPort> proxies, final boolean canDoFWTransfer) {
-        final BrowseHostHandler handler = browseHostHandlerManager.createBrowseHostHandler(guid, serventID);
-        ThreadExecutor.startThread(new DebugRunnable(new Runnable() {
-            public void run() {
-                handler.browseHost(host, proxies, canDoFWTransfer);
-            }
-        }), "BrowseHoster" );
-        
-        return handler;
     }
 
     /* (non-Javadoc)
@@ -162,26 +148,30 @@ public class SearchServicesImpl implements SearchServices {
      * @see com.limegroup.gnutella.SearchServices#query(byte[], java.lang.String, java.lang.String, com.limegroup.gnutella.MediaType)
      */
     public void query(final byte[] guid, 
-    						 final String query, 
+    						 String query, 
     						 final String richQuery, 
     						 final MediaType type) {
             QueryRequest qr = null;
-            if (networkManager.get().isIpPortValid() && (new GUID(guid)).addressesMatch(networkManager.get().getAddress(), 
-                    networkManager.get().getPort())) {
-                // if the guid is encoded with my address, mark it as needing out
-                // of band support.  note that there is a VERY small chance that
-                // the guid will be address encoded but not meant for out of band
-                // delivery of results.  bad things may happen in this case but 
-                // it seems tremendously unlikely, even over the course of a 
-                // VERY long lived client
-                qr = queryRequestFactory.get().createOutOfBandQuery(guid, query, richQuery, type);
-                outOfBandStatistics.addSentQuery();
-            } else {
-                qr = queryRequestFactory.get().createQuery(guid, query, richQuery, type);
+            query = QueryUtils.removeIllegalChars(query);
+            query = I18NConvert.instance().getNorm(query);
+            if(query.length() > 0) {
+                if (networkManager.get().isIpPortValid() && (new GUID(guid)).addressesMatch(networkManager.get().getAddress(), 
+                        networkManager.get().getPort())) {
+                    // if the guid is encoded with my address, mark it as needing out
+                    // of band support.  note that there is a VERY small chance that
+                    // the guid will be address encoded but not meant for out of band
+                    // delivery of results.  bad things may happen in this case but 
+                    // it seems tremendously unlikely, even over the course of a 
+                    // VERY long lived client
+                    qr = queryRequestFactory.get().createOutOfBandQuery(guid, query, richQuery, type);
+                    outOfBandStatistics.addSentQuery();
+                } else {                
+                    qr = queryRequestFactory.get().createQuery(guid, query, richQuery, type);
+                }
+            
+            
+                recordAndSendQuery(qr, type);
             }
-            
-            
-            recordAndSendQuery(qr, type);
     }
 
     /* (non-Javadoc)
@@ -210,5 +200,16 @@ public class SearchServicesImpl implements SearchServices {
         if (MessageSettings.STAMP_QUERIES.getValue())
             GUID.timeStampGuid(ret);
         return ret;
+    }
+
+    @Override
+    public BrowseHostHandler doAsynchronousBrowseHost(final FriendPresence friendPresence, GUID guid, final BrowseListener browseListener) {
+        final BrowseHostHandler handler = browseHostHandlerManager.createBrowseHostHandler(guid);
+        ThreadExecutor.startThread(new DebugRunnable(new Runnable() {
+            public void run() {
+                handler.browseHost(friendPresence, browseListener);
+            }
+        }), "BrowseHoster" );
+        return handler;
     }
 }

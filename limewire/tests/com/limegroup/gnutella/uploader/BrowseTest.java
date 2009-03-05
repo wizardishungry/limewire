@@ -6,9 +6,10 @@ import java.io.FileFilter;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Iterator;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
+
+import junit.framework.Test;
 
 import org.apache.http.HttpResponse;
 import org.apache.http.HttpStatus;
@@ -18,24 +19,23 @@ import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpHead;
 import org.apache.http.client.methods.HttpUriRequest;
 import org.apache.http.params.HttpProtocolParams;
+import org.limewire.core.settings.ConnectionSettings;
+import org.limewire.core.settings.NetworkSettings;
 import org.limewire.http.httpclient.HttpClientUtils;
 import org.limewire.http.httpclient.LimeHttpClient;
 import org.limewire.util.TestUtils;
 
 import com.google.inject.Injector;
-import com.limegroup.gnutella.FileManager;
 import com.limegroup.gnutella.LimeTestUtils;
 import com.limegroup.gnutella.Response;
+import com.limegroup.gnutella.library.FileDesc;
+import com.limegroup.gnutella.library.FileManager;
+import com.limegroup.gnutella.library.FileManagerTestUtils;
 import com.limegroup.gnutella.messages.Message;
-import com.limegroup.gnutella.messages.Message.Network;
 import com.limegroup.gnutella.messages.MessageFactory;
 import com.limegroup.gnutella.messages.QueryReply;
-import com.limegroup.gnutella.settings.ConnectionSettings;
-import com.limegroup.gnutella.settings.NetworkSettings;
-import com.limegroup.gnutella.settings.SharingSettings;
+import com.limegroup.gnutella.messages.Message.Network;
 import com.limegroup.gnutella.util.LimeTestCase;
-
-import junit.framework.Test;
 
 /**
  * Test that a client uploads a list of files correctly.
@@ -43,8 +43,6 @@ import junit.framework.Test;
 public class BrowseTest extends LimeTestCase {
 
     private final int PORT = 6668;
-
-    private File sharedDirectory;
 
     private HttpClient client;
 
@@ -71,27 +69,6 @@ public class BrowseTest extends LimeTestCase {
 
     @Override
     protected void setUp() throws Exception {
-
-        String directoryName = "com/limegroup/gnutella";
-        sharedDirectory = TestUtils.getResourceFile(directoryName);
-        sharedDirectory = sharedDirectory.getCanonicalFile();
-        assertTrue("Could not find directory: " + directoryName,
-                sharedDirectory.isDirectory());
-
-        File[] testFiles = sharedDirectory.listFiles(new FileFilter() {
-            public boolean accept(File file) {
-                return !file.isDirectory() && file.getName().endsWith(".class");
-            }
-        });
-        assertNotNull("No files to test against", testFiles);
-        assertGreaterThan("Not enough files to test against", 50,
-                testFiles.length);
-
-    
-        SharingSettings.EXTENSIONS_TO_SHARE.setValue("class");
-        SharingSettings.DIRECTORIES_TO_SHARE.setValue(Collections
-                .singleton(sharedDirectory));
-
         ConnectionSettings.LOCAL_IS_PRIVATE.setValue(false);
         NetworkSettings.PORT.setValue(PORT);
 
@@ -101,7 +78,17 @@ public class BrowseTest extends LimeTestCase {
         messageFactory = injector.getInstance(MessageFactory.class);
         client = injector.getInstance(LimeHttpClient.class);
         
-        fileManager.loadSettingsAndWait(100000);
+        FileManagerTestUtils.waitForLoad(fileManager,2000);
+        File shareDir = TestUtils.getResourceFile("com/limegroup/gnutella");
+        File[] testFiles = shareDir.listFiles(new FileFilter() {
+            public boolean accept(File file) {
+                return !file.isDirectory() && file.getName().endsWith(".class");
+            }
+        });
+        assertGreaterThan("Not enough files to test against", 50, testFiles.length);
+        for(File file : testFiles) {
+            assertNotNull(fileManager.getGnutellaFileList().add(file).get(1, TimeUnit.SECONDS));
+        }
         
         host = protocol + "://localhost:" + PORT;
     }
@@ -137,16 +124,17 @@ public class BrowseTest extends LimeTestCase {
                 }
             }
 
-            assertEquals(fileManager.getNumFiles(), files.size());
-
-            for (Iterator<Response> it = fileManager.getIndexingIterator(false); it.hasNext();) {
-                Response result = it.next();
-                boolean contained = files.remove(result.getName());
-                assertTrue("File is missing in browse response: "
-                        + result.getName(), contained);
+            assertEquals(fileManager.getGnutellaFileList().size(), files.size());
+            fileManager.getGnutellaFileList().getReadLock().lock();
+            try {
+                for(FileDesc result : fileManager.getGnutellaFileList()) {
+                    boolean contained = files.remove(result.getFileName());
+                    assertTrue("File is missing in browse response: " + result.getFileName(), contained);
+                }
+            } finally {
+                fileManager.getGnutellaFileList().getReadLock().unlock();
             }
-            assertTrue("Browse returned more results than shared: " + files,
-                    files.isEmpty());
+            assertTrue("Browse returned more results than shared: " + files, files.isEmpty());
         } finally {
             HttpClientUtils.releaseConnection(response);
         }

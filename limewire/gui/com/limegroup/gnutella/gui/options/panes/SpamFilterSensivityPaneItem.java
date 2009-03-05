@@ -12,17 +12,17 @@ import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JSlider;
 
+import org.limewire.core.settings.SearchSettings;
+
 import com.limegroup.gnutella.gui.GUIUtils;
 import com.limegroup.gnutella.gui.GuiCoreMediator;
 import com.limegroup.gnutella.gui.I18n;
 import com.limegroup.gnutella.gui.GUIUtils.SizePolicy;
-import com.limegroup.gnutella.settings.SearchSettings;
 
 /**
  * This class gives the user the option of whether or not to enable LimeWire's
  * internal spam filter
  */
-// 2345678|012345678|012345678|012345678|012345678|012345678|012345678|012345678|
 public final class SpamFilterSensivityPaneItem extends AbstractPaneItem {
     
     public final static String TITLE = I18n.tr("Sensitivity");
@@ -64,18 +64,19 @@ public final class SpamFilterSensivityPaneItem extends AbstractPaneItem {
 
     @Override
     public void initOptions() {
-    	// FIXME check 0 <= value <= 100?  
-        THRESHOLD.setValue( (int) (100 - 100 * SearchSettings.FILTER_SPAM_RESULTS.getValue()));
+        float threshold = SearchSettings.FILTER_SPAM_RESULTS.getValue();
+        THRESHOLD.setValue((int) (100 - 100 * threshold));
     }
 
     @Override
     public boolean applyOptions() throws IOException {
-        SearchSettings.FILTER_SPAM_RESULTS.setValue((100 - THRESHOLD.getValue()) / 100f);
-
+        float threshold = (100 - THRESHOLD.getValue()) / 100f;
+        SearchSettings.FILTER_SPAM_RESULTS.setValue(threshold);
         return false;
     }
 
     public boolean isDirty() {
-        return SearchSettings.FILTER_SPAM_RESULTS.getValue() != (100 - THRESHOLD.getValue()) / 100f;
+        float threshold = (100 - THRESHOLD.getValue()) / 100f;
+        return SearchSettings.FILTER_SPAM_RESULTS.getValue() != threshold;
     }
 }

@@ -3,6 +3,8 @@ package com.limegroup.bittorrent;
 import java.util.Collections;
 import java.util.List;
 
+import org.limewire.io.Address;
+
 
 public class FinishedTorrentDownload implements Torrent {
 
@@ -32,6 +34,11 @@ public class FinishedTorrentDownload implements Torrent {
 
 	public int getNumPeers() {
 		return 0;
+	}
+	
+	@Override
+	public List<Address> getSourceAddresses() {
+	    return Collections.emptyList();
 	}
 
 	public int getNumChockingPeers() {
@@ -86,4 +93,9 @@ public class FinishedTorrentDownload implements Torrent {
 	public int getTriedHostCount() {
 		return -1;
 	}
+
+    @Override
+    public boolean isDownloading() {
+        return false;
+    }
 }

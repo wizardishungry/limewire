@@ -11,16 +11,21 @@ import java.util.Iterator;
 import java.util.Properties;
 import java.util.Set;
 import java.util.StringTokenizer;
+import java.util.concurrent.TimeUnit;
 
 import junit.framework.Test;
 
+import org.limewire.core.settings.ConnectionSettings;
+import org.limewire.core.settings.FilterSettings;
+import org.limewire.core.settings.NetworkSettings;
+import org.limewire.core.settings.UltrapeerSettings;
+import org.limewire.io.GUID;
 import org.limewire.net.SocketsManager.ConnectType;
-import org.limewire.util.FileUtils;
-import org.limewire.util.PrivilegedAccessor;
 import org.limewire.util.TestUtils;
 
 import com.google.inject.AbstractModule;
 import com.google.inject.Injector;
+import com.google.inject.Stage;
 import com.limegroup.gnutella.connection.BlockingConnection;
 import com.limegroup.gnutella.connection.BlockingConnectionFactory;
 import com.limegroup.gnutella.handshaking.HandshakeResponder;
@@ -28,6 +33,8 @@ import com.limegroup.gnutella.handshaking.HandshakeResponse;
 import com.limegroup.gnutella.handshaking.HeaderNames;
 import com.limegroup.gnutella.handshaking.HeadersFactory;
 import com.limegroup.gnutella.helpers.UrnHelper;
+import com.limegroup.gnutella.library.FileManager;
+import com.limegroup.gnutella.library.UrnCache;
 import com.limegroup.gnutella.messages.BadPacketException;
 import com.limegroup.gnutella.messages.Message;
 import com.limegroup.gnutella.messages.PingReply;
@@ -37,12 +44,6 @@ import com.limegroup.gnutella.messages.QueryReply;
 import com.limegroup.gnutella.messages.QueryRequest;
 import com.limegroup.gnutella.messages.QueryRequestFactory;
 import com.limegroup.gnutella.messages.Message.Network;
-import com.limegroup.gnutella.settings.ConnectionSettings;
-import com.limegroup.gnutella.settings.FilterSettings;
-import com.limegroup.gnutella.settings.NetworkSettings;
-import com.limegroup.gnutella.settings.SharingSettings;
-import com.limegroup.gnutella.settings.UltrapeerSettings;
-import com.limegroup.gnutella.stubs.ActivityCallbackStub;
 import com.limegroup.gnutella.stubs.NetworkManagerStub;
 import com.limegroup.gnutella.util.EmptyResponder;
 import com.limegroup.gnutella.util.LimeTestCase;
@@ -52,7 +53,6 @@ import com.limegroup.gnutella.util.LimeTestCase;
  * redirects properly, etc.  The test includes a leaf attached to 3 
  * Ultrapeers.
  */
-@SuppressWarnings("all")
 public class LeafRoutingTest extends LimeTestCase {
     private static final int SERVER_PORT = 6669;
     private static final int TIMEOUT=5000;
@@ -101,15 +101,6 @@ public class LeafRoutingTest extends LimeTestCase {
 		UltrapeerSettings.FORCE_ULTRAPEER_MODE.setValue(false);
 		ConnectionSettings.NUM_CONNECTIONS.setValue(0);
 		ConnectionSettings.LOCAL_IS_PRIVATE.setValue(false);
-		SharingSettings.EXTENSIONS_TO_SHARE.setValue("txt;");
-        // get the resource file for com/limegroup/gnutella
-        File berkeley = 
-            TestUtils.getResourceFile("com/limegroup/gnutella/berkeley.txt");
-        File susheel = 
-            TestUtils.getResourceFile("com/limegroup/gnutella/susheel.txt");
-        // now move them to the share dir        
-        FileUtils.copy(berkeley, new File(_sharedDir, "berkeley.txt"));
-        FileUtils.copy(susheel, new File(_sharedDir, "susheel.txt"));
     }        
     
     @Override
@@ -122,7 +113,7 @@ public class LeafRoutingTest extends LimeTestCase {
         networkManager.setPort(5454);
         networkManager.setAcceptedIncomingConnection(true);
         networkManager.setSolicitedGUID(new GUID());
-        Injector injector = LimeTestUtils.createInjector(new AbstractModule() {
+        Injector injector = LimeTestUtils.createInjector(Stage.PRODUCTION, new AbstractModule() {
             @Override
             protected void configure() {
                 bind(NetworkManager.class).toInstance(networkManager);
@@ -141,6 +132,13 @@ public class LeafRoutingTest extends LimeTestCase {
         
         lifecycleManager.start();
         connectionServices.connect();
+
+        // get the resource file for com/limegroup/gnutella
+        File berkeley = TestUtils.getResourceFile("com/limegroup/gnutella/berkeley.txt");
+        File susheel = TestUtils.getResourceFile("com/limegroup/gnutella/susheel.txt");
+        assertNotNull(fileManager.getGnutellaFileList().add(berkeley).get(1, TimeUnit.SECONDS));
+        assertNotNull(fileManager.getGnutellaFileList().add(susheel).get(1, TimeUnit.SECONDS));
+        
         assertEquals("unexpected port", SERVER_PORT, NetworkSettings.PORT.getValue());
         connect();
     }
@@ -382,7 +380,7 @@ public class LeafRoutingTest extends LimeTestCase {
         BlockingConnectionUtils.drain(ultrapeer2);
 
         // make sure the set up succeeded
-        assertTrue(fileManager.getNumFiles() == 2);
+        assertTrue(fileManager.getGnutellaFileList().size() == 2);
 
         // send a query that should hit
         QueryRequest query = queryRequestFactory.createQueryRequest(GUID.makeGuid(), (byte) 1,
@@ -418,7 +416,7 @@ public class LeafRoutingTest extends LimeTestCase {
         BlockingConnectionUtils.drain(ultrapeer2);
 
         // make sure the set up succeeded
-        assertEquals(2, fileManager.getNumFiles());
+        assertEquals(2, fileManager.getGnutellaFileList().size());
 
         // get the URNS for the files
         File berkeley = 
@@ -475,12 +473,12 @@ public class LeafRoutingTest extends LimeTestCase {
     /** Converts the given X-Try[-Ultrapeer] header value to
      *  a Set of Endpoints. */
     private Set /* of Endpoint */ list2set(String addresses) throws Exception {
-        Set ret=new HashSet();
+        Set<Endpoint> ret=new HashSet<Endpoint>();
         StringTokenizer st = new StringTokenizer(addresses,
             Constants.ENTRY_SEPARATOR);
         while(st.hasMoreTokens()){
             //get an address
-            String address = ((String)st.nextToken()).trim();
+            String address = st.nextToken().trim();
             ret.add(new Endpoint(address));
         }
         return ret;

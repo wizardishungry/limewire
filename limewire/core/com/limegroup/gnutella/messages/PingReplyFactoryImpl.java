@@ -7,6 +7,7 @@ import java.net.UnknownHostException;
 import java.util.Collection;
 
 import org.limewire.collection.BitNumbers;
+import org.limewire.core.settings.ApplicationSettings;
 import org.limewire.io.BadGGEPBlockException;
 import org.limewire.io.BadGGEPPropertyException;
 import org.limewire.io.GGEP;
@@ -30,8 +31,6 @@ import com.limegroup.gnutella.UDPService;
 import com.limegroup.gnutella.dht.DHTManager;
 import com.limegroup.gnutella.dht.DHTManager.DHTMode;
 import com.limegroup.gnutella.messages.Message.Network;
-import com.limegroup.gnutella.settings.ApplicationSettings;
-import com.limegroup.gnutella.settings.SSLSettings;
 
 @Singleton
 public class PingReplyFactoryImpl implements PingReplyFactory {
@@ -95,7 +94,21 @@ public class PingReplyFactoryImpl implements PingReplyFactory {
         return create(guid, ttl, addr, IpPort.EMPTY_LIST, IpPort.EMPTY_LIST);
     }
 
-    public PingReply create(byte[] guid, byte ttl, IpPort returnAddr,
+    @Override
+    public PingReply create(byte[] guid, byte ttl, int localPort, byte[] localIp, IpPort addr) {
+        return create(guid, ttl, localPort, localIp, addr, IpPort.EMPTY_LIST, IpPort.EMPTY_LIST);
+    }
+
+    @Override
+    public PingReply create(byte[] guid, byte ttl,
+                            IpPort returnAddr,
+                            Collection<? extends IpPort> gnutHosts,
+                            Collection<? extends IpPort> dhtHosts) {
+        return create(guid, ttl, networkManager.getPort(), networkManager.getAddress(), returnAddr, gnutHosts, dhtHosts);
+    }
+
+    public PingReply create(byte[] guid, byte ttl, int localPort, byte[] localIP,
+            IpPort returnAddr,
             Collection<? extends IpPort> gnutHosts,
             Collection<? extends IpPort> dhtHosts) {
         GGEP ggep = newGGEP(statistics.get().calculateDailyUptime(),
@@ -112,8 +125,7 @@ public class PingReplyFactoryImpl implements PingReplyFactory {
 
         addPackedHosts(ggep, gnutHosts, dhtHosts);
 
-        return create(guid, ttl, networkManager.getPort(), networkManager
-                .getAddress(), localPongInfo.getNumSharedFiles(), localPongInfo
+        return create(guid, ttl, localPort, localIP, localPongInfo.getNumSharedFiles(), localPongInfo
                 .getSharedFileSize() / 1024, localPongInfo.isSupernode(), ggep);
     }
 
@@ -365,7 +377,7 @@ public class PingReplyFactoryImpl implements PingReplyFactory {
         addDHTExtension(ggep);
 
         // add our support of TLS
-        if (SSLSettings.isIncomingTLSEnabled())
+        if (networkManager.isIncomingTLSEnabled())
             ggep.put(GGEPKeys.GGEP_HEADER_TLS_CAPABLE);
 
         return ggep;

@@ -11,8 +11,8 @@ import java.awt.Graphics2D;
 import java.awt.RenderingHints;
 import java.awt.geom.RoundRectangle2D;
 
-import com.limegroup.gnutella.gui.FinalizeListener;
-import com.limegroup.gnutella.gui.GUIMediator;
+import org.limewire.lifecycle.Asynchronous;
+import org.limewire.lifecycle.Service;
 
 /**
  * A Mac OS X Dock Icon for LimeWire. Overlays the download
@@ -50,12 +50,21 @@ public class DockIconMacOSXImpl implements DockIcon {
      */
     private int complete = 0;
     
-    public DockIconMacOSXImpl () {
-        GUIMediator.addFinalizeListener(new FinalizeListener() {
-            public void doFinalize() {
+    void register(org.limewire.lifecycle.ServiceRegistry registry) {
+        registry.register(new Service() {
+            public void start() {}
+
+            @Asynchronous (daemon = false)
+            public void stop() {
                 Dock.restoreDockTileImage();
             }
-        });
+
+            public void initialize() {}
+
+            public String getServiceName() {
+                return "Dock cleanup";
+            }
+        }).in("UIHack");
     }
     
     /*

@@ -13,31 +13,32 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.http.HttpException;
+import org.limewire.core.api.download.SaveLocationException;
+import org.limewire.core.settings.LWSSettings;
+import org.limewire.core.settings.SharingSettings;
+import org.limewire.lifecycle.Service;
 
 import com.google.inject.Inject;
 import com.google.inject.Singleton;
 import com.google.inject.name.Named;
 import com.limegroup.gnutella.DownloadServices;
 import com.limegroup.gnutella.Downloader;
-import com.limegroup.gnutella.Mutable;
 import com.limegroup.gnutella.RemoteFileDesc;
-import com.limegroup.gnutella.SaveLocationException;
 import com.limegroup.gnutella.Downloader.DownloadStatus;
 import com.limegroup.gnutella.lws.server.LWSManager;
 import com.limegroup.gnutella.lws.server.LWSManagerCommandResponseHandlerWithCallback;
 import com.limegroup.gnutella.lws.server.LWSUtil;
-import com.limegroup.gnutella.settings.LWSSettings;
-import com.limegroup.gnutella.settings.SharingSettings;
 import com.limegroup.gnutella.util.LimeWireUtils;
 import com.limegroup.gnutella.util.Tagged;
 
 
 @Singleton
-public final class LWSIntegrationServicesImpl implements LWSIntegrationServices {
+public final class LWSIntegrationServicesImpl implements LWSIntegrationServices, Service {
     
     private static final Log LOG = LogFactory.getLog(LWSIntegrationServicesImpl.class);
     
@@ -329,7 +330,7 @@ public final class LWSIntegrationServicesImpl implements LWSIntegrationServices 
         // Make sure we aren't already downloading this
         //
         String fileName = rfd.getFileName();
-        final Mutable<Downloader> downloader = new Mutable<Downloader>();
+        final AtomicReference<Downloader> downloader = new AtomicReference<Downloader>();
         synchronized (lwsIntegrationServicesDelegate) {
             final File saveFile = new File(saveDir, fileName);
             lwsIntegrationServicesDelegate.visitDownloads(new Visitor<CoreDownloader>() {
@@ -351,7 +352,7 @@ public final class LWSIntegrationServicesImpl implements LWSIntegrationServices 
         return downloader.get();
     }
    
-    public void init() {
+    public void initialize() {
         // ====================================================================================================================================
         // Add a handler for the LimeWire Store Server so that
         // we can keep track of downloads that were made on the
@@ -459,7 +460,7 @@ public final class LWSIntegrationServicesImpl implements LWSIntegrationServices 
         lwsManager.registerHandler("StopDownload", new LWSManagerCommandResponseForDownloading("StopDownload", lwsIntegrationServicesDelegate) {
             @Override
             protected void takeAction(Downloader d) {
-                d.stop();
+                d.stop(false);
             }              
         }); 
         // ====================================================================================================================================
@@ -501,7 +502,7 @@ public final class LWSIntegrationServicesImpl implements LWSIntegrationServices 
         lwsManager.registerHandler("StopAllDownloads", new LWSManagerCommandResponseForDownloadingAll("StopAllDownloads", lwsIntegrationServicesDelegate) {
             @Override
             protected void takeAction(Downloader d) {
-                d.stop();
+                d.stop(false);
             }              
         }); 
         // ====================================================================================================================================
@@ -552,6 +553,21 @@ public final class LWSIntegrationServicesImpl implements LWSIntegrationServices 
         });        
     }
     
+    @Inject
+    void register(org.limewire.lifecycle.ServiceRegistry registry) {
+        registry.register(this);
+    }
+    
+    public String getServiceName() {
+        return org.limewire.i18n.I18nMarker.marktr("LimeWire Store Integration");
+    }  
+    
+    public void start() {
+    }
+    
+    public void stop() {
+    }
+    
     /**
      * A class to find a downloader, given an identity hashcode and take an
      * action. Returns the ID of the downloader upon which was taken action.
@@ -578,7 +594,7 @@ public final class LWSIntegrationServicesImpl implements LWSIntegrationServices 
             //
             // Find the downloader, by System.identityHashCode()
             //
-            final Mutable<String> res = new Mutable<String>("OK");
+            final AtomicReference<String> res = new AtomicReference<String>("OK");
             del.visitDownloads(new Visitor<CoreDownloader>() {
                 public boolean visit(CoreDownloader d) {  
                     String hash = String.valueOf(System.identityHashCode(d));

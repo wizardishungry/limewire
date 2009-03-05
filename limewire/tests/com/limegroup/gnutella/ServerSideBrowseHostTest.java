@@ -5,13 +5,19 @@ import java.io.File;
 import java.io.OutputStreamWriter;
 import java.net.Socket;
 import java.util.Iterator;
+import java.util.concurrent.TimeUnit;
 
+import org.limewire.core.settings.FilterSettings;
 import org.limewire.io.ByteReader;
+import org.limewire.io.GUID;
 import org.limewire.util.FileUtils;
 
 import junit.framework.Test;
 
 import com.google.inject.Injector;
+import com.google.inject.Stage;
+import com.limegroup.gnutella.library.FileManager;
+import com.limegroup.gnutella.library.FileManagerTestUtils;
 import com.limegroup.gnutella.messages.Message;
 import com.limegroup.gnutella.messages.MessageFactory;
 import com.limegroup.gnutella.messages.QueryReply;
@@ -20,7 +26,6 @@ import com.limegroup.gnutella.messages.QueryRequestFactory;
 import com.limegroup.gnutella.messages.Message.Network;
 import com.limegroup.gnutella.routing.QueryRouteTable;
 import com.limegroup.gnutella.routing.RouteTableMessage;
-import com.limegroup.gnutella.settings.FilterSettings;
 
 /**
  *  Tests that an Ultrapeer correctly handles all aspects of PushProxy.  For
@@ -82,7 +87,7 @@ public final class ServerSideBrowseHostTest extends ServerSideTestCase {
 
     @Override
     protected void setUp() throws Exception {
-        Injector injector = LimeTestUtils.createInjector();
+        Injector injector = LimeTestUtils.createInjector(Stage.PRODUCTION);
         super.setUp(injector);
         fileManager = injector.getInstance(FileManager.class);
         queryRequestFactory = injector.getInstance(QueryRequestFactory.class);
@@ -96,7 +101,7 @@ public final class ServerSideBrowseHostTest extends ServerSideTestCase {
         drainAll();
 
         // make sure leaf is sharing
-        assertEquals(2, fileManager.getNumFiles());
+        assertEquals(2, fileManager.getGnutellaFileList().size());
 
         // send a query that should be answered
         QueryRequest query = queryRequestFactory.createQueryRequest(GUID.makeGuid(), (byte) 1,
@@ -118,17 +123,19 @@ public final class ServerSideBrowseHostTest extends ServerSideTestCase {
     public void testHTTPRequest() throws Exception {
         FilterSettings.MAX_RESPONSES_PER_REPLY.setValue(10);
         
+        
+        FileManager fm = injector.getInstance(FileManager.class);
+        FileManagerTestUtils.waitForLoad(fm,2000);
         // make sure more than FilterSettings.MAX_RESPONSES_PER_REPLY files
         // are shared
         for (int i = 0; i < FilterSettings.MAX_RESPONSES_PER_REPLY.getValue() * 2; i++) {
-            File f = new File(_sharedDir, "sharedFile"+i+".txt");
+            File f = new File(_scratchDir, "sharedFile"+i+".txt");
             f.deleteOnExit();
-            FileUtils.writeObject(f.getAbsolutePath(), new Integer(i));
+            FileUtils.writeObject(f, new Integer(i));
+            assertNotNull(fm.getGnutellaFileList().add(f).get(1, TimeUnit.SECONDS));
         }
-        
-        FileManager fm = injector.getInstance(FileManager.class);
-        fm.loadSettingsAndWait(2000);
-        assertEquals(2 * FilterSettings.MAX_RESPONSES_PER_REPLY.getValue() + 2, fm.getNumFiles());
+
+        assertEquals(2 * FilterSettings.MAX_RESPONSES_PER_REPLY.getValue() + 2, fm.getGnutellaFileList().size());
         
         String result = null;
 

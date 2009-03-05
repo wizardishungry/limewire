@@ -7,10 +7,11 @@ import javax.swing.ButtonGroup;
 import javax.swing.JPanel;
 import javax.swing.JRadioButton;
 
+import org.limewire.core.api.updates.UpdateStyle;
+import org.limewire.core.settings.UpdateSettings;
+
 import com.limegroup.gnutella.gui.BoxPanel;
 import com.limegroup.gnutella.gui.I18n;
-import com.limegroup.gnutella.settings.UpdateSettings;
-import com.limegroup.gnutella.version.UpdateInformation;
 
 /** Update options */
 public class UpdatePaneItem extends AbstractPaneItem { 
@@ -62,11 +63,11 @@ public class UpdatePaneItem extends AbstractPaneItem {
     @Override
     public boolean applyOptions() throws IOException {
         if(beta.isSelected())
-            UpdateSettings.UPDATE_STYLE.setValue(UpdateInformation.STYLE_BETA);
+            UpdateSettings.UPDATE_STYLE.setValue(UpdateStyle.STYLE_BETA);
         else if(service.isSelected())
-            UpdateSettings.UPDATE_STYLE.setValue(UpdateInformation.STYLE_MINOR);
+            UpdateSettings.UPDATE_STYLE.setValue(UpdateStyle.STYLE_MINOR);
         else // if beta.isSelected())
-            UpdateSettings.UPDATE_STYLE.setValue(UpdateInformation.STYLE_MAJOR);
+            UpdateSettings.UPDATE_STYLE.setValue(UpdateStyle.STYLE_MAJOR);
         return false;
     }
     
@@ -77,9 +78,9 @@ public class UpdatePaneItem extends AbstractPaneItem {
     @Override
     public void initOptions() {
         int style = UpdateSettings.UPDATE_STYLE.getValue();
-        if(style <= UpdateInformation.STYLE_BETA)
+        if(style <= UpdateStyle.STYLE_BETA)
             beta.setSelected(true);
-        else if(style == UpdateInformation.STYLE_MINOR)
+        else if(style == UpdateStyle.STYLE_MINOR)
             service.setSelected(true);
         else // if style >= UpdateInformation.STYLE_MAJOR
             major.setSelected(true);
@@ -87,9 +88,9 @@ public class UpdatePaneItem extends AbstractPaneItem {
     
     public boolean isDirty() {
         int style = UpdateSettings.UPDATE_STYLE.getValue();
-        if(style <= UpdateInformation.STYLE_BETA)
+        if(style <= UpdateStyle.STYLE_BETA)
             return !beta.isSelected();
-        else if(style == UpdateInformation.STYLE_MINOR)
+        else if(style == UpdateStyle.STYLE_MINOR)
             return !service.isSelected();
         else // if style >= UpdateInformation.STYLE_MAJOR
             return !major.isSelected();

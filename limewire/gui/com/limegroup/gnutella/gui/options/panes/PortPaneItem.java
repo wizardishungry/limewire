@@ -2,6 +2,7 @@ package com.limegroup.gnutella.gui.options.panes;
 
 import java.io.IOException;
 
+import org.limewire.core.settings.NetworkSettings;
 import org.limewire.i18n.I18nMarker;
 
 import com.limegroup.gnutella.NetworkManager;
@@ -12,7 +13,6 @@ import com.limegroup.gnutella.gui.LabeledComponent;
 import com.limegroup.gnutella.gui.SizedWholeNumberField;
 import com.limegroup.gnutella.gui.WholeNumberField;
 import com.limegroup.gnutella.gui.GUIUtils.SizePolicy;
-import com.limegroup.gnutella.settings.NetworkSettings;
 
 /**
  * This class defines the panel in the options window that allows the user
@@ -90,7 +90,7 @@ public final class PortPaneItem extends AbstractPaneItem {
             NetworkSettings.PORT.setValue(port);
 			networkManager.setListeningPort(port);
 			_port = port;
-			networkManager.addressChanged();
+			networkManager.portChanged();
 		} catch(IOException ioe) {
 			GUIMediator.showError(I18n.tr("Port not available. Please select a different port."));
 			NetworkSettings.PORT.setValue(_port);

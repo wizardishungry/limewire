@@ -5,7 +5,6 @@ import java.io.File;
 import javax.swing.Icon;
 
 import com.limegroup.gnutella.gui.GUIMediator;
-import com.limegroup.gnutella.gui.GuiCoreMediator;
 import com.limegroup.gnutella.gui.I18n;
 
 /**
@@ -35,17 +34,17 @@ public class LWSSpecialFilesHolder extends AbstractDirectoryHolder {
     
     @Override
     public boolean isEmpty() {
-        return !GuiCoreMediator.getFileManager().hasIndividualStoreFiles();
+        return false; 
     }
     
     @Override
     public File[] getFiles() {
-        return GuiCoreMediator.getFileManager().getIndividualStoreFiles();
+        return new File[0];
     }
     
     @Override
     public boolean accept(File file) {
-        return GuiCoreMediator.getFileManager().isIndividualStore(file); 
+        return false; 
     }
     
     @Override

@@ -1,18 +1,17 @@
 package com.limegroup.gnutella.gui.options.panes;
 
 import java.io.IOException;
-
 import javax.swing.JCheckBox;
 import javax.swing.JTextField;
 
+import org.limewire.core.settings.DaapSettings;
 import org.limewire.i18n.I18nMarker;
 
-import com.limegroup.gnutella.gui.DaapManager;
+import com.limegroup.gnutella.gui.GUIUtils.SizePolicy;
+import com.limegroup.gnutella.gui.GuiCoreMediator;
 import com.limegroup.gnutella.gui.I18n;
 import com.limegroup.gnutella.gui.LabeledComponent;
 import com.limegroup.gnutella.gui.SizedTextField;
-import com.limegroup.gnutella.gui.GUIUtils.SizePolicy;
-import com.limegroup.gnutella.settings.DaapSettings;
 
 public final class DaapSupportPaneItem extends AbstractPaneItem {
 
@@ -60,7 +59,7 @@ public final class DaapSupportPaneItem extends AbstractPaneItem {
     @Override
     public void initOptions() {
         DAAP_ENABLED.setSelected(DaapSettings.DAAP_ENABLED.getValue() && 
-                    DaapManager.instance().isServerRunning());
+                    GuiCoreMediator.getDaapManager().isServerRunning());
         
         SERVICE_NAME.setText(DaapSettings.DAAP_SERVICE_NAME.getValue());
     }
@@ -94,15 +93,15 @@ public final class DaapSupportPaneItem extends AbstractPaneItem {
             if (DAAP_ENABLED.isSelected()) {
                 
                 if (!prevEnabled) {
-                    DaapManager.instance().restart();
+                    GuiCoreMediator.getDaapManager().restart();
                    
                 } else if (!serviceName.equals(prevServiceName)) {
-                    DaapManager.instance().updateService();
+                    GuiCoreMediator.getDaapManager().updateService();
                 }
                     
             } else if (prevEnabled) {
                 
-                DaapManager.instance().stop();
+                GuiCoreMediator.getDaapManager().stop();
             }
 
         } catch (IOException err) {
@@ -111,7 +110,7 @@ public final class DaapSupportPaneItem extends AbstractPaneItem {
             DaapSettings.DAAP_SERVICE_NAME.setValue(prevServiceName);
             DaapSettings.DAAP_LIBRARY_NAME.setValue(prevServiceName);
 
-            DaapManager.instance().stop();
+            GuiCoreMediator.getDaapManager().stop();
 
             initOptions();
 

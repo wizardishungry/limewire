@@ -20,6 +20,7 @@ import org.limewire.rudp.messages.RUDPMessageFactory;
 import org.limewire.rudp.messages.impl.DefaultMessageFactory;
 import org.limewire.util.BaseTestCase;
 import org.limewire.util.BufferUtils;
+import org.limewire.listener.EventListenerList;
 
 /**
  * Tests that NIOSocket delegates events correctly.
@@ -51,7 +52,7 @@ public final class UDPConnectNIOTest extends BaseTestCase {
         stubService = new UDPServiceStub(factory);
         udpSelectorProvider = new UDPSelectorProvider(new DefaultRUDPContext(
                 factory, NIODispatcher.instance().getTransportListener(),
-                stubService, new DefaultRUDPSettings()));
+                stubService, new DefaultRUDPSettings()), new EventListenerList<UDPSocketChannelConnectionEvent>());
         udpMultiplexor = udpSelectorProvider.openSelector();
         stubService.setUDPMultiplexor(udpMultiplexor);
         NIODispatcher.instance().registerSelector(udpMultiplexor, udpSelectorProvider.getUDPSocketChannelClass());
@@ -70,7 +71,7 @@ public final class UDPConnectNIOTest extends BaseTestCase {
     
     
     private StubConnectObserver setupConnection() throws Exception {
-        AbstractNBSocket conn = udpSelectorProvider.openSocketChannel().socket();
+        AbstractNBSocket conn = udpSelectorProvider.openAcceptorSocketChannel().socket();
         StubConnectObserver stub = new StubConnectObserver();
         conn.connect(new InetSocketAddress("127.0.0.1", PORT_2), 5000, stub);
         return stub;

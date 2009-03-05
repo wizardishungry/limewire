@@ -4,6 +4,7 @@ import java.text.NumberFormat;
 import java.util.HashMap;
 import java.util.Map;
 
+import org.limewire.i18n.I18nMarker;
 import org.limewire.util.OSUtils;
 
 import com.limegroup.gnutella.gui.GUIUtils;
@@ -35,11 +36,11 @@ public class ResultProperties {
 
         // Default properties
         file = new HashMap<String, String>();
-        file.put("Name", line.getFilename());
-        file.put("Size", size(line.getSize()));
-        file.put("Hash", line.getSHA1().toString());
+        file.put(I18nMarker.marktr("Name"), line.getFilename());
+        file.put(I18nMarker.marktr("Size"), size(line.getSize()));
+        file.put(I18nMarker.marktr("Hash"), line.getSHA1().toString());
         if (line.getNamedMediaType() != null)
-            file.put("Type", line.getNamedMediaType().toString());
+            file.put(I18nMarker.marktr("Type"), line.getNamedMediaType().getName());
 
         // Additional properties from metadata
         LimeXMLDocument document = line.getXMLDocument();
@@ -52,7 +53,7 @@ public class ResultProperties {
         
         // Add units
         if (meta != null && meta.containsKey("Bitrate"))
-            meta.put("Bitrate", meta.get("Bitrate") + " " + I18n.tr("Kbps"));
+            meta.put(I18nMarker.marktr("Bitrate"),  I18n.tr("{0} Kbps", meta.get("Bitrate")));
     }
 
     /** Gets the file properties. */
@@ -72,6 +73,6 @@ public class ResultProperties {
     
     /** Composes size into descriptive text. */
     private static String size(long size) {
-        return GUIUtils.toUnitbytes(size) + " (" + NumberFormat.getInstance().format(size) + " bytes)";
+        return I18n.tr("{0} ({1}) bytes", GUIUtils.toUnitbytes(size), NumberFormat.getInstance().format(size));
     }
 }

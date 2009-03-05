@@ -12,6 +12,7 @@ import javax.swing.ButtonGroup;
 import javax.swing.JPanel;
 import javax.swing.JRadioButton;
 
+import org.limewire.core.settings.ConnectionSettings;
 import org.limewire.io.NetworkUtils;
 
 import com.limegroup.gnutella.NetworkManager;
@@ -22,7 +23,6 @@ import com.limegroup.gnutella.gui.I18n;
 import com.limegroup.gnutella.gui.SizedWholeNumberField;
 import com.limegroup.gnutella.gui.WholeNumberField;
 import com.limegroup.gnutella.gui.GUIUtils.SizePolicy;
-import com.limegroup.gnutella.settings.ConnectionSettings;
 
 /**
  * This class defines the panel in the options window that allows the user
@@ -170,8 +170,10 @@ public final class ForceIPPaneItem extends AbstractPaneItem {
         // or 2) We're forcing and the ports are different.
         boolean newForce = ConnectionSettings.FORCE_IP_ADDRESS.getValue();
         int newPort = ConnectionSettings.FORCED_PORT.getValue();        
-        if(oldForce != newForce || (newForce && (oldPort != newPort)))
+        if(oldForce != newForce)
             networkManager.addressChanged();
+        if(newForce && (oldPort != newPort))
+            networkManager.portChanged();
         
         return restart;
     }

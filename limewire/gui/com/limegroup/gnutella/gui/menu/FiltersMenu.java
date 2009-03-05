@@ -1,10 +1,11 @@
 package com.limegroup.gnutella.gui.menu;
 
+import org.limewire.core.settings.ContentSettings;
+
 import com.limegroup.gnutella.gui.I18n;
 import com.limegroup.gnutella.gui.actions.OpenLinkAction;
 import com.limegroup.gnutella.gui.options.ConfigureOptionsAction;
 import com.limegroup.gnutella.gui.options.OptionsConstructor;
-import com.limegroup.gnutella.settings.ContentSettings;
 
 /**
  * Filters menu.

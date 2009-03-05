@@ -6,12 +6,14 @@ import java.util.List;
 import java.util.Set;
 
 import org.limewire.io.Connectable;
+import org.limewire.io.GUID;
 import org.limewire.io.IpPort;
 import org.limewire.net.SocketsManager.ConnectType;
 
 import com.limegroup.gnutella.connection.ConnectionLifecycleEvent;
 import com.limegroup.gnutella.connection.ConnectionLifecycleListener;
 import com.limegroup.gnutella.connection.RoutedConnection;
+import com.limegroup.gnutella.connection.GnutellaConnectionEvent;
 import com.limegroup.gnutella.handshaking.HandshakeResponse;
 import com.limegroup.gnutella.handshaking.HandshakeStatus;
 import com.limegroup.gnutella.messages.Message.Network;
@@ -19,6 +21,12 @@ import com.limegroup.gnutella.messages.vendor.QueryStatusResponse;
 
 public class ConnectionManagerAdapter implements ConnectionManager {
 
+    @Override
+    public int getNumFetchingConnections() {
+        // TODO Auto-generated method stub
+        return 0;
+    }
+    
     public void acceptConnection(Socket socket) {
 
     }
@@ -206,7 +214,7 @@ public class ConnectionManagerAdapter implements ConnectionManager {
         return false;
     }
 
-    public void initialize() {
+    public void start() {
 
     }
 
@@ -330,4 +338,7 @@ public class ConnectionManagerAdapter implements ConnectionManager {
 
     }
 
+    public void handleEvent(GnutellaConnectionEvent event) {
+        //To change body of implemented methods use File | Settings | File Templates.
+    }
 }

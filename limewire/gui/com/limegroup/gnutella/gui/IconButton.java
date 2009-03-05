@@ -9,8 +9,9 @@ import javax.swing.Icon;
 import javax.swing.JButton;
 import javax.swing.SwingConstants;
 
+import org.limewire.core.settings.UISettings;
+
 import com.limegroup.gnutella.gui.actions.LimeAction;
-import com.limegroup.gnutella.settings.UISettings;
 
 /**
  * A JButton that uses an Icon.

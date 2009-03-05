@@ -7,7 +7,8 @@ public class Providers {
     public static <T> Provider<T> of(T instance) {
         return new SimpleProvider<T>(instance);
     }
-    
+
+    @SuppressWarnings({"UnusedDeclaration"})
     public static <T> Provider<T> nullProvider(Class<? extends T> forTypeSafety) {
         return new EmptyProvider<T>();
     }
@@ -24,7 +25,7 @@ public class Providers {
             return t;
         }
     }
-    
+
     private static class EmptyProvider<T> implements Provider<T> {
         public T get() {
             return null;

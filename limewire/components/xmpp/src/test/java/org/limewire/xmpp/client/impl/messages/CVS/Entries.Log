@@ -1,0 +1,9 @@
+A D/address////
+A D/authtoken////
+A D/connectrequest////
+A D/filetransfer////
+A D/library////
+R D/library////
+R D/filetransfer////
+R D/authtoken////
+R D/address////

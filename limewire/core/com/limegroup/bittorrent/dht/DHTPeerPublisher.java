@@ -3,7 +3,7 @@ package com.limegroup.bittorrent.dht;
 import com.limegroup.gnutella.URN;
 
 /**
- * <code>DHTPeerPublisher</code> defines an interface for storing network information in DHT
+ * Defines an interface for storing network information in the Mojito DHT
  * for a torrent file.
  */
 public interface DHTPeerPublisher {
@@ -11,7 +11,7 @@ public interface DHTPeerPublisher {
     /**
      * Register the listeners used.
      */
-    public void init();
+    public void initialize();
 
     /**
      * Stores the network information of the local host as a seeder in DHT for

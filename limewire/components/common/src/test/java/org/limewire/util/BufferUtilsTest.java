@@ -5,7 +5,6 @@ import java.util.Random;
 
 import junit.framework.Test;
 
-@SuppressWarnings( { "unchecked", "cast" } )
 public class BufferUtilsTest extends BaseTestCase {
     
     public BufferUtilsTest(String name) {
@@ -24,7 +23,7 @@ public class BufferUtilsTest extends BaseTestCase {
         byte[] data = data(100);
         byte[] copy = new byte[100];
         System.arraycopy(data, 0, copy, 0, 100);
-        ByteBuffer buf = (ByteBuffer)ByteBuffer.wrap(copy).compact();
+        ByteBuffer buf = ByteBuffer.wrap(copy).compact();
         
         assertEquals(100, buf.position());
         for(int i = 0; i < 100; i++)
@@ -38,14 +37,14 @@ public class BufferUtilsTest extends BaseTestCase {
         assertEquals(0, buf.position());
         
         data = data(100);
-        buf = (ByteBuffer)ByteBuffer.wrap(data).compact();
+        buf = ByteBuffer.wrap(data).compact();
         assertEquals(0, BufferUtils.delete(buf, 100));
         assertEquals(0, buf.position());
     }
     
     public void testTransfer() throws Exception {
         byte[] srcData = data(100);
-        ByteBuffer src = (ByteBuffer)buffer(srcData).compact();
+        ByteBuffer src = buffer(srcData).compact();
         ByteBuffer dst = ByteBuffer.allocate(100);
         assertEquals(100, src.position());
         assertEquals(100, BufferUtils.transfer(src, dst));
@@ -55,7 +54,7 @@ public class BufferUtilsTest extends BaseTestCase {
     
     public void testTransferNoFlip() throws Exception {
         byte[] srcData = data(100);
-        ByteBuffer src = (ByteBuffer)buffer(srcData);
+        ByteBuffer src = buffer(srcData);
         ByteBuffer dst = ByteBuffer.allocate(100);
         assertTrue(src.hasRemaining());
         assertEquals(100, BufferUtils.transfer(src, dst, false));
@@ -65,7 +64,7 @@ public class BufferUtilsTest extends BaseTestCase {
     
     public void testReadAll() throws Exception {
         byte[] bufferData = data(100);
-        ByteBuffer bufferSrc = (ByteBuffer)buffer(bufferData).compact();
+        ByteBuffer bufferSrc = buffer(bufferData).compact();
         
         byte[] channelData = data(100);
         ByteBuffer channelBuf = buffer(channelData);

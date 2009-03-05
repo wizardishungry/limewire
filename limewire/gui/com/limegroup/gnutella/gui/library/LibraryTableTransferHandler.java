@@ -9,8 +9,6 @@ import java.util.Arrays;
 
 import javax.swing.JComponent;
 
-import com.limegroup.gnutella.FileDesc;
-import com.limegroup.gnutella.FileManager;
 import com.limegroup.gnutella.gui.GUIMediator;
 import com.limegroup.gnutella.gui.GuiCoreMediator;
 import com.limegroup.gnutella.gui.dnd.CompositeTransferable;
@@ -18,6 +16,7 @@ import com.limegroup.gnutella.gui.dnd.DNDUtils;
 import com.limegroup.gnutella.gui.dnd.DropInfo;
 import com.limegroup.gnutella.gui.dnd.FileTransferable;
 import com.limegroup.gnutella.gui.dnd.LimeTransferHandler;
+import com.limegroup.gnutella.library.FileManager;
 
 /**
  * A TransferHandler specifically for the library table.
@@ -239,16 +238,16 @@ public class LibraryTableTransferHandler extends LimeTransferHandler {
 			// receiver did not move the file before exportDone is called
         	// file or directory has been moved, happens on Linux with Konqueror
         	if (!f.exists()) {
-        		FileDesc fileDesc = fileManager.removeFileIfSharedOrStore(f);
+        		boolean removed = fileManager.getManagedFileList().remove(f);
         		// was not a file, must have been a directory then
-        		if (fileDesc == null) {
+        		if (!removed) {
             		// If we find a directory, we must reload all settings, because
             		// the directory may have contained subdirectories and all wacky
             		// things, and we'd like to remove them all from being
             		// shared, which is difficult to do now that we don't know where
             		// the directory moved to.
         			reloaded = true;
-            		fileManager.loadSettings();
+//            		fileManager.loadSettings();
             		break;
         		}
         	}

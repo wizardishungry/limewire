@@ -4,9 +4,10 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 
+import org.limewire.core.settings.SharingSettings;
+
 import com.limegroup.gnutella.gui.GUIMediator;
 import com.limegroup.gnutella.gui.I18n;
-import com.limegroup.gnutella.settings.SharingSettings;
 
 /**
  * Defines the panel in the options window that allows the user to

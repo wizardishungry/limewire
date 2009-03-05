@@ -12,12 +12,13 @@ import javax.swing.Box;
 import javax.swing.JCheckBox;
 
 import org.limewire.collection.MultiIterable;
+import org.limewire.core.settings.BittorrentSettings;
+import org.limewire.core.settings.QuestionsHandler;
 import org.limewire.i18n.I18nMarker;
 import org.limewire.setting.BooleanSetting;
 import org.limewire.setting.IntSetting;
 import org.limewire.setting.Setting;
 
-import com.limegroup.bittorrent.settings.BittorrentSettings;
 import com.limegroup.gnutella.gui.BoxPanel;
 import com.limegroup.gnutella.gui.GUIMediator;
 import com.limegroup.gnutella.gui.I18n;
@@ -26,7 +27,6 @@ import com.limegroup.gnutella.gui.Line;
 import com.limegroup.gnutella.gui.SizedWholeNumberField;
 import com.limegroup.gnutella.gui.WholeNumberField;
 import com.limegroup.gnutella.gui.options.panes.AbstractPaneItem;
-import com.limegroup.gnutella.settings.QuestionsHandler;
 
 /**
  * Defines options for BitTorrent settings.

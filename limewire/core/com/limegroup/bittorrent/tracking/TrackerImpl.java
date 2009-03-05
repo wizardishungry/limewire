@@ -8,7 +8,6 @@ import java.net.URLEncoder;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-import org.apache.http.HttpException;
 import org.apache.http.HttpResponse;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.params.HttpConnectionParams;
@@ -17,6 +16,7 @@ import org.limewire.io.IOUtils;
 import org.limewire.io.NetworkUtils;
 import org.limewire.service.ErrorService;
 import org.limewire.util.StringUtils;
+import org.limewire.util.URIUtils;
 
 import com.google.inject.Provider;
 import com.limegroup.bittorrent.ManagedTorrent;
@@ -25,13 +25,11 @@ import com.limegroup.bittorrent.bencoding.Token;
 import com.limegroup.gnutella.ApplicationServices;
 import com.limegroup.gnutella.NetworkManager;
 import com.limegroup.gnutella.http.HTTPHeaderName;
-import com.limegroup.gnutella.http.URIUtils;
 import com.limegroup.gnutella.util.LimeWireUtils;
 
 /**
  * Keeps track of a torrent tracker's information.
  * Also connects to the tracker to retrieve information.
- *
  */
 public class TrackerImpl implements Tracker {
 	private static final Log LOG = LogFactory.getLog(Tracker.class);
@@ -109,10 +107,6 @@ public class TrackerImpl implements Tracker {
 	/**
 	 * helper method creating the query string for a HTTP tracker request
 	 * 
-	 * @param info
-	 *            BTMetaInfo for the torrent
-	 * @param torrent
-	 *            ManagedTorrent for the torrent
 	 * @param event
 	 *            the event code to send
 	 * @return string, the HTTP GET query string we send to the tracker
@@ -122,12 +116,12 @@ public class TrackerImpl implements Tracker {
 		try {
 			String infoHash = URLEncoder.encode(
 					StringUtils.getASCIIString(context.getMetaInfo().getInfoHash()),
-					org.limewire.http.Constants.ASCII_ENCODING);
+					org.limewire.util.Constants.ASCII_ENCODING);
 			addGetField(buf, "info_hash", infoHash);
 
 			String peerId = URLEncoder
 					.encode(StringUtils.getASCIIString(applicationServices.getMyBTGUID()),
-							org.limewire.http.Constants.ASCII_ENCODING);
+							org.limewire.util.Constants.ASCII_ENCODING);
 			addGetField(buf, "peer_id", peerId);
 
 			addGetField(buf, "key", key);
@@ -161,11 +155,11 @@ public class TrackerImpl implements Tracker {
 	/**
 	 * connects to a tracker via HTTP
 	 * 
-	 * @param url
+	 * @param uri
 	 *            the URL for the tracker
 	 * @param query
 	 *            the HTTP GET query string, sent to the tracker
-	 * @return InputStream
+	 * @return TrackerResponse or null if there was a problem connecting
 	 */
 	private TrackerResponse connectHTTP(URI uri, String query) {
         HttpResponse response = null;
@@ -200,8 +194,6 @@ public class TrackerImpl implements Tracker {
             }
             return null;
         } catch (IOException e) {
-            return null;
-        } catch (HttpException e) {
             return null;
         } catch (URISyntaxException e) {
             return null;

@@ -4,11 +4,11 @@ package com.limegroup.gnutella.gui.search;
 import java.util.HashSet;
 import java.util.Set;
 
+import org.limewire.core.settings.FilterSettings;
 import org.limewire.io.IpPort;
 
 import com.limegroup.gnutella.gui.GuiCoreMediator;
 import com.limegroup.gnutella.gui.I18n;
-import com.limegroup.gnutella.settings.FilterSettings;
 
 
 

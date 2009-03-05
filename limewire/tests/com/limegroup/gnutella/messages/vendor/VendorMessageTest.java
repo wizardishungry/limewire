@@ -7,6 +7,7 @@ import java.util.Properties;
 
 import junit.framework.Test;
 
+import org.limewire.io.GUID;
 import org.limewire.io.NetworkUtils;
 import org.limewire.security.AddressSecurityToken;
 import org.limewire.security.MACCalculatorRepositoryManager;
@@ -14,19 +15,18 @@ import org.limewire.security.SecurityToken;
 import org.limewire.util.BaseTestCase;
 
 import com.google.inject.Injector;
-import com.limegroup.gnutella.GUID;
 import com.limegroup.gnutella.LimeTestUtils;
 import com.limegroup.gnutella.NetworkManager;
 import com.limegroup.gnutella.URN;
 import com.limegroup.gnutella.handshaking.HeaderNames;
+import com.limegroup.gnutella.library.FileDescStub;
 import com.limegroup.gnutella.messages.BadPacketException;
 import com.limegroup.gnutella.messages.Message;
 import com.limegroup.gnutella.messages.MessageFactory;
 import com.limegroup.gnutella.messages.Message.Network;
-import com.limegroup.gnutella.stubs.FileDescStub;
 
 
-@SuppressWarnings( { "unchecked", "cast" } )
+@SuppressWarnings( { "cast" } )
 public class VendorMessageTest extends BaseTestCase {
     
     private SecurityToken token;

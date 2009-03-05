@@ -16,7 +16,6 @@ import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.ListSelectionModel;
 
-import com.limegroup.gnutella.FileDesc;
 import com.limegroup.gnutella.gui.GuiCoreMediator;
 import com.limegroup.gnutella.gui.I18n;
 import com.limegroup.gnutella.gui.xml.XMLUtils;
@@ -25,6 +24,7 @@ import com.limegroup.gnutella.gui.xml.editor.audio.AudioTabbedPane;
 import com.limegroup.gnutella.gui.xml.editor.document.DocumentTabbedPane;
 import com.limegroup.gnutella.gui.xml.editor.image.ImageTabbedPane;
 import com.limegroup.gnutella.gui.xml.editor.video.VideoTabbedPane;
+import com.limegroup.gnutella.library.FileDesc;
 import com.limegroup.gnutella.xml.LimeXMLDocument;
 import com.limegroup.gnutella.xml.LimeXMLReplyCollection;
 import com.limegroup.gnutella.xml.LimeXMLSchema;

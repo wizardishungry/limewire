@@ -16,6 +16,7 @@ import javax.swing.JWindow;
 
 import com.limegroup.gnutella.util.LimeWireUtils;
 
+
 /**
  * Window that displays the splash screen.  This loads the splash screen
  * image, places it on the center of the screen, and allows dynamic

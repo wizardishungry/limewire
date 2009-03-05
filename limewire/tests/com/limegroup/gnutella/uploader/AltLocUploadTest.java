@@ -15,6 +15,8 @@ import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import junit.framework.AssertionFailedError;
@@ -36,7 +38,14 @@ import org.jmock.Expectations;
 import org.jmock.Mockery;
 import org.jmock.api.Action;
 import org.jmock.api.Invocation;
+import org.limewire.core.settings.ConnectionSettings;
+import org.limewire.core.settings.FilterSettings;
+import org.limewire.core.settings.NetworkSettings;
+import org.limewire.core.settings.SharingSettings;
+import org.limewire.core.settings.UltrapeerSettings;
+import org.limewire.core.settings.UploadSettings;
 import org.limewire.http.httpclient.HttpClientUtils;
+import org.limewire.io.GUID;
 import org.limewire.util.TestUtils;
 
 import com.google.inject.AbstractModule;
@@ -44,10 +53,8 @@ import com.google.inject.Inject;
 import com.google.inject.Injector;
 import com.google.inject.Provider;
 import com.google.inject.Singleton;
+import com.google.inject.Stage;
 import com.limegroup.gnutella.ActivityCallback;
-import com.limegroup.gnutella.FileDesc;
-import com.limegroup.gnutella.FileManager;
-import com.limegroup.gnutella.GUID;
 import com.limegroup.gnutella.HTTPAcceptor;
 import com.limegroup.gnutella.HTTPUploadManager;
 import com.limegroup.gnutella.LifecycleManager;
@@ -63,26 +70,25 @@ import com.limegroup.gnutella.altlocs.AlternateLocationCollection;
 import com.limegroup.gnutella.altlocs.AlternateLocationFactory;
 import com.limegroup.gnutella.altlocs.DirectAltLoc;
 import com.limegroup.gnutella.altlocs.PushAltLoc;
-import com.limegroup.gnutella.auth.ContentManager;
+import com.limegroup.gnutella.auth.UrnValidator;
 import com.limegroup.gnutella.connection.ConnectionCapabilities;
 import com.limegroup.gnutella.connection.RoutedConnection;
 import com.limegroup.gnutella.filters.IPFilter;
 import com.limegroup.gnutella.http.ConstantHTTPHeaderValue;
 import com.limegroup.gnutella.http.HTTPConstants;
 import com.limegroup.gnutella.http.HTTPHeaderName;
+import com.limegroup.gnutella.library.FileDesc;
+import com.limegroup.gnutella.library.FileManager;
+import com.limegroup.gnutella.library.FileManagerTestUtils;
 import com.limegroup.gnutella.messages.MessageFactory;
 import com.limegroup.gnutella.messages.QueryReply;
 import com.limegroup.gnutella.messages.QueryRequest;
 import com.limegroup.gnutella.messages.Message.Network;
 import com.limegroup.gnutella.messages.vendor.HeadPing;
 import com.limegroup.gnutella.messages.vendor.HeadPong;
-import com.limegroup.gnutella.settings.ConnectionSettings;
-import com.limegroup.gnutella.settings.FilterSettings;
-import com.limegroup.gnutella.settings.NetworkSettings;
-import com.limegroup.gnutella.settings.SharingSettings;
-import com.limegroup.gnutella.settings.UltrapeerSettings;
-import com.limegroup.gnutella.settings.UploadSettings;
 import com.limegroup.gnutella.statistics.TcpBandwidthStatistics;
+import com.limegroup.gnutella.uploader.authentication.GnutellaBrowseFileListProvider;
+import com.limegroup.gnutella.uploader.authentication.GnutellaUploadFileListProvider;
 import com.limegroup.gnutella.util.LimeTestCase;
 
 public class AltLocUploadTest extends LimeTestCase {
@@ -93,8 +99,6 @@ public class AltLocUploadTest extends LimeTestCase {
     private static final String testDirName = "com/limegroup/gnutella/uploader/data";
 
     private static final String fileName = "alphabet test file#2.txt";
-
-    private static final String fileNameUrl = "http://localhost:" + PORT + "/get/0/alphabet%20test+file%232.txt";
 
     /** The hash of the file contents. */
     private static final String baseHash = "GLIQY64M7FSXBSQEZY37FIM5QQSA2OUJ";
@@ -149,19 +153,8 @@ public class AltLocUploadTest extends LimeTestCase {
         
         doSettings();
 
-        File testDir = TestUtils.getResourceFile(testDirName);
-        assertTrue("test directory could not be found", testDir.isDirectory());
-        File testFile = new File(testDir, fileName);
-        assertTrue("test file should exist", testFile.exists());
-        File sharedFile = new File(_sharedDir, fileName);
-        // we must use a separate copy method
-        // because the filename has a # in it which can't be a resource.
-        LimeTestUtils.copyFile(testFile, sharedFile);
-        assertTrue("should exist", sharedFile.exists());
-        assertGreaterThan("should have data", 0, sharedFile.length());
-
         // initialize services
-        injector = LimeTestUtils.createInjector(new AbstractModule() {
+        injector = LimeTestUtils.createInjector(Stage.PRODUCTION, new AbstractModule() {
             @Override
             protected void configure() {
                 bind(UploadManager.class).to(TestUploadManager.class);
@@ -174,14 +167,16 @@ public class AltLocUploadTest extends LimeTestCase {
         lifecycleManager.start();
         uploadManager = (TestUploadManager) injector.getInstance(UploadManager.class);
         
-//        startServices();
         FileManager fileManager = injector.getInstance(FileManager.class);
-        fileManager.loadSettingsAndWait(2000);
-        fd = fileManager.getFileDescForFile(sharedFile);
+        FileManagerTestUtils.waitForLoad(fileManager, 2000);
+        File testDir = TestUtils.getResourceFile(testDirName);
+        assertTrue("test directory could not be found", testDir.isDirectory());
+        File testFile = new File(testDir, fileName);
+        Future<FileDesc> f1 = fileManager.getGnutellaFileList().add(testFile);
+        fd = f1.get(1, TimeUnit.SECONDS);
         assertNotNull(fd);
         
         altLocManager = injector.getInstance(AltLocManager.class);
-        //altLocManager.purge();
 
         alternateLocationFactory = injector.getInstance(AlternateLocationFactory.class);
 
@@ -190,10 +185,8 @@ public class AltLocUploadTest extends LimeTestCase {
 
     @Override
     protected void tearDown() throws Exception {
-//        stopServices();
         lifecycleManager.shutdown();
         Thread.sleep(1000);
-//        LimeTestUtils.waitForNIO();
     }
 
     private void doSettings() throws UnknownHostException {
@@ -203,11 +196,11 @@ public class AltLocUploadTest extends LimeTestCase {
         FilterSettings.WHITE_LISTED_IP_ADDRESSES.setValue(new String[] {
                 "127.*.*.*", InetAddress.getLocalHost().getHostAddress() });
         NetworkSettings.PORT.setValue(PORT);
-
-        SharingSettings.EXTENSIONS_TO_SHARE.setValue("txt");
         UploadSettings.HARD_MAX_UPLOADS.setValue(10);
         UploadSettings.UPLOADS_PER_PERSON.setValue(10);
         UploadSettings.MAX_PUSHES_PER_HOST.setValue(9999);
+        UploadSettings.CHECK_DUPES.setValue(false);
+        
 
         FilterSettings.FILTER_DUPLICATES.setValue(false);
 
@@ -243,7 +236,7 @@ public class AltLocUploadTest extends LimeTestCase {
         assertEquals(3, altLocManager.getNumLocs(
                 fd.getSHA1Urn()));
 
-        HttpGet method = new HttpGet(fileNameUrl);
+        HttpGet method = new HttpGet(hashUrl);
         method.addHeader("X-Alt", "");
         HttpResponse response = null;
         try {
@@ -283,7 +276,7 @@ public class AltLocUploadTest extends LimeTestCase {
         assertEquals(3, altLocManager.getNumLocs(
                 fd.getSHA1Urn()));
 
-        HttpGet method = new HttpGet(fileNameUrl);
+        HttpGet method = new HttpGet(hashUrl);
         method.addHeader(FALTFeatures);
         HttpResponse response = null;
         try {
@@ -306,7 +299,6 @@ public class AltLocUploadTest extends LimeTestCase {
     }
 
     public void testFWALTWhenRequested() throws Exception {
-        Thread.currentThread().setPriority(Thread.MAX_PRIORITY);
         URN sha1 = URN.createSHA1Urn(hash);
         GUID clientGUID = new GUID(GUID.makeGuid());
         GUID clientGUID2 = new GUID(GUID.makeGuid());
@@ -329,7 +321,7 @@ public class AltLocUploadTest extends LimeTestCase {
         assertEquals(3, altLocManager.getNumLocs(
                 fd.getSHA1Urn()));
 
-        HttpGet method = new HttpGet(fileNameUrl);
+        HttpGet method = new HttpGet(hashUrl);
         method.addHeader(FWALTFeatures);
         HttpResponse response = null;
         try {
@@ -361,7 +353,7 @@ public class AltLocUploadTest extends LimeTestCase {
         assertEquals(0, altLocManager.getNumLocs(
                 fd.getSHA1Urn()));
 
-        HttpGet method = new HttpGet(fileNameUrl);
+        HttpGet method = new HttpGet(hashUrl);
         method.addHeader("X-Alt", direct.httpStringValue());
         method.addHeader("X-FAlt", push.httpStringValue());
         HttpResponse response = null;
@@ -1075,16 +1067,10 @@ public class AltLocUploadTest extends LimeTestCase {
                 will(returnValue(true));
                 allowing(handler).getConnectionCapabilities();
                 will(returnValue(capabilities));
-                allowing(capabilities).isOldLimeWire();
-                will(returnValue(false));
-                allowing(handler).isPersonalSpam(request);
-                will(returnValue(false));
                 allowing(handler).isSupernodeClientConnection();
                 will(returnValue(false));
                 allowing(handler).isGoodUltrapeer();
                 will(returnValue(false));
-                allowing(request).getNetwork();
-                will(returnValue(Network.TCP));
                 
                 // some request-specific conditions
                 one(request).hop();
@@ -1098,8 +1084,12 @@ public class AltLocUploadTest extends LimeTestCase {
                 will(returnValue((new GUID()).bytes())); // every iteration
                 atLeast(1).of(request).desiresAll();
                 will(returnValue(true));
-
-                // stubbed out with default return values
+                allowing(request).getNetwork();
+                will(returnValue(Network.TCP));
+                allowing(handler).isPersonalSpam(request);
+                will(returnValue(false));
+                
+                ignoring(request).shouldIncludeXMLInResponse();
                 ignoring(request).getTotalLength();
                 ignoring(request).isFirewalledSource();
                 ignoring(request).canDoFirewalledTransfer();
@@ -1409,17 +1399,19 @@ public class AltLocUploadTest extends LimeTestCase {
         private List<HTTPUploader> activeUploads = new ArrayList<HTTPUploader>();
         
         @Inject
-        public TestUploadManager(UploadSlotManager slotManager,
+        TestUploadManager(UploadSlotManager slotManager,
                 HttpRequestHandlerFactory httpRequestHandlerFactory,
-                Provider<ContentManager> contentManager,
                 Provider<HTTPAcceptor> httpAcceptor,
-                Provider<FileManager> fileManager,
-                Provider<ActivityCallback> activityCallback, 
-                TcpBandwidthStatistics tcpBandwidthStatistics) {
-            super(slotManager, httpRequestHandlerFactory, contentManager, httpAcceptor,
-                    fileManager, activityCallback, tcpBandwidthStatistics);
+                Provider<FileManager> fileManager, Provider<ActivityCallback> activityCallback,
+                TcpBandwidthStatistics tcpBandwidthStatistics,
+                Provider<GnutellaUploadFileListProvider> gnutellaUploadFileListProvider,
+                Provider<GnutellaBrowseFileListProvider> gnutellaBrowseFileListProvider,
+                UrnValidator urnValidator) {
+            super(slotManager, httpRequestHandlerFactory, httpAcceptor,
+                    fileManager, activityCallback, tcpBandwidthStatistics, gnutellaUploadFileListProvider,
+                    gnutellaBrowseFileListProvider, urnValidator);
         }
-
+        
         @Override
         public synchronized void addAcceptedUploader(HTTPUploader uploader, HttpContext context) {
             activeUploads.add(uploader);

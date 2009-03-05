@@ -15,8 +15,8 @@ import javax.swing.JSeparator;
 import javax.swing.JTextArea;
 import javax.swing.border.LineBorder;
 
-import com.limegroup.gnutella.FileDesc;
 import com.limegroup.gnutella.gui.I18n;
+import com.limegroup.gnutella.library.FileDesc;
 import com.limegroup.gnutella.xml.LimeXMLDocument;
 import com.limegroup.gnutella.xml.LimeXMLSchema;
 

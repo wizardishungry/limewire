@@ -7,6 +7,7 @@ import junit.framework.Test;
 
 import org.jmock.Expectations;
 import org.jmock.Mockery;
+import org.limewire.core.settings.FilterSettings;
 import org.limewire.io.IP;
 
 import com.google.inject.AbstractModule;
@@ -20,7 +21,6 @@ import com.limegroup.gnutella.messages.PushRequest;
 import com.limegroup.gnutella.messages.PushRequestImpl;
 import com.limegroup.gnutella.messages.QueryReply;
 import com.limegroup.gnutella.messages.QueryRequest;
-import com.limegroup.gnutella.settings.FilterSettings;
 import com.limegroup.gnutella.util.LimeTestCase;
 
 public class IPFilterTest extends LimeTestCase {
@@ -240,5 +240,9 @@ public class IPFilterTest extends LimeTestCase {
         PushRequest push2 = new PushRequestImpl(new byte[16], (byte) 3,
                 new byte[16], 0l, blackListedAddress, 6346);
         assertFalse(filter.allow(push2));
+    }
+
+    public void testWhitelistGivesMaximumLogMinDistance() {
+        assertEquals(32, filter.logMinDistanceTo(new IP(whiteListedAddress)));
     }
 }

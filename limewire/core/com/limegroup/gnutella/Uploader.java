@@ -1,7 +1,10 @@
 package com.limegroup.gnutella;
 
+import java.io.File;
+
 import org.limewire.io.Connectable;
 
+import com.limegroup.gnutella.library.FileDesc;
 import com.limegroup.gnutella.uploader.UploadType;
 
 /**
@@ -15,6 +18,7 @@ import com.limegroup.gnutella.uploader.UploadType;
 public interface Uploader extends BandwidthTracker, Connectable {
     
     public static enum UploadStatus {
+        CANCELLED,
         CONNECTING,
         FREELOADER,
         LIMIT_REACHED,
@@ -143,6 +147,24 @@ public interface Uploader extends BandwidthTracker, Connectable {
      * (shared file, browse host, malformed request, etc..)
      */
     public UploadType getUploadType();
+
+    /**
+     * Returns the file backing this uploader.
+     * 
+     * @return null if an entity different from a file is uploaded
+     */
+    public File getFile();
+    
+    /**
+     * Returns the URN for the file backing this uploader. 
+     */
+    public URN getUrn();
+    
+    /**
+     * Returns the number of connections we are currently uplaoding to. 
+     */
+    public int getNumUploadConnections();
+    
 
 }
 

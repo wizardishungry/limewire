@@ -22,12 +22,14 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.limewire.collection.Comparators;
 import org.limewire.concurrent.ExecutorsHelper;
+import org.limewire.core.settings.DHTSettings;
 import org.limewire.inspection.Inspectable;
 import org.limewire.inspection.InspectableContainer;
 import org.limewire.inspection.InspectionHistogram;
 import org.limewire.inspection.InspectionPoint;
 import org.limewire.io.IpPort;
 import org.limewire.io.NetworkUtils;
+import org.limewire.lifecycle.Service;
 import org.limewire.mojito.EntityKey;
 import org.limewire.mojito.KUID;
 import org.limewire.mojito.MojitoDHT;
@@ -53,7 +55,6 @@ import com.google.inject.Singleton;
 import com.google.inject.name.Named;
 import com.limegroup.gnutella.connection.ConnectionLifecycleEvent;
 import com.limegroup.gnutella.messages.vendor.DHTContactsMessage;
-import com.limegroup.gnutella.settings.DHTSettings;
 import com.limegroup.gnutella.util.ClassCNetworks;
 
 /**
@@ -64,7 +65,7 @@ import com.limegroup.gnutella.util.ClassCNetworks;
  * so that it never blocks on critical threads such as MessageDispatcher.
  */
 @Singleton
-public class DHTManagerImpl implements DHTManager {
+public class DHTManagerImpl implements DHTManager, Service {
     
     private static final Log LOG = LogFactory.getLog(DHTManagerImpl.class);
     
@@ -128,6 +129,21 @@ public class DHTManagerImpl implements DHTManager {
         this.dhtControllerFactory = dhtControllerFactory;
         addEventListener(bootstrapTimer);
     }
+    
+    @Inject
+    void register(org.limewire.lifecycle.ServiceRegistry registry) {
+        registry.register(this);
+    }
+    
+    public String getServiceName() {
+        return org.limewire.i18n.I18nMarker.marktr("Mojito DHT");
+    }
+    
+    public void initialize() {
+    }
+    
+    public void start() {
+    }    
     
     /*
      * (non-Javadoc)

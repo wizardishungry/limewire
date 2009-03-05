@@ -1,9 +1,10 @@
-/.cvsignore/1.1/Fri May 28 14:41:50 2004//Tprod-4-18-8-java15
-/MetaData.java/1.13/Thu Mar 20 16:05:53 2008//Tprod-4-18-8-java15
-/MetaDataFactory.java/1.2/Fri Feb  1 21:09:58 2008//Tprod-4-18-8-java15
-/MetaDataFactoryImpl.java/1.4/Fri May  2 14:53:35 2008//Tprod-4-18-8-java15
-/MetaDataReader.java/1.17/Thu Mar 20 16:05:53 2008//Tprod-4-18-8-java15
-/MetaDataWriter.java/1.2/Fri Feb  1 21:09:57 2008//Tprod-4-18-8-java15
-/MetaReader.java/1.3/Thu Mar 20 16:05:53 2008//Tprod-4-18-8-java15
-/MetaWriter.java/1.2/Fri Feb  1 21:09:57 2008//Tprod-4-18-8-java15
+/.cvsignore/1.1/Fri May 28 14:41:50 2004//Tprod-5-0-9-java16
+/MetaData.java/1.13/Thu Mar 20 16:05:53 2008//Tprod-5-0-9-java16
+/MetaDataFactory.java/1.3/Tue Sep 16 17:00:14 2008//Tprod-5-0-9-java16
+/MetaDataFactoryImpl.java/1.6/Thu Oct  2 15:59:55 2008//Tprod-5-0-9-java16
+/MetaDataReader.java/1.18/Tue Sep 16 17:00:14 2008//Tprod-5-0-9-java16
+/MetaDataWriter.java/1.2/Fri Feb  1 21:09:57 2008//Tprod-5-0-9-java16
+/MetaReader.java/1.4/Tue Sep 16 17:00:14 2008//Tprod-5-0-9-java16
+/MetaWriter.java/1.2/Fri Feb  1 21:09:57 2008//Tprod-5-0-9-java16
+/WMMetaReader.java/1.2/Tue Sep 16 17:00:14 2008//Tprod-5-0-9-java16
 D

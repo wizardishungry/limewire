@@ -9,18 +9,17 @@ import javax.swing.JTextField;
 import org.limewire.i18n.I18nMarker;
 
 import com.limegroup.gnutella.gui.ButtonRow;
-import com.limegroup.gnutella.gui.GuiCoreMediator;
 import com.limegroup.gnutella.gui.I18n;
 import com.limegroup.gnutella.gui.LabeledComponent;
 import com.limegroup.gnutella.gui.SizedTextField;
 import com.limegroup.gnutella.gui.GUIUtils.SizePolicy;
-import com.limegroup.gnutella.settings.SharingSettings;
 
 /**
  * This class defines the panel in the options window that allows the user
  * to change the directory for saving files.
  */
 //2345678|012345678|012345678|012345678|012345678|012345678|012345678|012345678|
+@SuppressWarnings("deprecation")
 public final class ExtensionsPaneItem extends AbstractPaneItem {
 
     public final static String TITLE = I18n.tr("Shared Extensions");
@@ -78,8 +77,8 @@ public final class ExtensionsPaneItem extends AbstractPaneItem {
 	 */
 	private class DefaultExtensionsListener implements ActionListener {
 		public void actionPerformed(ActionEvent e) {
-            SharingSettings.EXTENSIONS_TO_SHARE.revertToDefault();
-    	    _extField.setText(SharingSettings.EXTENSIONS_TO_SHARE.getValue());
+//		    OldLibrarySettings.EXTENSIONS_TO_SHARE.revertToDefault();
+//    	    _extField.setText(OldLibrarySettings.EXTENSIONS_TO_SHARE.getValue());
 		}
 	}
 
@@ -91,8 +90,8 @@ public final class ExtensionsPaneItem extends AbstractPaneItem {
 	 */
 	@Override
     public void initOptions() {
-        _extensions = SharingSettings.EXTENSIONS_TO_SHARE.getValue();
-        _extField.setText(_extensions);
+//        _extensions = OldLibrarySettings.EXTENSIONS_TO_SHARE.getValue();
+//        _extField.setText(_extensions);
 	}
 
 	/**
@@ -110,8 +109,8 @@ public final class ExtensionsPaneItem extends AbstractPaneItem {
         // Handle a change to the shared directories or list of extensions.
         // The loadSettings method is non-blocking, so threads are needed.
         if(!ext.equals(_extensions)) {
-			SharingSettings.EXTENSIONS_TO_SHARE.setValue(_extField.getText());
-            GuiCoreMediator.getFileManager().loadSettings();
+//            OldLibrarySettings.EXTENSIONS_TO_SHARE.setValue(_extField.getText());
+//            GuiCoreMediator.getFileManager().loadSettings();
             _extensions = _extField.getText();
         }
         
@@ -119,6 +118,6 @@ public final class ExtensionsPaneItem extends AbstractPaneItem {
     }		    
     
     public boolean isDirty() {
-        return !SharingSettings.EXTENSIONS_TO_SHARE.getValue().equals(_extField.getText());
+        return false; //!OldLibrarySettings.EXTENSIONS_TO_SHARE.getValue().equals(_extField.getText());
     }
 }

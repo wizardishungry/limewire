@@ -18,8 +18,10 @@ import org.apache.http.nio.entity.ConsumingNHttpEntity;
 import org.apache.http.nio.protocol.NHttpRequestHandler;
 import org.apache.http.nio.protocol.SimpleNHttpRequestHandler;
 import org.apache.http.protocol.HttpContext;
+import org.limewire.core.settings.SharingSettings;
 import org.limewire.http.BasicHttpAcceptor;
 import org.limewire.http.HttpAcceptorListener;
+import org.limewire.http.auth.AuthenticationInterceptor;
 import org.limewire.http.reactor.HttpIOSession;
 import org.limewire.nio.NIODispatcher;
 import org.limewire.statistic.Statistic;
@@ -28,7 +30,6 @@ import com.google.inject.Inject;
 import com.google.inject.Singleton;
 import com.limegroup.gnutella.http.HTTPConnectionData;
 import com.limegroup.gnutella.http.HttpContextParams;
-import com.limegroup.gnutella.settings.SharingSettings;
 import com.limegroup.gnutella.statistics.TcpBandwidthStatistics;
 import com.limegroup.gnutella.statistics.TcpBandwidthStatistics.StatisticType;
 import com.limegroup.gnutella.util.LimeWireUtils;
@@ -46,8 +47,12 @@ public class HTTPAcceptor extends BasicHttpAcceptor {
     private final NHttpRequestHandler notFoundHandler;
 
     @Inject
-    public HTTPAcceptor(TcpBandwidthStatistics tcpBandwidthStatistics) {
-        super(createDefaultParams(LimeWireUtils.getHttpServer(), Constants.TIMEOUT), SUPPORTED_METHODS);
+    public HTTPAcceptor(TcpBandwidthStatistics tcpBandwidthStatistics,
+                        AuthenticationInterceptor requestAuthenticator) {
+        super(createDefaultParams(LimeWireUtils.getHttpServer(),
+                Constants.TIMEOUT),
+                requestAuthenticator,
+                SUPPORTED_METHODS);
 
         this.notFoundHandler = new SimpleNHttpRequestHandler() {
             public ConsumingNHttpEntity entityRequest(HttpEntityEnclosingRequest request,
@@ -70,6 +75,16 @@ public class HTTPAcceptor extends BasicHttpAcceptor {
             LOG.warn("Not tracking TCP header bandwidth!");
 
         inititalizeDefaultHandlers();
+    }
+    
+    @Inject
+    void register(org.limewire.lifecycle.ServiceRegistry registry) {
+        registry.register(this);
+    }
+    
+    @Override
+    public String getServiceName() {
+        return org.limewire.i18n.I18nMarker.marktr("HTTP Request Listening");
     }
 
     private void inititalizeDefaultHandlers() {

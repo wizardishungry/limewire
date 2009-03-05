@@ -14,11 +14,12 @@ import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JRadioButton;
 
+import org.limewire.core.settings.QuestionsHandler;
+
 import com.limegroup.gnutella.gui.DialogOption;
 import com.limegroup.gnutella.gui.I18n;
 import com.limegroup.gnutella.gui.shell.LimeAssociationOption;
 import com.limegroup.gnutella.gui.shell.LimeAssociations;
-import com.limegroup.gnutella.settings.QuestionsHandler;
 
 /**
  * This class defines the panel in the options window that allows the user

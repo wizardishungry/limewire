@@ -19,13 +19,13 @@ import javax.swing.plaf.FileChooserUI;
 
 import org.limewire.collection.FixedsizeForgetfulHashSet;
 import org.limewire.concurrent.ExecutorsHelper;
+import org.limewire.core.settings.SharingSettings;
+import org.limewire.core.settings.UISettings;
 import org.limewire.collection.FixedsizeForgetfulHashMap;
 import org.limewire.util.FileUtils;
+import org.limewire.util.MediaType;
 import org.limewire.util.OSUtils;
 
-import com.limegroup.gnutella.MediaType;
-import com.limegroup.gnutella.settings.SharingSettings;
-import com.limegroup.gnutella.settings.UISettings;
 
 /** A FileIconController that attempts to return native icons. */
 public class NativeFileIconController implements FileIconController {
@@ -164,7 +164,7 @@ public class NativeFileIconController implements FileIconController {
             return VIEW.getIcon(f);
         } else {
             String extension = FileUtils.getFileExtension(f);
-            if (extension != null)
+            if (!extension.isEmpty())
                 return getIconForExtension(extension);
             else
                 return null;

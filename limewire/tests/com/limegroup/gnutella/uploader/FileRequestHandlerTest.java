@@ -1,9 +1,6 @@
 package com.limegroup.gnutella.uploader;
 
 import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Vector;
 
 import junit.framework.Test;
 
@@ -20,16 +17,18 @@ import org.limewire.io.ConnectableImpl;
 import com.google.inject.AbstractModule;
 import com.google.inject.Injector;
 import com.limegroup.gnutella.ConnectionManager;
-import com.limegroup.gnutella.FileDesc;
-import com.limegroup.gnutella.FileManager;
 import com.limegroup.gnutella.LimeTestUtils;
 import com.limegroup.gnutella.NetworkManager;
 import com.limegroup.gnutella.URN;
 import com.limegroup.gnutella.http.HTTPHeaderName;
+import com.limegroup.gnutella.library.FileDesc;
+import com.limegroup.gnutella.library.FileDescStub;
+import com.limegroup.gnutella.library.FileManager;
+import com.limegroup.gnutella.library.FileManagerStub;
+import com.limegroup.gnutella.library.GnutellaFileListStub;
 import com.limegroup.gnutella.stubs.ConnectionManagerStub;
-import com.limegroup.gnutella.stubs.FileDescStub;
-import com.limegroup.gnutella.stubs.FileManagerStub;
 import com.limegroup.gnutella.stubs.NetworkManagerStub;
+import com.limegroup.gnutella.uploader.authentication.GnutellaUploadFileListProvider;
 import com.limegroup.gnutella.util.LimeTestCase;
 
 public class FileRequestHandlerTest extends LimeTestCase {
@@ -56,14 +55,6 @@ public class FileRequestHandlerTest extends LimeTestCase {
 
     @Override
     protected void setUp() throws Exception {
-        Map<URN, FileDesc> urns = new HashMap<URN, FileDesc>();
-        Vector<FileDesc> descs = new Vector<FileDesc>();
-        urn1 = URN.createSHA1Urn("urn:sha1:PLSTHIPQGSSZTS5FJUPAKUZWUGYQYPFG");
-
-        FileDesc fd1 = new FileDescStub("abc1.txt", urn1, 0);
-        urns.put(urn1, fd1);
-        descs.add(fd1);
-
         sessionManager = new MockHTTPUploadSessionManager();
         injector = LimeTestUtils.createInjector(new AbstractModule() {
             @Override
@@ -81,15 +72,21 @@ public class FileRequestHandlerTest extends LimeTestCase {
                 9999, false)));
 
         fileManager = (FileManagerStub) injector.getInstance(FileManager.class);
-        fileManager.setUrns(urns);
-        fileManager.setDescs(descs);
-        fileRequestHandler = injector.getInstance(FileRequestHandler.class);
+        GnutellaFileListStub sharedList = fileManager.getGnutellaFileList();
+        urn1 = URN.createSHA1Urn("urn:sha1:PLSTHIPQGSSZTS5FJUPAKUZWUGYQYPFG");
+        FileDesc fd1 = new FileDescStub("abc1.txt", urn1, 0);
+        sharedList.add(fd1);
+        
+        GnutellaUploadFileListProvider uploadProvider = injector.getInstance(GnutellaUploadFileListProvider.class);
+        fileRequestHandler = injector.getInstance(FileRequestHandlerFactory.class).createFileRequestHandler(uploadProvider, false);
     }
 
     public void testHandleAccept() throws Exception {
         HttpRequest request = new BasicHttpRequest("GET", "filename");
         HttpResponse response = new BasicHttpResponse(HttpVersion.HTTP_1_1, HttpStatus.SC_OK, "");
         HTTPUploader uploader = new HTTPUploader("filename", null);
+        // setting host to a value, so we don't need to specify a session
+        uploader.setHost("somehost");
         uploader.setFileDesc(fd);
 
         NetworkManagerStub networkManager = (NetworkManagerStub) injector
@@ -106,11 +103,13 @@ public class FileRequestHandlerTest extends LimeTestCase {
     public void testFeatureHeaderInterceptor() throws Exception {
         HTTPUploadSession session = new HTTPUploadSession(null, null, null);
         HTTPUploader uploader = new HTTPUploader("filename", session);
+        // setting host to a value, so we don't need to specify a session
+        uploader.setHost("somehost");
         uploader.setFileDesc(fd);
         sessionManager.uploader = uploader;
         HttpResponse response = new BasicHttpResponse(HttpVersion.HTTP_1_1, HttpStatus.SC_OK, "");
 
-        HttpRequest request = new BasicHttpRequest("GET", "/get/0/abc1.txt");
+        HttpRequest request = new BasicHttpRequest("GET", LimeTestUtils.getRelativeRequest(urn1));
         request.addHeader("X-Features", "fwalt/0.1,browse/1.0,chat/0.1");
         request.addHeader("X-Node", "127.0.0.1:1234");
         request.addHeader("X-Downloaded", "123456");
@@ -135,11 +134,13 @@ public class FileRequestHandlerTest extends LimeTestCase {
     public void testFeatureHeaderInterceptorChat() throws Exception {
         HTTPUploadSession session = new HTTPUploadSession(null, null, null);
         HTTPUploader uploader = new HTTPUploader("filename", session);
+        // setting host to a value, so we don't need to specify a session
+        uploader.setHost("somehost");
         uploader.setFileDesc(fd);
         sessionManager.uploader = uploader;
         HttpResponse response = new BasicHttpResponse(HttpVersion.HTTP_1_1, HttpStatus.SC_OK, "");
 
-        HttpRequest request = new BasicHttpRequest("GET", "/get/0/abc1.txt");
+        HttpRequest request = new BasicHttpRequest("GET", LimeTestUtils.getRelativeRequest(urn1));
         request.addHeader("Chat", "128.0.0.1:5678");
         fileRequestHandler.handle(request, response, new BasicHttpContext(null));
         assertEquals(HttpStatus.SC_OK, response.getStatusLine().getStatusCode());
@@ -156,11 +157,13 @@ public class FileRequestHandlerTest extends LimeTestCase {
     public void testIsFWTBrowseHostEnabled() throws Exception {
         HTTPUploadSession session = new HTTPUploadSession(null, null, null);
         HTTPUploader uploader = new HTTPUploader("filename", session);
+        // setting host to a value, so we don't need to specify a session
+        uploader.setHost("somehost");
         uploader.setFileDesc(fd);
         sessionManager.uploader = uploader;
         HttpResponse response = new BasicHttpResponse(HttpVersion.HTTP_1_1, HttpStatus.SC_OK, "");
 
-        HttpRequest request = new BasicHttpRequest("GET", "/get/0/abc1.txt");
+        HttpRequest request = new BasicHttpRequest("GET", LimeTestUtils.getRelativeRequest(urn1));
         
         String pushEndpoint = "FF9EEA9E8B2E1D737828EFD1B7DAC500;129.168.0.1:5555";
         

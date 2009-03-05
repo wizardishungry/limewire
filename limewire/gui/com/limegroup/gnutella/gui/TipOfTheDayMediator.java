@@ -28,12 +28,12 @@ import javax.swing.UIManager;
 import javax.swing.WindowConstants;
 import javax.swing.border.EtchedBorder;
 
+import org.limewire.core.settings.StartupSettings;
 import org.limewire.util.OSUtils;
 
 import com.limegroup.gnutella.gui.themes.ThemeFileHandler;
 import com.limegroup.gnutella.gui.themes.ThemeMediator;
 import com.limegroup.gnutella.gui.themes.ThemeObserver;
-import com.limegroup.gnutella.settings.StartupSettings;
 import com.limegroup.gnutella.util.LimeWireUtils;
 
 public final class TipOfTheDayMediator implements ThemeObserver {

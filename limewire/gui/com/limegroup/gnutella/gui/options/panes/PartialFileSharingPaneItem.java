@@ -4,11 +4,11 @@ import java.io.IOException;
 
 import javax.swing.JCheckBox;
 
+import org.limewire.core.settings.SharingSettings;
 import org.limewire.i18n.I18nMarker;
 
 import com.limegroup.gnutella.gui.I18n;
 import com.limegroup.gnutella.gui.LabeledComponent;
-import com.limegroup.gnutella.settings.SharingSettings;
 
 /**
  * Allows the user to change whether or not partial files are shared.
@@ -16,9 +16,9 @@ import com.limegroup.gnutella.settings.SharingSettings;
 //2345678|012345678|012345678|012345678|012345678|012345678|012345678|012345678|
 public final class PartialFileSharingPaneItem extends AbstractPaneItem {
 
-    public final static String TITLE = I18n.tr("Partial (Incomplete) Files");
+    public final static String TITLE = I18n.tr("Partial Files");
     
-    public final static String LABEL = I18n.tr("You can choose whether or not to automatically share partially downloaded files (also known as incomplete files).");
+    public final static String LABEL = I18n.tr("You can choose whether or not to automatically share partially downloaded files.");
 
 	/**
 	 * Constant for the key of the locale-specific <code>String</code> for the 

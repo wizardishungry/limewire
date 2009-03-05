@@ -14,9 +14,11 @@ import javax.net.ssl.SSLServerSocketFactory;
 
 import junit.framework.Test;
 
+import org.limewire.io.GUID;
 import org.limewire.io.IOUtils;
 
 import com.google.inject.Injector;
+import com.google.inject.Stage;
 import com.limegroup.gnutella.messages.Message;
 import com.limegroup.gnutella.messages.MessageFactory;
 import com.limegroup.gnutella.messages.PingRequest;
@@ -38,7 +40,7 @@ import com.limegroup.gnutella.util.EmptyResponder;
  *  This test only covers Ultrapeer behavior - leaves don't participate in
  *  server side connect back stuff.
  */
-@SuppressWarnings( { "unchecked", "cast" } )
+@SuppressWarnings( { "cast" } )
 public final class ServerSideConnectBackRedirectTest extends ServerSideTestCase {
 
     /**
@@ -82,7 +84,7 @@ public final class ServerSideConnectBackRedirectTest extends ServerSideTestCase 
 
 	@Override
 	protected void setUp() throws Exception {
-	    Injector injector = LimeTestUtils.createInjector();
+	    Injector injector = LimeTestUtils.createInjector(Stage.PRODUCTION);
 	    super.setUp(injector);
 	    messageFactory = injector.getInstance(MessageFactory.class);
 	    

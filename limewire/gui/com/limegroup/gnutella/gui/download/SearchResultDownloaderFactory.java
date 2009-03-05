@@ -4,13 +4,14 @@ package com.limegroup.gnutella.gui.download;
 import java.io.File;
 import java.util.List;
 
+import org.limewire.core.api.download.SaveLocationException;
+import org.limewire.core.settings.SharingSettings;
+import org.limewire.io.GUID;
+
 import com.limegroup.gnutella.Downloader;
-import com.limegroup.gnutella.GUID;
 import com.limegroup.gnutella.RemoteFileDesc;
-import com.limegroup.gnutella.SaveLocationException;
 import com.limegroup.gnutella.URN;
 import com.limegroup.gnutella.gui.GuiCoreMediator;
-import com.limegroup.gnutella.settings.SharingSettings;
 
 /**
  * Implements the DownloaderFactory interface to start downloads from
@@ -47,7 +48,7 @@ public class SearchResultDownloaderFactory implements GuiDownloaderFactory {
 	/** 
 	 * can be 
 	 * <code>null</code>, then the 
-	 * {@link com.limegroup.gnutella.settings.SharingSettings#getSaveDirectory(String fileName)} 
+	 * {@link org.limewire.core.settings.SharingSettings#getSaveDirectory(String fileName)} 
 	 * is used.
 	 */
 	public File getSaveFile() {

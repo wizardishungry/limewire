@@ -291,7 +291,7 @@ public class ClearableAutoCompleteTextField extends AutoCompleteTextField {
     public void autoCompleteInput() {
         String input = getText();
         if (input != null && input.length() > 0) {
-            Iterator<String> it = dict.iterator(input);
+            Iterator<String> it = dict.getPrefixedBy(input).iterator();
             if (it.hasNext())
                 showPopup(it);
             else

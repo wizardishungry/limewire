@@ -7,13 +7,12 @@ import java.text.MessageFormat;
 
 import javax.swing.JOptionPane;
 
+import org.limewire.core.api.download.SaveLocationException;
+import org.limewire.core.settings.QuestionsHandler;
 import org.limewire.i18n.I18nMarker;
 import org.limewire.util.OSUtils;
 
 import com.limegroup.gnutella.Downloader;
-import com.limegroup.gnutella.FileDesc;
-import com.limegroup.gnutella.IncompleteFileDesc;
-import com.limegroup.gnutella.SaveLocationException;
 import com.limegroup.gnutella.URN;
 import com.limegroup.gnutella.browser.MagnetOptions;
 import com.limegroup.gnutella.gui.FileChooserHandler;
@@ -21,7 +20,7 @@ import com.limegroup.gnutella.gui.GUIMediator;
 import com.limegroup.gnutella.gui.GuiCoreMediator;
 import com.limegroup.gnutella.gui.I18n;
 import com.limegroup.gnutella.gui.MessageService;
-import com.limegroup.gnutella.settings.QuestionsHandler;
+import com.limegroup.gnutella.library.FileDesc;
 
 /**
  * Static helper class that kicks off downloads handling all the necessary
@@ -195,11 +194,11 @@ public class DownloaderUtils {
 	 * @return FileDesc of a file in the file manager
 	 */
 	public static FileDesc getFromLibrary(URN urn) {
-		if (urn == null) {
+//		if (urn == null) {
 			return null;
-		}
-		FileDesc desc = GuiCoreMediator.getFileManager().getFileDescForUrn(urn);
-		return (desc instanceof IncompleteFileDesc) ? null : desc;
+//		}
+//		FileDesc desc = GuiCoreMediator.getFileManager().getManagedFileList().getFileDesc(urn);
+//		return (GuiCoreMediator.getFileManager().getIncompleteFileList().contains(desc)) ? null : desc;
 	}
 
 	/**

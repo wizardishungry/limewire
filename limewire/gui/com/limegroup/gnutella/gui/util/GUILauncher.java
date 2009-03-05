@@ -3,12 +3,13 @@ package com.limegroup.gnutella.gui.util;
 import java.awt.Cursor;
 import java.io.File;
 
+import org.limewire.core.settings.QuestionsHandler;
+
 import com.limegroup.gnutella.Downloader;
 import com.limegroup.gnutella.Downloader.DownloadStatus;
 import com.limegroup.gnutella.gui.GUIMediator;
 import com.limegroup.gnutella.gui.GUIUtils;
 import com.limegroup.gnutella.gui.I18n;
-import com.limegroup.gnutella.settings.QuestionsHandler;
 
 import foxtrot.Job;
 import foxtrot.Worker;

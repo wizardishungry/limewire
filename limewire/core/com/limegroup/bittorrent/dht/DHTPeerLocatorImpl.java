@@ -7,6 +7,7 @@ import java.util.concurrent.ExecutionException;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.limewire.io.InvalidDataException;
+import org.limewire.lifecycle.Service;
 import org.limewire.mojito.EntityKey;
 import org.limewire.mojito.KUID;
 import org.limewire.mojito.concurrent.DHTFuture;
@@ -30,11 +31,11 @@ import com.limegroup.gnutella.dht.DHTManager;
 import com.limegroup.gnutella.dht.util.KUIDUtils;
 
 /**
- * Given an instance of torrent, locates peers in DHT seeding that file.</br>
- * Also re-attempts to locate peers if DHT was not available.
+ * Given an instance of torrent, locates peers in the Mojito DHT seeding that 
+ * file. Also re-attempts to locate peers if DHT was not available.
  */
 @Singleton
-public class DHTPeerLocatorImpl implements DHTPeerLocator {
+public class DHTPeerLocatorImpl implements DHTPeerLocator, Service {
 
     private static final Log LOG = LogFactory.getLog(DHTPeerLocator.class);
 
@@ -54,16 +55,30 @@ public class DHTPeerLocatorImpl implements DHTPeerLocator {
         this.torrentManager = torrentManager;
     }
 
+    @Inject
+    void register(org.limewire.lifecycle.ServiceRegistry registry) {
+        registry.register(this);
+    }
+    
     /**
      * Adds the required listeners to TorrentManager and DHTManager. This method
      * should only be called once.
      */
-    public void init() {
+    public void initialize() {
         // listens for the TorrentEvent TRACKER_FAILED to start locating a
         // peer
         torrentManager.get().addEventListener(new LocatorTorrentEventListener());
         // listens for the DHTEvent CONNECTED to re-attempt locating a peer
         dhtManager.get().addEventListener(new DHTEventListenerForLocator());
+    }
+    
+    public String getServiceName() {
+        return org.limewire.i18n.I18nMarker.marktr("DHT Peer Locator");
+    }
+     
+    public void start() {
+    }  
+     public void stop() {
     }
 
     /**
@@ -104,8 +119,9 @@ public class DHTPeerLocatorImpl implements DHTPeerLocator {
     /**
      * Gets the torrent's location and adds it as an endPoint.
      * 
-     * @param managedTorrent The torrent we are dealing with.
-     * @param entity DHTValueEntity containing the DHTValue we are looking for.
+     * @param managedTorrent the routed torrent
+     * @param entity <code>DHTValueEntity</code> containing the 
+     * <code>DHTValue</code> that is sought.
      */
     private void dispatch(ManagedTorrent managedTorrent, DHTValueEntity entity) {
         DHTValue value = entity.getValue();
@@ -125,8 +141,8 @@ public class DHTPeerLocatorImpl implements DHTPeerLocator {
     }
 
     /**
-     * Listens for a TRACKER_FAILED event and launches search for alternate
-     * location.
+     * Listens for a <code>TRACKER_FAILED</code> event and launches search for 
+     * alternate location.
      */
     private class LocatorTorrentEventListener implements TorrentEventListener {
         public void handleTorrentEvent(TorrentEvent evt) {
@@ -138,8 +154,7 @@ public class DHTPeerLocatorImpl implements DHTPeerLocator {
     }
 
     /**
-     * Implements the DHTEventListener to perform future attempts at locating a
-     * peer based on DHTEvent.
+     * Performs future attempts at locating a peer based on <code>DHTEvent</code>.
      */
     private class DHTEventListenerForLocator implements DHTEventListener {
         /**
@@ -164,7 +179,7 @@ public class DHTPeerLocatorImpl implements DHTPeerLocator {
     }
 
     /**
-     * This class listens to see a result was successfully retrieved.
+     * Listens to see a result was successfully retrieved.
      */
     private class LocatePeerResultHandler extends DHTFutureAdapter<FindValueResult> {
         private final URN urn;

@@ -2,12 +2,12 @@ package com.limegroup.gnutella.downloader;
 
 
 import java.io.IOException;
-import java.net.InetAddress;
+import java.net.ConnectException;
 import java.net.Socket;
 import java.net.URI;
-import java.net.URISyntaxException;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.LinkedList;
 import java.util.List;
@@ -18,10 +18,9 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.apache.http.HttpResponse;
 import org.apache.http.client.methods.HttpHead;
 import org.apache.http.client.methods.HttpUriRequest;
@@ -30,12 +29,26 @@ import org.apache.http.params.DefaultedHttpParams;
 import org.apache.http.params.HttpConnectionParams;
 import org.apache.http.params.HttpParams;
 import org.limewire.concurrent.ExecutorsHelper;
+import org.limewire.core.settings.ConnectionSettings;
+import org.limewire.io.Address;
 import org.limewire.io.Connectable;
+import org.limewire.io.ConnectableImpl;
+import org.limewire.io.GUID;
 import org.limewire.io.IOUtils;
 import org.limewire.io.IpPort;
 import org.limewire.io.IpPortImpl;
 import org.limewire.io.NetworkUtils;
+import org.limewire.listener.EventBroadcaster;
+import org.limewire.listener.ListenerSupport;
+import org.limewire.listener.RegisteringEventListener;
+import org.limewire.logging.Log;
+import org.limewire.logging.LogFactory;
 import org.limewire.net.ConnectionAcceptor;
+import org.limewire.net.ConnectivityChangeEvent;
+import org.limewire.net.SocketsManager;
+import org.limewire.net.address.AddressConnector;
+import org.limewire.net.address.AddressEvent;
+import org.limewire.net.address.FirewalledAddress;
 import org.limewire.nio.AbstractNBSocket;
 import org.limewire.nio.channel.AbstractChannelInterestReader;
 import org.limewire.nio.channel.NIOMultiplexor;
@@ -44,18 +57,20 @@ import org.limewire.nio.observer.Shutdownable;
 import org.limewire.rudp.UDPSelectorProvider;
 import org.limewire.util.Base32;
 import org.limewire.util.BufferUtils;
+import org.limewire.util.StringUtils;
 
 import com.google.inject.Inject;
 import com.google.inject.Provider;
 import com.google.inject.Singleton;
 import com.google.inject.name.Named;
-import com.limegroup.gnutella.GUID;
 import com.limegroup.gnutella.MessageRouter;
 import com.limegroup.gnutella.NetworkManager;
+import com.limegroup.gnutella.PushEndpoint;
 import com.limegroup.gnutella.PushEndpointCache;
 import com.limegroup.gnutella.RemoteFileDesc;
 import com.limegroup.gnutella.SocketProcessor;
 import com.limegroup.gnutella.UDPService;
+import com.limegroup.gnutella.URN;
 import com.limegroup.gnutella.filters.IPFilter;
 import com.limegroup.gnutella.http.HTTPHeaderName;
 import com.limegroup.gnutella.http.HttpClientListener;
@@ -63,8 +78,6 @@ import com.limegroup.gnutella.http.HttpExecutor;
 import com.limegroup.gnutella.messages.PushRequest;
 import com.limegroup.gnutella.messages.PushRequestImpl;
 import com.limegroup.gnutella.messages.Message.Network;
-import com.limegroup.gnutella.settings.ConnectionSettings;
-import com.limegroup.gnutella.settings.SSLSettings;
 import com.limegroup.gnutella.util.MultiShutdownable;
 import com.limegroup.gnutella.util.URLDecoder;
 
@@ -72,9 +85,11 @@ import com.limegroup.gnutella.util.URLDecoder;
  * Handles sending out pushes and awaiting incoming GIVs.
  */
 @Singleton
-public class PushDownloadManager implements ConnectionAcceptor, PushedSocketHandlerRegistry {
+public class PushDownloadManager implements ConnectionAcceptor, PushedSocketHandlerRegistry, AddressConnector, RegisteringEventListener<AddressEvent> {
 
-    private static final Log LOG = LogFactory.getLog(PushDownloadManager.class);
+    private static final Log LOG = LogFactory.getLog(PushDownloadManager.class, LOGGING_CATEGORY);
+    
+    private static final int SPECIAL_INDEX = 0;
    
     /**
      * how long we think should take a host that receives an udp push
@@ -93,7 +108,6 @@ public class PushDownloadManager implements ConnectionAcceptor, PushedSocketHand
     private final Map<byte[], AtomicInteger>  
         UDP_FAILOVER = new TreeMap<byte[], AtomicInteger>(new GUID.GUIDByteComparator());
     
-
     /**
      * The processor to send brand-new incoming sockets to.
      * This is different than PushedSocketHandler in that the PushedSocketHandler
@@ -112,6 +126,14 @@ public class PushDownloadManager implements ConnectionAcceptor, PushedSocketHand
     private final Provider<UDPSelectorProvider> udpSelectorProvider;
     
     private final Provider<PushEndpointCache> pushEndpointCache;
+
+    private final RemoteFileDescFactory remoteFileDescFactory;
+
+    private final EventBroadcaster<ConnectivityChangeEvent> connectivityEventBroadcaster;
+    
+    private final AtomicBoolean acceptedIncomingConnectionEventFired = new AtomicBoolean(false);
+    
+    private final AtomicBoolean canDoFWTEventFired = new AtomicBoolean(false);
     
     @Inject
     public PushDownloadManager(
@@ -124,7 +146,9 @@ public class PushDownloadManager implements ConnectionAcceptor, PushedSocketHand
     		Provider<IPFilter> ipFilter,
     		Provider<UDPService> udpService,
     		Provider<UDPSelectorProvider> udpSelectorProvider,
-    		Provider<PushEndpointCache> pushEndpointCache) {
+    		Provider<PushEndpointCache> pushEndpointCache,
+    		RemoteFileDescFactory remoteFileDescFactory,
+    		EventBroadcaster<ConnectivityChangeEvent> connectivityEventBroadcaster) {
     	this.messageRouter = router;
     	this.httpExecutor = executor;
         this.defaultParams = defaultParams;
@@ -135,10 +159,41 @@ public class PushDownloadManager implements ConnectionAcceptor, PushedSocketHand
         this.udpService = udpService;
         this.udpSelectorProvider = udpSelectorProvider;
         this.pushEndpointCache = pushEndpointCache;
+        this.remoteFileDescFactory = remoteFileDescFactory;
+        this.connectivityEventBroadcaster = connectivityEventBroadcaster;
     }
 
     public void register(PushedSocketHandler handler) {
         pushHandlers.add(handler);
+    }
+    
+    @Inject
+    public void register(SocketsManager socketsManager) {
+        socketsManager.registerConnector(this);
+    }
+
+    @Inject
+    public void register(ListenerSupport<AddressEvent> addressEventListenerSupport) {
+        addressEventListenerSupport.addListener(this);
+    }
+
+    public void handleEvent(AddressEvent event) {
+        /* Checks if this peer can accept incoming connections and fires
+         * a ConnectivityChangeEvent if there hasn't been one thrown yet. 
+         * 
+         * Only if incoming connections can't be accepted, reliable udp
+         * connectivity is considered and an event is thrown if there
+         * hasn't been one thrown yet.
+         */
+        if (networkManager.acceptedIncomingConnection()) {
+            if (acceptedIncomingConnectionEventFired.compareAndSet(false, true)) {
+                connectivityEventBroadcaster.broadcast(new ConnectivityChangeEvent());
+            }
+        } else if (networkManager.canDoFWT()) {
+            if (canDoFWTEventFired.compareAndSet(false, true)) {
+                connectivityEventBroadcaster.broadcast(new ConnectivityChangeEvent());
+            }
+        }
     }
     
     public boolean isBlocking() {
@@ -160,19 +215,73 @@ public class PushDownloadManager implements ConnectionAcceptor, PushedSocketHand
         ((NIOMultiplexor)socket).setReadObserver(new GivParser(socket));
     }
     
+    @Override
+    public void connect(Address address, ConnectObserver observer) {
+        if (address instanceof FirewalledAddress) {
+            connect((FirewalledAddress)address, observer);
+        } else if (address instanceof PushEndpoint) {
+            connect((PushEndpoint)address, observer);
+        }
+    }
+    
+    private void connect(PushEndpoint pushEndpoint, ConnectObserver observer) {
+        RemoteFileDesc fakeRFD = 
+            remoteFileDescFactory.createRemoteFileDesc(pushEndpoint, SPECIAL_INDEX, "fake",
+                0, pushEndpoint.getClientGUID(), 0, false, 0, false, null, URN.NO_URN_SET, false, "",
+                -1, true);
+        connect(fakeRFD, observer);
+    }
+    
+    private void connect(FirewalledAddress address, ConnectObserver observer) {
+        RemoteFileDesc fakeRFD = 
+            remoteFileDescFactory.createRemoteFileDesc(address, SPECIAL_INDEX, "fake",
+                0, address.getClientGuid().bytes(), 0, false, 0, false, null, URN.NO_URN_SET, false, "",
+                -1, true);
+        connect(fakeRFD, observer);
+    }
+    
+    private void connect(RemoteFileDesc rfd, ConnectObserver observer) {
+        PushedSocketHandlerAdapter handlerAdapter = new PushedSocketHandlerAdapter(rfd, observer);
+        pushHandlers.add(handlerAdapter);
+        sendPush(rfd, handlerAdapter);
+        scheduleExpirerFor(handlerAdapter, 30 * 1000);
+    }
+    
+    private void scheduleExpirerFor(final PushedSocketHandlerAdapter handlerAdapter, int timeout) {
+        backgroundExecutor.schedule(new Runnable() {
+            @Override
+            public void run() {
+                // always remove after timeout
+                pushHandlers.remove(handlerAdapter);
+                handlerAdapter.handleTimeout();
+            }
+        }, timeout, TimeUnit.MILLISECONDS);
+    }
+    
     /**
      * Sends a push for the given file.
      */
     public void sendPush(RemoteFileDesc file) {
         sendPush(file, new NullMultiShutdownable());
     }
-
+    
+    private boolean hasValidLocalAddress() {
+        //Make sure we know our correct address/port.
+        // If we don't, we can't send pushes yet.
+        byte[] addr = networkManager.getAddress();
+        // TODO check stable udp port if we're interested in fwts?
+        int port = networkManager.getPort();
+        return NetworkUtils.isValidAddress(addr) && NetworkUtils.isValidPort(port);
+    }
+    
     /**
      * Sends a push request for the given file.
      *
      * @param file the <tt>RemoteFileDesc</tt> constructed from the query 
      *  hit, containing data about the host we're pushing to
      * @param observer The ConnectObserver to notify of success or failure
+     * @param waitForLocalAddress whether or not to wait for the local address
+     * to be determined
      * @return <tt>true</tt> if the push was successfully sent, otherwise
      *  <tt>false</tt>
      */
@@ -181,15 +290,9 @@ public class PushDownloadManager implements ConnectionAcceptor, PushedSocketHand
             LOG.debug("Sending push: " + file);
         }
         
-        //Make sure we know our correct address/port.
-        // If we don't, we can't send pushes yet.
-        byte[] addr = networkManager.getAddress();
-        // TODO check stable udp port if we're interested in fwts?
-        int port = networkManager.getPort();
-        if(!NetworkUtils.isValidAddress(addr) || !NetworkUtils.isValidPort(port)) {
+        if (!hasValidLocalAddress()) {
             LOG.debug("no valid address or port yet");
-            if(observer != null)
-                observer.shutdown();
+            observer.shutdown();
             return;
         }
         
@@ -205,7 +308,7 @@ public class PushDownloadManager implements ConnectionAcceptor, PushedSocketHand
             // if we can do FWT, offload a TCP pusher.
             if (networkManager.canDoFWT())
                 sendPushTCP(file, guid, observer);
-            else if (observer != null) {
+            else {
                 LOG.debug("Firewalled and can't do FWT yet");
                 observer.shutdown();
             }
@@ -251,7 +354,7 @@ public class PushDownloadManager implements ConnectionAcceptor, PushedSocketHand
                                          addr,
                                          port,
                                          Network.MULTICAST,
-                                         SSLSettings.isIncomingTLSEnabled());
+                                         networkManager.isIncomingTLSEnabled());
                 messageRouter.get().sendMulticastPushRequest(pr);
                 if (LOG.isInfoEnabled())
                     LOG.info("Sending push request through multicast " + pr);
@@ -260,7 +363,28 @@ public class PushDownloadManager implements ConnectionAcceptor, PushedSocketHand
         }
         return false;
     }
-
+    
+    private Set<? extends IpPort> getPushProxies(RemoteFileDesc rfd) {
+        Address address = rfd.getAddress();
+        if (address instanceof PushEndpoint) {
+            return ((PushEndpoint)address).getProxies();
+        } else if (address instanceof FirewalledAddress) {
+            return ((FirewalledAddress)address).getPushProxies();
+        }
+        return IpPort.EMPTY_SET;
+    }
+    
+    
+    private IpPort getPublicAddress(Address address) {
+        if (address instanceof PushEndpoint) {
+            IpPort externalAddress = ((PushEndpoint)address).getValidExternalAddress();
+            return externalAddress != null ? externalAddress : ConnectableImpl.INVALID_CONNECTABLE;
+        } else if (address instanceof FirewalledAddress) {
+            return ((FirewalledAddress)address).getPublicAddress();
+        }
+        return ConnectableImpl.INVALID_CONNECTABLE;
+    }
+    
     /**
      * Sends a push through UDP.
      *
@@ -275,28 +399,33 @@ public class PushDownloadManager implements ConnectionAcceptor, PushedSocketHand
                                 networkManager.getAddress(),
                                 networkManager.getPort(),
                                 Network.UDP,
-                                SSLSettings.isIncomingTLSEnabled());
+                                networkManager.isIncomingTLSEnabled());
         if (LOG.isInfoEnabled())
                 LOG.info("Sending push request through udp " + pr);
                     
         UDPService udpService = this.udpService.get();
         //and send the push to the node 
-        try {
-            InetAddress address = InetAddress.getByName(file.getHost());
-            
-            //don't bother sending direct push if the node reported invalid
-            //address and port.
-            if (NetworkUtils.isValidAddress(address) &&
-                    NetworkUtils.isValidPort(file.getPort())) {
-                udpService.send(pr, address, file.getPort());
+        IpPort publicAddress = getPublicAddress(file.getAddress());
+        //don't bother sending direct push if the node reported invalid
+        //address and port.
+        if (NetworkUtils.isValidIpPort(publicAddress)) {
+            if (LOG.isDebugEnabled()) {
+                LOG.debug("sending push to host itself via udp: " + publicAddress);
             }
-        } catch(UnknownHostException notCritical) {}
-    
+            udpService.send(pr, publicAddress);
+        }
+        
         //make sure we send it to the proxies, if any
-        for(IpPort ppi : file.getPushProxies()) {
+        for(IpPort ppi : getPushProxies(file)) {
             if (ipFilter.get().allow(ppi.getAddress())) {
+                if (LOG.isDebugEnabled()) {
+                    LOG.debug("sending udp push to: " + ppi);
+                }
                 udpService.send(pr, ppi.getInetSocketAddress());
             } else {
+                if (LOG.isDebugEnabled()) {
+                    LOG.debug("removing disallowed pushproxy: " + ppi);
+                }
                 removePushProxy(file.getClientGUID(), ppi);
             }
         }
@@ -312,14 +441,14 @@ public class PushDownloadManager implements ConnectionAcceptor, PushedSocketHand
      */
     private void sendPushTCP(RemoteFileDesc file, final byte[] guid, MultiShutdownable observer) {
         // if this is a FW to FW transfer, we must consider special stuff
-        final boolean shouldDoFWTransfer = file.supportsFWTransfer() &&
+        final boolean shouldDoFWTransfer = getFWTVersion(file.getAddress()) > 0 &&
                          networkManager.canDoFWT() &&
                         !networkManager.acceptedIncomingConnection();
 
     	PushData data = new PushData(observer, file, guid, shouldDoFWTransfer);
 
     	// if there are no proxies, send through the network
-        Set<? extends IpPort> proxies = file.getPushProxies();
+        Set<? extends IpPort> proxies = getPushProxies(file);
         if(proxies.isEmpty()) {
             sendPushThroughNetwork(data);
             return;
@@ -362,7 +491,7 @@ public class PushDownloadManager implements ConnectionAcceptor, PushedSocketHand
                                          addr,
                                          port,
                                          Network.TCP,
-                                         SSLSettings.isIncomingTLSEnabled());
+                                         networkManager.isIncomingTLSEnabled());
         
         if (LOG.isInfoEnabled())
             LOG.info("Sending push request through Gnutella: " + pr);
@@ -396,12 +525,15 @@ public class PushDownloadManager implements ConnectionAcceptor, PushedSocketHand
 
         //TODO: send push msg directly to a proxy if you're connected to it.
 
+        if (LOG.isDebugEnabled()) {
+            LOG.debug("using guid: " + new GUID(data.getFile().getClientGUID()));
+        }
         // set up the request string --
         // if a fw-fw transfer is required, add the extra "file" parameter.
         final String request = "/gnutella/push-proxy?ServerID=" + 
                                Base32.encode(data.getFile().getClientGUID()) +
           (data.isFWTransfer() ? ("&file=" + PushRequest.FW_TRANS_INDEX) : "") +
-          (SSLSettings.isIncomingTLSEnabled() ? "&tls=true" : "");
+          (networkManager.isIncomingTLSEnabled() ? "&tls=true" : "");
             
         final String nodeString = HTTPHeaderName.NODE.httpStringValue();
         final String nodeValue = data.isFWTransfer() ?
@@ -424,15 +556,10 @@ public class PushDownloadManager implements ConnectionAcceptor, PushedSocketHand
             }
             String connectTo =  protocol + ppi.getAddress() + ":" + ppi.getPort() + request;
             HttpHead head = null;
-            try {
-                head = new HttpHead(connectTo);
-                head.addHeader(nodeString, nodeValue);
-                head.addHeader("Cache-Control", "no-cache");
-                methods.add(head);
-            } catch (URISyntaxException e) {
-                LOG.error("invlaid URI", e);
-                removePushProxy(data.file.getClientGUID(), ppi);
-            }            
+            head = new HttpHead(connectTo);
+            head.addHeader(nodeString, nodeValue);
+            head.addHeader("Cache-Control", "no-cache");
+            methods.add(head);
         }        
         
         if(!methods.isEmpty()) {
@@ -509,7 +636,11 @@ public class PushDownloadManager implements ConnectionAcceptor, PushedSocketHand
     			    LOG.debug("Starting fwt communication");
     			    AbstractNBSocket socket = udpSelectorProvider.get().openSocketChannel().socket();
                     data.getMultiShutdownable().addShutdownable(socket);
-    				socket.connect(data.getFile().getInetSocketAddress(), 20000, new FWTConnectObserver(socketProcessor.get()));
+                    IpPort publicAddress = getPublicAddress(data.getFile().getAddress());
+                    // TODO: see issue: LWC-2278
+                    if (NetworkUtils.isValidIpPort(publicAddress)) {
+                        socket.connect(publicAddress.getInetSocketAddress(), 20000, new FWTConnectObserver(socketProcessor.get()));
+                    }
                 }
                 
                 return false; // don't need to process any more methods.
@@ -526,6 +657,7 @@ public class PushDownloadManager implements ConnectionAcceptor, PushedSocketHand
             return true; // try more.
     	}
 
+        @Override
         public boolean allowRequest(HttpUriRequest request) {
             return true;
         }
@@ -539,6 +671,10 @@ public class PushDownloadManager implements ConnectionAcceptor, PushedSocketHand
         
         // if the push was sent through udp, make sure we cancel the failover push.
         cancelUDPFailover(clientGUID);
+        
+        if (LOG.isDebugEnabled()) {
+            LOG.debug("receiving socket: " + socket + ", line: " + line);
+        }
 
         boolean accepted = false;
         for(PushedSocketHandler handler : pushHandlers) {
@@ -742,6 +878,11 @@ public class PushDownloadManager implements ConnectionAcceptor, PushedSocketHand
             this.index=index;
             this.clientGUID=clientGUID;
         }
+        
+        @Override
+        public String toString() {
+            return StringUtils.toString(this);
+        }
     }
     
 
@@ -774,5 +915,137 @@ public class PushDownloadManager implements ConnectionAcceptor, PushedSocketHand
         public boolean isCancelled() {
             return false;
         }
+    }
+    
+    /**
+     * Returns true if <code>address</code> is a {@link FirewalledAddress}
+     * the network manager has a valid local addresss and one of the following
+     * is true:
+     * 
+     * 1) this peer can accept incoming connections
+     * 2) this peer can do firewalled transfers and the {@link FirewalledAddress}
+     *    also supports firewalled transfers
+     */
+    @Override
+    public boolean canConnect(Address address) {
+        int fwtVersion = getFWTVersion(address);
+        if (fwtVersion == -1) {
+            LOG.debugf("cannot connect: remote address {0} cannot do fwt", address);
+            return false;
+        }
+        if (hasValidLocalAddress()) {
+            if (networkManager.acceptedIncomingConnection()) {
+                LOG.debug("can connect: local address accepted incoming connection");
+                return true;
+            }
+            if (networkManager.canDoFWT() && fwtVersion > 0 && NetworkUtils.isValidIpPort(getPublicAddress(address))) {
+                LOG.debug("can connect: local and remote address can do fwt");
+                return true;
+            }
+            LOG.debugf("can not connect: have not accepted incoming connection and can not do FWT or invalid address: {0}", address);
+        } else {
+            LOG.debug(" can not connect: no local valid address");
+        }
+        LOG.debugf("cannot connect to {0}, local fwt {1}", address, networkManager.canDoFWT());
+        return false;
+    }
+    
+    /**
+     * Returns the fwt version supported by address
+     * 
+     * 0 - if firewalled address or push endpoint but not fwt capability
+     * > 0 - if firewalled address or push endpoint and fwt capability
+     * -1 if not a valid address;
+     */
+    private static int getFWTVersion(Address address) {
+        if (address instanceof FirewalledAddress) {
+            FirewalledAddress firewalledAddress = (FirewalledAddress)address;
+            if (NetworkUtils.isValidIpPort(firewalledAddress.getPrivateAddress())) {
+                return firewalledAddress.getFwtVersion();
+            } else {
+                LOG.debugf("inconsistent firewalled address: {0}", firewalledAddress);
+                throw new IllegalArgumentException("inconsistent firewalled address: " + firewalledAddress);
+                 // return -1;
+            }
+        } else if (address instanceof PushEndpoint) {
+            return ((PushEndpoint)address).getFWTVersion();
+        } else {
+            return -1;
+        }
+    }
+
+    /**
+     * Adapts {@link PushedSocketHandler} and {@link MultiShutdownable} to {@link ConnectObserver}.
+     */
+    private class PushedSocketHandlerAdapter implements PushedSocketHandler, MultiShutdownable {
+
+        private final RemoteFileDesc rfd;
+        private final ConnectObserver observer;
+        /**
+         * Keeps state whether connect has already succeeded or failed to make sure
+         * the observer is not notified several times.
+         */
+        private final AtomicBoolean acceptedOrFailed = new AtomicBoolean(false);
+
+        public PushedSocketHandlerAdapter(RemoteFileDesc rfd, ConnectObserver observer) {
+            this.rfd = rfd;
+            this.observer = observer;
+        }
+
+        @Override
+        public boolean acceptPushedSocket(String file, int index, byte[] clientGUID, Socket socket) {
+            if (Arrays.equals(rfd.getClientGUID(), clientGUID)) {
+                pushHandlers.remove(this);
+                IpPort publicAddress = getPublicAddress(rfd.getAddress());
+                // this ensures that no malicious push proxy pretends to be the connecting client 
+                if (NetworkUtils.isValidIpPort(publicAddress) && !publicAddress.getInetAddress().equals(socket.getInetAddress())) {
+                    if (LOG.isDebugEnabled()) {
+                        LOG.debug("received socket from unexpected location, expected: " + publicAddress.getInetAddress() + ", actual: " + socket.getInetAddress());
+                        return false;
+                    }
+                }
+                if (acceptedOrFailed.compareAndSet(false, true)) {
+                    try {
+                        observer.handleConnect(socket);
+                    } catch (IOException e) {
+                        IOUtils.close(socket);
+                    }
+                    return true;
+                }
+                // return false if not handled for whatever reason, maybe there
+                // is another handler, or PushDownloadManager just closes it
+                return false;
+            }
+            return false;
+        }
+        
+        /**
+         * Notifies observer that push has timed out unless it has already 
+         * succeeded.
+         */
+        public void handleTimeout() {
+            if (acceptedOrFailed.compareAndSet(false, true)) {
+                observer.handleIOException(new ConnectException("push timed out"));
+            }
+        }
+
+        @Override
+        public void addShutdownable(Shutdownable shutdowner) {
+            // we don't shutdown from the caller side, so we don't need to
+            // notify
+        }
+
+        @Override
+        public void shutdown() {
+            if (acceptedOrFailed.compareAndSet(false, true)) {
+                observer.handleIOException(new ConnectException("shut down"));
+            }
+        }
+
+        @Override
+        public boolean isCancelled() {
+            return false;
+        }
+
     }
 }

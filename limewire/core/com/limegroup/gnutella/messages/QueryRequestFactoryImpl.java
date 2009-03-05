@@ -2,22 +2,20 @@ package com.limegroup.gnutella.messages;
 
 import java.util.Set;
 
+import org.limewire.core.settings.SearchSettings;
 import org.limewire.io.GGEP;
+import org.limewire.io.GUID;
 import org.limewire.security.AddressSecurityToken;
 import org.limewire.security.MACCalculatorRepositoryManager;
-import org.limewire.util.I18NConvert;
+import org.limewire.util.MediaType;
 import org.limewire.util.OSUtils;
 
 import com.google.inject.Inject;
 import com.google.inject.Singleton;
-import com.limegroup.gnutella.FileManager;
-import com.limegroup.gnutella.GUID;
-import com.limegroup.gnutella.MediaType;
 import com.limegroup.gnutella.NetworkManager;
 import com.limegroup.gnutella.URN;
 import com.limegroup.gnutella.UrnSet;
 import com.limegroup.gnutella.messages.Message.Network;
-import com.limegroup.gnutella.settings.SearchSettings;
 import com.limegroup.gnutella.xml.LimeXMLDocumentFactory;
 
 @Singleton
@@ -148,7 +146,6 @@ public class QueryRequestFactoryImpl implements QueryRequestFactory {
      */
     public QueryRequest createOutOfBandQuery(byte[] guid, String query,
             String xmlQuery) {
-        query = I18NConvert.instance().getNorm(query);
         if (query == null) {
             throw new NullPointerException("null query");
         }
@@ -169,7 +166,6 @@ public class QueryRequestFactoryImpl implements QueryRequestFactory {
      */
     public QueryRequest createOutOfBandQuery(byte[] guid, String query,
             String xmlQuery, MediaType type) {
-        query = I18NConvert.instance().getNorm(query);
         if (query == null) {
             throw new NullPointerException("null query");
         }
@@ -273,26 +269,7 @@ public class QueryRequestFactoryImpl implements QueryRequestFactory {
      * @see com.limegroup.gnutella.messages.QueryRequestFactory#createQuery(byte[], java.lang.String, java.lang.String)
      */
     public QueryRequest createQuery(byte[] guid, String query, String xmlQuery) {
-        query = I18NConvert.instance().getNorm(query);
-        if (guid == null) {
-            throw new NullPointerException("null guid");
-        }
-        if (guid.length != 16) {
-            throw new IllegalArgumentException("invalid guid length");
-        }
-        if (query == null) {
-            throw new NullPointerException("null query");
-        }
-        if (xmlQuery == null) {
-            throw new NullPointerException("null xml query");
-        }
-        if (query.length() == 0 && xmlQuery.length() == 0) {
-            throw new IllegalArgumentException("empty query");
-        }
-        if (xmlQuery.length() != 0 && !xmlQuery.startsWith("<?xml")) {
-            throw new IllegalArgumentException("invalid XML");
-        }
-        return create(guid, query, xmlQuery);
+        return createQuery(guid, query, xmlQuery, null);
     }
 
     /* (non-Javadoc)
@@ -300,7 +277,6 @@ public class QueryRequestFactoryImpl implements QueryRequestFactory {
      */
     public QueryRequest createQuery(byte[] guid, String query, String xmlQuery,
             MediaType type) {
-        query = I18NConvert.instance().getNorm(query);
         if (guid == null) {
             throw new NullPointerException("null guid");
         }
@@ -480,16 +456,6 @@ public class QueryRequestFactoryImpl implements QueryRequestFactory {
     }
 
     /* (non-Javadoc)
-     * @see com.limegroup.gnutella.messages.QueryRequestFactory#createBrowseHostQuery()
-     */
-    public QueryRequest createBrowseHostQuery() {
-        return createQueryRequest(QueryRequestImpl.newQueryGUID(false), (byte) 1,
-                FileManager.INDEXING_QUERY, "", URN.NO_URN_SET, null,
-                !networkManager.acceptedIncomingConnection(), Network.UNKNOWN,
-                false, 0, false, 0, false);
-    }
-
-    /* (non-Javadoc)
      * @see com.limegroup.gnutella.messages.QueryRequestFactory#createNonFirewalledQuery(java.lang.String, byte)
      */
     public QueryRequest createNonFirewalledQuery(String query, byte ttl) {
@@ -643,22 +609,6 @@ public class QueryRequestFactoryImpl implements QueryRequestFactory {
                 addressSecurityToken, isFirewalled, network,
                 canReceiveOutOfBandReplies, featureSelector, doNotProxy,
                 metaFlagMask, true);
-    }
-
-    /**
-     * Constructs a query with an optional 'normalize' parameter, which if
-     * false, does not normalize the query string.
-     */
-    private QueryRequest createQueryRequest(byte[] guid, byte ttl,
-            String query, String richQuery, Set<? extends URN> queryUrns,
-            AddressSecurityToken addressSecurityToken, boolean isFirewalled,
-            Network network, boolean canReceiveOutOfBandReplies,
-            int featureSelector, boolean doNotProxy, int metaFlagMask,
-            boolean normalize) {
-        return createQueryRequest(guid, ttl, 0, query, richQuery, queryUrns,
-                addressSecurityToken, isFirewalled, network,
-                canReceiveOutOfBandReplies, featureSelector, doNotProxy,
-                metaFlagMask, normalize);
     }
 
     /* (non-Javadoc)

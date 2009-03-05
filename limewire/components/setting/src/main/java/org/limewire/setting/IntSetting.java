@@ -31,7 +31,7 @@ public final class IntSetting extends AbstractNumberSetting<Integer> {
 	IntSetting(Properties defaultProps, Properties props, String key, 
           int defaultInt, int minRemoteVal, int maxRemoteVal) {
 		super(defaultProps, props, key, String.valueOf(defaultInt), true,
-                            new Integer(minRemoteVal), new Integer(maxRemoteVal));
+                minRemoteVal, maxRemoteVal);
     }
         
 	/**
@@ -68,5 +68,10 @@ public final class IntSetting extends AbstractNumberSetting<Integer> {
     @Override
     protected Comparable<Integer> convertToComparable(String value) {
         return new Integer(value);
+    }
+    
+    @Override
+    public IntSetting setAlwaysSave(boolean alwaysSave) {
+        return (IntSetting)super.setAlwaysSave(alwaysSave);
     }
 }

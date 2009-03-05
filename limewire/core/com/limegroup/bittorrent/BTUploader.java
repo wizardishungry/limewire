@@ -1,13 +1,16 @@
 package com.limegroup.bittorrent;
 
 
+import java.io.File;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 
+import com.limegroup.bittorrent.Torrent.TorrentState;
 import com.limegroup.gnutella.ActivityCallback;
-import com.limegroup.gnutella.FileDesc;
 import com.limegroup.gnutella.InsufficientDataException;
+import com.limegroup.gnutella.URN;
 import com.limegroup.gnutella.Uploader;
+import com.limegroup.gnutella.library.FileDesc;
 import com.limegroup.gnutella.uploader.UploadType;
 import com.limegroup.gnutella.util.EventDispatcher;
 
@@ -51,7 +54,7 @@ public class BTUploader implements Uploader, TorrentEventListener {
 	}
 
 	public FileDesc getFileDesc() {
-		return _info.getFileDesc();
+		return null;
 	}
 
 	public int getIndex() {
@@ -72,9 +75,15 @@ public class BTUploader implements Uploader, TorrentEventListener {
 	}
 
 	public UploadStatus getState() {
-		if (!_torrent.isActive()) {
-			if (_torrent.isComplete() && _torrent.getRatio() > 1)
+
+	    if(_torrent.getState() == TorrentState.STOPPED) {
+            return UploadStatus.CANCELLED;
+	    }
+	    
+	    if (!_torrent.isActive()) {
+			if (_torrent.isComplete() && _torrent.getRatio() > 1) {
 				return UploadStatus.COMPLETE;
+			} 
 			return UploadStatus.INTERRUPTED;
 		}
 		
@@ -197,5 +206,29 @@ public class BTUploader implements Uploader, TorrentEventListener {
     
     public InetSocketAddress getInetSocketAddress() {
         return null;
+    }
+
+    @Override
+    public String getAddressDescription() {
+        return null;
+    }
+
+    @Override
+    public File getFile() {
+        if(_torrent.isComplete()) {
+            return _torrent.getMetaInfo().getFileSystem().getCompleteFile();
+        } else {
+            return _torrent.getMetaInfo().getFileSystem().getIncompleteFile();
+        }
+    }
+    
+    @Override
+    public URN getUrn() {
+        return _torrent.getMetaInfo().getURN();
+    }
+
+    @Override
+    public int getNumUploadConnections() {
+        return _torrent.getNumUploadPeers();
     }
 }

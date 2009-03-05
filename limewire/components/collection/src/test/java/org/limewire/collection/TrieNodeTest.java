@@ -10,7 +10,7 @@ import org.limewire.util.BaseTestCase;
 /**
  * Tests TrieNode.
  */
-@SuppressWarnings( { "unchecked", "cast" } )
+@SuppressWarnings( { "unchecked" } )
 public class TrieNodeTest extends BaseTestCase {
     public TrieNodeTest(String name) {
         super(name);
@@ -71,9 +71,9 @@ public class TrieNodeTest extends BaseTestCase {
 
         // Test child iterator
         assertNotNull(iter = node.childrenForward());
-        assertSame(childA, (TrieNode)iter.next());
-        assertSame(childB, (TrieNode)iter.next());
-        assertSame(childC, (TrieNode)iter.next());
+        assertSame(childA, iter.next());
+        assertSame(childB, iter.next());
+        assertSame(childC, iter.next());
         assertFalse(iter.hasNext());
         try {
             iter.next();

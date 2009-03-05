@@ -14,8 +14,10 @@ import junit.framework.Test;
 import org.limewire.nio.observer.TransportListener;
 import org.limewire.rudp.messages.RUDPMessage;
 import org.limewire.rudp.messages.SynMessage;
+import org.limewire.rudp.messages.SynMessage.Role;
 import org.limewire.rudp.messages.impl.DefaultMessageFactory;
 import org.limewire.util.BaseTestCase;
+import org.limewire.listener.EventListenerList;
 
 public class UDPMultiplexorTest extends BaseTestCase {
 
@@ -35,7 +37,7 @@ public class UDPMultiplexorTest extends BaseTestCase {
     
     private static StubListener listener = new StubListener();
     private static RUDPContext context = new DefaultRUDPContext(listener);
-    private static UDPSelectorProvider provider = new UDPSelectorProvider(context);
+    private static UDPSelectorProvider provider = new UDPSelectorProvider(context, new EventListenerList<UDPSocketChannelConnectionEvent>());
     
     
     public void testRegister() throws Exception {
@@ -159,7 +161,7 @@ public class UDPMultiplexorTest extends BaseTestCase {
         assertEquals(0, selector.selectNow());
         
         key.interestOps(SelectionKey.OP_CONNECT);
-        SynMessage syn = new DefaultMessageFactory().createSynMessage((byte)1);
+        SynMessage syn = new DefaultMessageFactory().createSynMessage((byte)1, Role.UNDEFINED);
         UDPMultiplexor plexor = (UDPMultiplexor) selector;
         
         StubProcessor processor = (StubProcessor)channel.getProcessor();
@@ -182,7 +184,7 @@ public class UDPMultiplexorTest extends BaseTestCase {
         private StubProcessor stubProcessor = new StubProcessor(this);
         InetSocketAddress addr;
         StubUDPSocketChannel() {
-            super((SelectorProvider)null, context);
+            super((SelectorProvider)null, context, Role.UNDEFINED, new EventListenerList<UDPSocketChannelConnectionEvent>());
         }
         
         @Override
@@ -212,7 +214,7 @@ public class UDPMultiplexorTest extends BaseTestCase {
 
         RUDPMessage msg;
         StubProcessor(UDPSocketChannel channel) {
-            super(channel, context);
+            super(channel, context, Role.UNDEFINED, new EventListenerList<UDPSocketChannelConnectionEvent>());
         }
         
         @Override

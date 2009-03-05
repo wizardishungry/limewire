@@ -3,31 +3,28 @@ package com.limegroup.gnutella.gui.init;
 import javax.swing.JComponent;
 
 import com.limegroup.gnutella.gui.sharing.FileTypeSharingPanelManager;
+import com.limegroup.gnutella.gui.FramedDialog;
 
 /**
  * Composed panel for the first start setup sequence that uses a FileTypeSharingPanelManager to
  *  manage file type extensions sharing.  
  */
-public final class FileTypeWindow extends SetupWindow {
+final class FileTypeWindow extends SetupWindow {
     
     private FileTypeSharingPanelManager manager;
-    
-    FileTypeWindow(SetupManager manager) {
-        super(manager, FileTypeSharingPanelManager.TITLE, FileTypeSharingPanelManager.LABEL,
+
+    FileTypeWindow(FramedDialog framedDialog) {
+        super(FileTypeSharingPanelManager.TITLE, FileTypeSharingPanelManager.LABEL,
                 FileTypeSharingPanelManager.URL);
-        this.manager = new FileTypeSharingPanelManager(this._manager.getOwnerComponent());
+        this.manager = new FileTypeSharingPanelManager(framedDialog);
         this.manager.initOptions();
     }
     
     /**
-     * Overriden to also add the language options.
+     * Also add the language options.
      */
-    @Override
-    protected void createWindow() {
-        super.createWindow();
-        
+    protected void createPageContent() {
         manager.buildUI();
-        
         setSetupComponent((JComponent)this.manager.getContainer());
     }
     

@@ -4,10 +4,11 @@ import java.io.File;
 
 import javax.swing.Icon;
 
+import org.limewire.core.settings.SharingSettings;
+
 import com.limegroup.gnutella.downloader.IncompleteFileManager;
 import com.limegroup.gnutella.gui.GUIMediator;
 import com.limegroup.gnutella.gui.I18n;
-import com.limegroup.gnutella.settings.SharingSettings;
 
 public class IncompleteDirectoryHolder extends FileSettingDirectoryHolder {
 

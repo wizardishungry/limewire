@@ -19,13 +19,13 @@ import javax.swing.SwingConstants;
 import javax.swing.Timer;
 import javax.swing.plaf.metal.MetalLabelUI;
 
+import org.limewire.core.settings.UpdateSettings;
 import org.limewire.i18n.I18nMarker;
 import org.limewire.setting.evt.SettingEvent;
 import org.limewire.setting.evt.SettingListener;
 
 import com.limegroup.gnutella.gui.banner.Ad;
 import com.limegroup.gnutella.gui.banner.Banner;
-import com.limegroup.gnutella.settings.UpdateSettings;
 
 /**
  * This class uses a timer to continually switch the hyperlink and label.

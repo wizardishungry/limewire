@@ -12,13 +12,13 @@ import javax.swing.Box;
 import javax.swing.ButtonGroup;
 import javax.swing.JRadioButton;
 
+import org.limewire.core.settings.ApplicationSettings;
 import org.limewire.i18n.I18nMarker;
 import org.limewire.util.OSUtils;
 
 import com.limegroup.gnutella.gui.BoxPanel;
 import com.limegroup.gnutella.gui.I18n;
 import com.limegroup.gnutella.gui.ResourceManager;
-import com.limegroup.gnutella.settings.ApplicationSettings;
 
 /**
  * This class defines the panel in the options
@@ -86,16 +86,16 @@ public class ShutdownPaneItem extends AbstractPaneItem {
      */
     @Override
     public boolean applyOptions() throws IOException {
-        if (minimizeToTray.isSelected()) {
-            ApplicationSettings.MINIMIZE_TO_TRAY.setValue(true);
-            ApplicationSettings.SHUTDOWN_AFTER_TRANSFERS.setValue(false);
-        } else if (shutdownAfterTransfers.isSelected()) {
-            ApplicationSettings.MINIMIZE_TO_TRAY.setValue(false);
-            ApplicationSettings.SHUTDOWN_AFTER_TRANSFERS.setValue(true);
-        } else { // if(shutdownImmediately.isSelected())
-            ApplicationSettings.MINIMIZE_TO_TRAY.setValue(false);
-            ApplicationSettings.SHUTDOWN_AFTER_TRANSFERS.setValue(false);
-        }
+//        if (minimizeToTray.isSelected()) {
+//            ApplicationSettings.MINIMIZE_TO_TRAY.setValue(true);
+//            ApplicationSettings.SHUTDOWN_AFTER_TRANSFERS.setValue(false);
+//        } else if (shutdownAfterTransfers.isSelected()) {
+//            ApplicationSettings.MINIMIZE_TO_TRAY.setValue(false);
+//            ApplicationSettings.SHUTDOWN_AFTER_TRANSFERS.setValue(true);
+//        } else { // if(shutdownImmediately.isSelected())
+//            ApplicationSettings.MINIMIZE_TO_TRAY.setValue(false);
+//            ApplicationSettings.SHUTDOWN_AFTER_TRANSFERS.setValue(false);
+//        }
         return false;
     }
     
@@ -111,31 +111,32 @@ public class ShutdownPaneItem extends AbstractPaneItem {
             } else {
                 minimizeToTray.setSelected(true);
             }
-        } else if (ApplicationSettings.SHUTDOWN_AFTER_TRANSFERS.getValue()) {
-             shutdownAfterTransfers.setSelected(true);
+//        } else if (ApplicationSettings.SHUTDOWN_AFTER_TRANSFERS.getValue()) {
+//             shutdownAfterTransfers.setSelected(true);
         } else {
             shutdownImmediately.setSelected(true);
         }
     }
     
     public boolean isDirty() {
-        boolean minimized =
-            ApplicationSettings.MINIMIZE_TO_TRAY.getValue() &&
-            !ApplicationSettings.SHUTDOWN_AFTER_TRANSFERS.getValue();
-        boolean reallyMinimized = minimized && ResourceManager.instance().isTrayIconAvailable();
-        
-        boolean afterTransfers =
-            !ApplicationSettings.MINIMIZE_TO_TRAY.getValue() &&
-            ApplicationSettings.SHUTDOWN_AFTER_TRANSFERS.getValue();
-        boolean reallyAfterTransfers =
-            afterTransfers || (minimized && !ResourceManager.instance().isTrayLibraryLoaded());
-        
-        boolean immediate = 
-            !ApplicationSettings.MINIMIZE_TO_TRAY.getValue() &&
-            !ApplicationSettings.SHUTDOWN_AFTER_TRANSFERS.getValue();
-        
-        return minimizeToTray.isSelected() != reallyMinimized ||
-               shutdownAfterTransfers.isSelected() != reallyAfterTransfers ||
-               shutdownImmediately.isSelected() != immediate;
+        return false;
+//        boolean minimized =
+//            ApplicationSettings.MINIMIZE_TO_TRAY.getValue() &&
+//            !ApplicationSettings.SHUTDOWN_AFTER_TRANSFERS.getValue();
+//        boolean reallyMinimized = minimized && ResourceManager.instance().isTrayIconAvailable();
+//        
+//        boolean afterTransfers =
+//            !ApplicationSettings.MINIMIZE_TO_TRAY.getValue() &&
+//            ApplicationSettings.SHUTDOWN_AFTER_TRANSFERS.getValue();
+//        boolean reallyAfterTransfers =
+//            afterTransfers || (minimized && !ResourceManager.instance().isTrayLibraryLoaded());
+//        
+//        boolean immediate = 
+//            !ApplicationSettings.MINIMIZE_TO_TRAY.getValue() &&
+//            !ApplicationSettings.SHUTDOWN_AFTER_TRANSFERS.getValue();
+//        
+//        return minimizeToTray.isSelected() != reallyMinimized ||
+//               shutdownAfterTransfers.isSelected() != reallyAfterTransfers ||
+//               shutdownImmediately.isSelected() != immediate;
     }
 }

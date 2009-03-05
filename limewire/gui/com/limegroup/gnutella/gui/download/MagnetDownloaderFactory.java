@@ -2,13 +2,14 @@ package com.limegroup.gnutella.gui.download;
 
 import java.io.File;
 
+import org.limewire.core.api.download.SaveLocationException;
+import org.limewire.core.settings.SharingSettings;
+
 import com.limegroup.gnutella.Downloader;
-import com.limegroup.gnutella.SaveLocationException;
 import com.limegroup.gnutella.URN;
 import com.limegroup.gnutella.browser.MagnetOptions;
 import com.limegroup.gnutella.gui.GuiCoreMediator;
 import com.limegroup.gnutella.gui.I18n;
-import com.limegroup.gnutella.settings.SharingSettings;
 
 /**
  * Creates a Downloader from a magnet

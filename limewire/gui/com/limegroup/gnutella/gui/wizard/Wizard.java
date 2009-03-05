@@ -2,292 +2,208 @@ package com.limegroup.gnutella.gui.wizard;
 
 import java.awt.CardLayout;
 import java.awt.Component;
-import java.awt.Container;
-import java.awt.Dimension;
-import java.awt.Frame;
-import java.awt.event.ActionEvent;
-import java.awt.event.WindowAdapter;
-import java.awt.event.WindowEvent;
+import java.util.List;
 
-import javax.swing.AbstractAction;
 import javax.swing.Action;
-import javax.swing.Box;
-import javax.swing.BoxLayout;
-import javax.swing.JComponent;
-import javax.swing.JDialog;
 import javax.swing.JPanel;
-import javax.swing.border.EmptyBorder;
 
-import org.limewire.util.OSUtils;
-
-import com.limegroup.gnutella.gui.ButtonRow;
-import com.limegroup.gnutella.gui.GUIUtils;
-import com.limegroup.gnutella.gui.I18n;
+import com.limegroup.gnutella.gui.init.ApplySettingsException;
 
 /**
  * This class provides a generic wizard. It manages {@link WizardPage}
  * objects which are displayed in a dialog.
  */
 //2345678|012345678|012345678|012345678|012345678|012345678|012345678|012345678|
-public class Wizard {	
+public abstract class Wizard implements WizardAction {
 
-	/**
-	 * The minimum width of the window.
-	 */
-	public static final int DIALOG_WIDTH = 540;
-
-	/**
-	 * The minimum height of the window.
-	 */
-	public static final int DIALOG_HEIGHT = 360;
-
-	/**
-	 * the dialog window that holds all other gui elements for the setup.
-	 */
-	protected JDialog dialog;
-
-	/** 
+    /**
 	 * the holder for the setup windows 
 	 */
-	private WizardPagePanel pageContainer = new WizardPagePanel();
+	private WizardPagePanel pageContainer;
 
 	/**
 	 * holder for the current setup window.
 	 */
 	private WizardPage currentPage;
 
-	public static final int ACTION_PREVIOUS = 1;
-	
-	public static final int ACTION_NEXT = 2;
-	
-	public static final int ACTION_FINISH = 4;
-	
-	public static final int ACTION_CANCEL = 8;
-	
-	private PreviousAction previousAction = new PreviousAction();
-	
-	private NextAction nextAction = new NextAction();
-	
-	private FinishAction finishAction = new FinishAction();
-	
-	private CancelAction cancelAction = new CancelAction();
-	
-	private AbstractAction[] actions = new AbstractAction[] {
-			previousAction, nextAction, finishAction, cancelAction
-	};
-	
-	public Wizard() {
+    /**
+     * manages the 4 basic wizard actions (previous|next|finish|cancel)
+     */
+    private final WizardButtonActionManager wizardButtonActionManager;
+
+    /**
+     * For each wizard page in the wizard, this flag determines
+     * whether {@link WizardPage#createPage()} will be called immediately
+     * upon being added to the wizard during {@link #launchWizard()}
+     */
+    private boolean createPageUponAdding;
+
+
+    public Wizard(boolean createPageUponAdding) {
+        this.createPageUponAdding = createPageUponAdding;
+        this.wizardButtonActionManager = new WizardButtonActionManager(this);
+        this.pageContainer = new WizardPagePanel();
     }
-    
-    public void addPage(WizardPage page) {
+
+
+    /**
+     * Entry point to the wizard pages.
+     *
+     * Constructs wizard and shows the first page if there are
+     * any, as determined by {@link #createWizardPages()}. If there are
+     * no pages, this method returns without displaying anything.
+     * 
+     */
+    public void launchWizard() {
+
+        // create the pages relevant to this wizard
+        List<WizardPage> wizardPages = createWizardPages();
+
+        // if none, end wizard
+        if (wizardPages.size() == 0) {
+            return;
+        }
+
+        // add pages to wizard
+        for (WizardPage wizardPage : wizardPages) {
+            addPage(wizardPage);
+        }
+
+        // set page container to the 1st page
+        show(wizardPages.get(0));
+
+        // create and show the dialog
+		showDialog(pageContainer);
+	}
+
+
+    /**
+     * Create and display main dialog, buttons, etc that
+     * comprise the wizard. Body of main wizard page is passed in.
+     *
+     * @param wizardPageContainer Body of main wizard page
+     */
+    protected abstract void showDialog(JPanel wizardPageContainer);
+
+
+    /**
+     * Create and return the list of wizard pages used in this wizard.
+     *
+     * Called by {@link #launchWizard()}.
+     *
+     * @return
+     */
+    protected abstract List<WizardPage> createWizardPages();
+
+
+    private void addPage(WizardPage page) {
     	page.setWizard(this);
-    	page.createPage();
-    	pageContainer.add(page);
+        if (createPageUponAdding) {
+            page.createPage();
+        }
+        pageContainer.add(page);
     }
-    
-    /*
-	 * Creates the main <tt>JDialog</tt> instance and
-	 * creates all of the setup window classes, buttons, etc.
-	 */
-	public JDialog createDialog(Frame parent) {
-		dialog = new JDialog(parent);
-		dialog.setModal(true);
-	   
-		// JDialog sizing seems to work differently with some Unix
-		// systems, so we'll just make it resizable.
-		if(!OSUtils.isUnix())
-		    dialog.setResizable(false);
-		
-        dialog.addWindowListener(new WindowAdapter() {
-            @Override
-            public void windowClosing(WindowEvent e) {
-                performCancel();
-            }
-        });
-        GUIUtils.addHideAction((JComponent)dialog.getContentPane());
 
-		// set the layout of the content pane
-		Container container = dialog.getContentPane();
-		BoxLayout containerLayout = new BoxLayout(container, BoxLayout.Y_AXIS);
-        container.setLayout(containerLayout);
+    /****************************************************************************/
+    /* Navigation methods to go from page to page, next page, previous page     */
+    /****************************************************************************/
+    protected final WizardPage getNextPage() {
+        return pageContainer.getNext(currentPage);
+    }
 
-		// create the main panel
-		JPanel setupPanel = new JPanel();
-		setupPanel.setBorder(new EmptyBorder(1, 1, 0, 0));
-		BoxLayout layout = new BoxLayout(setupPanel, BoxLayout.Y_AXIS);
-		setupPanel.setLayout(layout);
+    protected final WizardPage getCurrentPage() {
+        return currentPage;
+    }
 
-    	// create the setup buttons panel
-		setupPanel.add(pageContainer);
-		setupPanel.add(Box.createVerticalStrut(10));
-		ButtonRow buttons = new ButtonRow(actions, ButtonRow.X_AXIS, ButtonRow.LEFT_GLUE);
-		buttons.setBorder(new EmptyBorder(5, 5, 5, 5));
-		setupPanel.add(buttons);
-		
-		if (pageContainer.getFirst() != null) {
-			show(pageContainer.getFirst());
-		}
+    protected final WizardPage getPreviousPage() {
+        return pageContainer.getPrevious(currentPage);
+    }
 
-		// add the panel and make it visible		
-		container.add(setupPanel);
-
-		int width = Math.max(((JComponent)container).getPreferredSize().width, DIALOG_WIDTH);
-		int height = Math.max(((JComponent)container).getPreferredSize().height, DIALOG_HEIGHT);
-		((JComponent)container).setPreferredSize(new Dimension(width, height));
-		dialog.pack();
-		
-		return dialog;
-	}
-   
-	/**
-	 * Enables the bitmask of specified actions, the other actions are explicitly
-	 * disabled.
-	 * <p>
-	 * To enable finish and previous you would call
-	 * {@link #enableActions(int) enableActions(SetupManager.ACTION_FINISH|SetupManager.ACTION_PREVIOUS)}.
-	 * @param actions
-	 */
-	public void enableActions(int actions) {
-		previousAction.setEnabled((actions & ACTION_PREVIOUS) != 0);
-		nextAction.setEnabled((actions & ACTION_NEXT) != 0);
-		finishAction.setEnabled((actions & ACTION_FINISH) != 0);
-		cancelAction.setEnabled((actions & ACTION_CANCEL) != 0);
-	}
-	
-	public int getEnabledActions() {
-		int actions = 0;
-		if (previousAction.isEnabled()) {
-			actions |= ACTION_PREVIOUS;
-		}
-		if (nextAction.isEnabled()) {
-			actions |= ACTION_NEXT;
-		}
-		if (finishAction.isEnabled()) {
-			actions |= ACTION_FINISH;
-		}
-		if (cancelAction.isEnabled()) {
-			actions |= ACTION_CANCEL;
-		}
-		return actions;
-	}
-	
-	public WizardPage getNextPage(WizardPage page) {
+    final WizardPage getNextPage(WizardPage page) {
 		return pageContainer.getNext(page);
 	}
 
-	public WizardPage getPreviousPage(WizardPage page) {
+	final WizardPage getPreviousPage(WizardPage page) {
 		return pageContainer.getPrevious(page);
 	}
 
-	/**
-	 * Displays the next window in the setup sequence.
-	 */
-	public void performNext() {
-		WizardPage page = currentPage.getNext();
-		show(page);
-	}
+    /**
+     * Applies settings on the wizard's current page.
+     * {@link WizardPage#applySettings(boolean)}
+     *
+     */
+    protected final void applySettings(boolean loadCoreComponents) throws ApplySettingsException {
+        currentPage.applySettings(loadCoreComponents);
+    }
 
-	
-	/**
-	 * Displays the previous window in the setup sequence.
-	 */
-	public void performPrevious() {
-		WizardPage page = currentPage.getPrevious();
-		show(page);
-	}
-	
 
-	/**
-	 * Cancels the setup.
-	 */
-	public void performCancel() {
-		dialog.dispose();
-	}
+    protected final Action[] getButtonActions() {
+        return wizardButtonActionManager.getActions();
+    }
 
-	
-	/**
-	 * Completes the setup.
-	 */
-	public void performFinish() {		
-		dialog.dispose();
-	}
-	
-	/**
+
+    /**
 	 * Show the specified page.
 	 */
-	private void show(WizardPage page) {  
-		pageContainer.show(page.getKey());
+	protected final void show(WizardPage page) {
+        page.beforePageShown();
+        pageContainer.show(page.getKey());
 		currentPage = page;
-		page.pageShown();
+		page.afterPageShown();
 	}
 	
 	/**
 	 * Updates the buttons according to the status of the currently visible
 	 * page.
 	 */
-	public void updateButtons() {
+    void updateButtons() {
 		if (currentPage == null) {
-			finishAction.setEnabled(false);
-			nextAction.setEnabled(false);
-			previousAction.setEnabled(false);			
+            wizardButtonActionManager.enableActions(WizardButtonActionManager.ACTION_CANCEL);
 		} else {
 			boolean complete = currentPage.isPageComplete();
 			boolean canFlipToNext = currentPage.canFlipToNextPage();
-			finishAction.setEnabled(complete && !canFlipToNext);
-			nextAction.setEnabled(complete && canFlipToNext);
-			previousAction.setEnabled(currentPage.getPrevious() != null);
+
+            boolean finishEnabled = (complete && !canFlipToNext);
+			boolean nextEnabled = (complete && canFlipToNext);
+			boolean previousEnabled = (currentPage.getPrevious() != null);
+
+            int actions = WizardButtonActionManager.ACTION_CANCEL;
+
+            if (finishEnabled) {
+                actions |= WizardButtonActionManager.ACTION_FINISH;
+            }
+            if (nextEnabled) {
+                actions |= WizardButtonActionManager.ACTION_NEXT;
+            }
+            if (previousEnabled) {
+                actions |= WizardButtonActionManager.ACTION_PREVIOUS;
+            }
+            wizardButtonActionManager.enableActions(actions);
+
 		}
 	}
 
-	private class CancelAction extends AbstractAction {
 
-		public CancelAction() {
-			putValue(Action.NAME, I18n.tr("Cancel"));
-		}
+    /**
+	 * Updates the language for the wizard buttons and re-displays the page
+     */
+    protected final void updateLanguage() {
+        wizardButtonActionManager.updateLanguage();
+        try {
+            applySettings(false);
+        } catch (ApplySettingsException ignored) {
+            // NOTE: Swallowing exception!
+        }
+        show(currentPage);
+    }
 
-		public void actionPerformed(ActionEvent e) {
-			performCancel();
-		}
-	}
-	
-	private class NextAction extends AbstractAction {
-		
-		public NextAction() {
-			putValue(Action.NAME, I18n.tr("Next >>"));
-		}
 
-		public void actionPerformed(ActionEvent e) {
-			performNext();
-		}
-	}
-	
-	private class PreviousAction extends AbstractAction {
 
-		public PreviousAction() {
-			putValue(Action.NAME, I18n.tr("<< Back"));
-		}
-		
-		public void actionPerformed(ActionEvent e) {
-			performPrevious();
-		}
-	}
-	
-	private class FinishAction extends AbstractAction {
-		
-		public FinishAction() {
-			putValue(Action.NAME, I18n.tr("Finish"));
-		}
 
-		public void actionPerformed(ActionEvent e) {
-			performFinish();
-		}
-		
-	}
-
-	/**
+    /**
 	 * This class serves two purposes.  First, it is a JPanel that
 	 * contains the body of a LimeWire setup window.  Second, it 
-	 * serves as a proxy for the underlying SetupWindow object that
+	 * serves as a proxy for the underlying WizardPage object that
 	 * that handles the actual drawing.
 	 */
 	private class WizardPagePanel extends JPanel {
@@ -307,7 +223,7 @@ public class Wizard {
 		/**
 		 * Adds the speficied window to the CardLayout based on its title.
 		 *
-		 * @param window the <tt>SetupWindow</tt> to add
+		 * @param page the <tt>WizardPage</tt> to add
 		 */
 		void add(WizardPage page) {
 			add(page, page.getKey());

@@ -1,4 +1,4 @@
-    package org.limewire.rudp;
+package org.limewire.rudp;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -8,14 +8,16 @@ import java.nio.channels.ClosedChannelException;
 import java.nio.channels.ConnectionPendingException;
 import java.nio.channels.SelectionKey;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
+import org.limewire.listener.EventBroadcaster;
+import org.limewire.logging.Log;
+import org.limewire.logging.LogFactory;
 import org.limewire.rudp.messages.AckMessage;
 import org.limewire.rudp.messages.DataMessage;
 import org.limewire.rudp.messages.FinMessage;
 import org.limewire.rudp.messages.KeepAliveMessage;
 import org.limewire.rudp.messages.RUDPMessage;
 import org.limewire.rudp.messages.SynMessage;
+import org.limewire.rudp.messages.SynMessage.Role;
 import org.limewire.service.ErrorService;
 
 /** 
@@ -30,10 +32,10 @@ public class UDPConnectionProcessor {
 
     /** Define the maximum chunk size read for data bytes
         before we will blow out the connection */
-    static final int   MAX_DATA_SIZE           = 4096;
+    public  static final int   MAX_DATA_SIZE           = 4096;
     
     /** Define the size of the data window */
-    static final int  DATA_WINDOW_SIZE        = 20;
+    public static final int  DATA_WINDOW_SIZE        = 20;
 
     /** Define the maximum accepted write ahead packet */
     private static final int  DATA_WRITE_AHEAD_MAX    = DATA_WINDOW_SIZE + 5;
@@ -87,20 +89,6 @@ public class UDPConnectionProcessor {
      *  shut down the connection (and its channel).
      */
     private static final long CHANNEL_SHUTDOWN_DELAY  = 30000;
-
-    // Define Connection states
-    //
-    /** The state on first creation before connection is established */
-	private static final int  PRECONNECT_STATE        = 0;
-    
-    /** The state while connecting is occurring. */
-    private static final int CONNECTING_STATE         = 1;
-
-    /** The state after a connection is established */
-    private static final int  CONNECT_STATE           = 2;
-
-    /** The state after user communication during shutdown */
-    private static final int  FIN_STATE               = 3;
     
     // Handle to various singleton objects in our architecture
     private UDPScheduler      _scheduler;
@@ -137,7 +125,7 @@ public class UDPConnectionProcessor {
 	private volatile byte     _theirConnectionID;
 
     /** The status of the connection */
-	private int               _connectionState;
+	private ConnectionState   _connectionState;
 
     /** Scheduled event for keeping connection alive  */
     private UDPTimerEvent     _keepaliveEvent;
@@ -250,13 +238,24 @@ public class UDPConnectionProcessor {
    
     /** The context containing various aspects required for RUDP. */
     private final RUDPContext _context;
-   
-    /** Creates a new unconnected UDPConnectionProcessor. */
-    protected UDPConnectionProcessor(UDPSocketChannel channel, RUDPContext context) {
+
+    private final Role role;
+        
+    private final EventBroadcaster<UDPSocketChannelConnectionEvent> _connectionStateEventBroadcaster;
+
+        /** Creates a new unconnected UDPConnectionProcessor. 
+     * @param role defines the role it plays in the communication, either 
+     * requestor or acceptor 
+     */
+    protected UDPConnectionProcessor(UDPSocketChannel channel,
+                                     RUDPContext context,
+                                     Role role,
+                                     EventBroadcaster<UDPSocketChannelConnectionEvent> connectionStateEventBroadcaster) {
         // Init default state
         _context                 = context;
+        this.role = role;
+        this._connectionStateEventBroadcaster = connectionStateEventBroadcaster;
         _theirConnectionID       = UDPMultiplexor.UNASSIGNED_SLOT; 
-        _connectionState         = PRECONNECT_STATE;
         _lastSendTime            = 0l;
         _lastDataSendTime        = 0l;
         _chunkLimit              = DATA_WINDOW_SIZE;
@@ -268,6 +267,7 @@ public class UDPConnectionProcessor {
         _ackResendCount          = 0;
         _closeReasonCode         = FinMessage.REASON_NORMAL_CLOSE;
         _channel                 = channel;
+        setConnectionState(ConnectionState.PRECONNECT);
 
         _scheduler         = UDPScheduler.instance();
 
@@ -286,6 +286,11 @@ public class UDPConnectionProcessor {
         _periodHistory = _context.getRUDPSettings().getSkipAckHistorySize();
         _periods = new int[_periodHistory];
     }
+        
+    private void setConnectionState(ConnectionState newState) {
+        _connectionState = newState;
+        _connectionStateEventBroadcaster.broadcast(new UDPSocketChannelConnectionEvent(_channel, newState));
+    }
     
     /**
      * Attempts to connect to the given ip/port.
@@ -301,7 +306,7 @@ public class UDPConnectionProcessor {
         }        
         
         synchronized(this) {
-            if(_connectionState != PRECONNECT_STATE) {
+            if(_connectionState != ConnectionState.PRECONNECT) {
                 if(isConnected())
                     throw new AlreadyConnectedException();
                 else if(isClosed())
@@ -309,7 +314,7 @@ public class UDPConnectionProcessor {
                 else
                     throw new ConnectionPendingException();
             }
-            _connectionState = CONNECTING_STATE;
+            setConnectionState(ConnectionState.CONNECTING);
         }
         
         // Record their address
@@ -325,7 +330,11 @@ public class UDPConnectionProcessor {
         // which means each side can send/receive a SYN and ACK
 		tryToConnect();
     }
-    
+
+    public byte getTheirConnectionID() {
+        return _theirConnectionID;
+    }
+
     /** Sets the connection id this is using. */
     protected void setConnectionId(byte id) {
         this._myConnectionID = id;
@@ -376,7 +385,7 @@ public class UDPConnectionProcessor {
      */
     protected synchronized void close() throws IOException {
         // If closed then done
-        if ( _connectionState == FIN_STATE )
+        if ( _connectionState == ConnectionState.FIN )
             throw new IOException("already closed");
         
         if(_connectEvent != null)
@@ -399,16 +408,16 @@ public class UDPConnectionProcessor {
             _safeWriteWakeup.unregister();
         
         // Store the old state.
-        int oldState = _connectionState;
+        ConnectionState oldState = _connectionState;
 
 		// Register that the connection is closed
-        _connectionState = FIN_STATE;
+        setConnectionState(ConnectionState.FIN);
 
         // Track incoming ACKS for an ack of FinMessage
         _waitingForFinAck = true;  
 
 		// Tell the receiver that we are shutting down
-        if(oldState != PRECONNECT_STATE) {
+        if(oldState != ConnectionState.PRECONNECT) {
             safeSendFin();
 
             // Register for a full cleanup after a slight delay
@@ -446,7 +455,7 @@ public class UDPConnectionProcessor {
         if(!_receivedSynAck || _theirConnectionID == UDPMultiplexor.UNASSIGNED_SLOT)
             return false;
             
-        _connectionState = CONNECT_STATE;
+        setConnectionState(ConnectionState.CONNECTED);
         _sequenceNumber = 1;
         scheduleKeepAlive();
 
@@ -604,7 +613,7 @@ public class UDPConnectionProcessor {
      *  Test whether the connection is in connecting mode
      */
     protected synchronized boolean isConnected() {
-        return (_connectionState == CONNECT_STATE && 
+        return (_connectionState == ConnectionState.CONNECTED && 
                 _theirConnectionID != UDPMultiplexor.UNASSIGNED_SLOT);
     }
 
@@ -612,7 +621,7 @@ public class UDPConnectionProcessor {
      *  Test whether the connection is closed
      */
     protected synchronized boolean isClosed() {
-        return (_connectionState == FIN_STATE);
+        return (_connectionState == ConnectionState.FIN);
     }
 
     /**
@@ -627,8 +636,8 @@ public class UDPConnectionProcessor {
         // do we consider ourselves connected.
         
 	    return !isClosed() && 
-            (_connectionState == CONNECTING_STATE ||
-                    (_connectionState != PRECONNECT_STATE &&
+            (_connectionState == ConnectionState.CONNECTING ||
+                    (_connectionState != ConnectionState.PRECONNECT &&
                      _theirConnectionID == UDPMultiplexor.UNASSIGNED_SLOT)
             );
 	}
@@ -932,7 +941,7 @@ public class UDPConnectionProcessor {
         long waitTime = now - _startedConnecting;
         if (waitTime > MAX_CONNECT_WAIT_TIME) {
             LOG.debug("Timed out, waited for: " + waitTime);
-            _connectionState = FIN_STATE;
+            setConnectionState(ConnectionState.FIN);
             _channel.eventPending();
         } else {
             // We cannot send the SYN until we've registered in the Multiplexor.
@@ -940,9 +949,9 @@ public class UDPConnectionProcessor {
                 // Build SYN message with my connectionID in it
                 SynMessage synMsg;
                 if (_theirConnectionID != UDPMultiplexor.UNASSIGNED_SLOT)
-                    synMsg = _context.getMessageFactory().createSynMessage(_myConnectionID, _theirConnectionID);
+                    synMsg = _context.getMessageFactory().createSynMessage(_myConnectionID, _theirConnectionID, role);
                 else
-                    synMsg = _context.getMessageFactory().createSynMessage(_myConnectionID);
+                    synMsg = _context.getMessageFactory().createSynMessage(_myConnectionID, role);
     
                 LOG.debug("Sending SYN: " + synMsg);
                 // Send a SYN packet with our connectionID
@@ -968,7 +977,8 @@ public class UDPConnectionProcessor {
 
         // First Message from other host - get his connectionID.
         byte       theirConnID = smsg.getSenderConnectionID();
-        if ( _theirConnectionID == UDPMultiplexor.UNASSIGNED_SLOT ) { 
+        LOG.debugf("our id: {0}, their id: {1}, their sender id: {2}", _theirConnectionID, theirConnID, smsg.getSenderConnectionID());
+        if ( _theirConnectionID == UDPMultiplexor.UNASSIGNED_SLOT ) {
             // Keep track of their connectionID
             _theirConnectionID = theirConnID;
         } else if ( _theirConnectionID == theirConnID ) {
@@ -1038,7 +1048,7 @@ public class UDPConnectionProcessor {
         } else if ( _waitingForFinAck && seqNo == _finSeqNo ) { 
             // A fin message has been acked on shutdown
             _waitingForFinAck = false;
-        } else if (_connectionState == CONNECT_STATE) {
+        } else if (_connectionState == ConnectionState.CONNECTED) {
             // Record the ack
             _sendWindow.ackBlock(seqNo);
             _writeRegulator.addMessageSuccess();

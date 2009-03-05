@@ -17,28 +17,28 @@ import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JTextField;
 
+import org.limewire.core.settings.SharingSettings;
 import org.limewire.i18n.I18nMarker;
 import org.limewire.util.StringUtils;
 
 import com.limegroup.gnutella.gui.ButtonRow;
 import com.limegroup.gnutella.gui.FileChooserHandler;
+import com.limegroup.gnutella.gui.FramedDialog;
 import com.limegroup.gnutella.gui.GUIMediator;
-import com.limegroup.gnutella.gui.GuiCoreMediator;
 import com.limegroup.gnutella.gui.I18n;
 import com.limegroup.gnutella.gui.SaveDirectoryHandler;
 import com.limegroup.gnutella.gui.SaveDirectoryHandler.ValidationResult;
 import com.limegroup.gnutella.gui.actions.RemoveSharedDirectoryAction;
 import com.limegroup.gnutella.gui.actions.SelectSharedDirectoryAction;
 import com.limegroup.gnutella.gui.library.RecursiveSharingPanel;
-import com.limegroup.gnutella.settings.SharingSettings;
 
 /**
  * This class displays a setup window for allowing the user to choose
  * the directory for saving their files.
  */
 //2345678|012345678|012345678|012345678|012345678|012345678|012345678|012345678|
-
-class SaveWindow extends SetupWindow {
+@SuppressWarnings("deprecation")
+final class SaveWindow extends SetupWindow {
 
     private static final String LEARN_MORE_URL = "http://www.limewire.org/wiki/index.php?title=Save_Folder_and_Shared_Folders";
     
@@ -55,32 +55,35 @@ class SaveWindow extends SetupWindow {
 
     private final RecursiveSharingPanel recursiveSharingPanel;
 
-	/**
+    /**
+     * the dialog window that holds all other gui elements for the wizard.
+     */
+    private final FramedDialog framedDialog;
+
+    /**
 	 * Creates the window and its components
 	 */
-	SaveWindow(SetupManager manager, boolean migrate) {
-		super(manager, I18nMarker.marktr("Save Folder and Shared Folders"), describeText(migrate), LEARN_MORE_URL);
-		
+	SaveWindow(FramedDialog framedDialog, boolean migrate) {
+		super(I18nMarker.marktr("Save Folder and Shared Folders"), describeText(migrate), LEARN_MORE_URL);
+		this.framedDialog = framedDialog;
 		recursiveSharingPanel = new RecursiveSharingPanel();
 		recursiveSharingPanel.getTree().setRootVisible(false);
         recursiveSharingPanel.getTree().setShowsRootHandles(true);
-        recursiveSharingPanel.setRoots(SharingSettings.DIRECTORIES_TO_SHARE.getValueAsArray());
+//        recursiveSharingPanel.setRoots(OldLibrarySettings.DIRECTORIES_TO_SHARE.getValueAsArray());
         recursiveSharingPanel.addRoot(SharingSettings.DEFAULT_SHARE_DIR);
-        recursiveSharingPanel.setFoldersToExclude(GuiCoreMediator.getFileManager().getFolderNotToShare());
+//        recursiveSharingPanel.setFoldersToExclude(GuiCoreMediator.getFileManager().getFolderNotToShare());
         recursiveSharingPanel.setRootsExpanded();
     }
 	
 	private static String describeText(boolean migrate) {
 	    if(!migrate)
-	        return I18nMarker.marktr("Please choose a folder where you would like your files to be downloaded. You can also choose folders you would like to share with other users running LimeWire.  Files you download will also be shared with other users running LimeWire.");
+	        return I18nMarker.marktr("Please choose a folder where you would like your files to be downloaded. You can also choose folders you would like to share with other users running LimeWire.");
 	    else
-	        return I18nMarker.marktr("LimeWire now downloads files to a new, different folder.  Please confirm the folder where you would like your files to be downloaded. You can also choose folders you would like to share with other users running LimeWire.  Files you download will also be shared with other users running LimeWire.");
+	        return I18nMarker.marktr("LimeWire now downloads files to a new, different folder.  Please confirm the folder where you would like your files to be downloaded. You can also choose folders you would like to share with other users running LimeWire.");
 	}
     
-    @Override
-    protected void createWindow() {
-        super.createWindow();
-        
+    protected void createPageContent() {
+
         recursiveSharingPanel.updateLanguage();
 
 		File saveDir = SharingSettings.getSaveDirectory();
@@ -139,7 +142,7 @@ class SaveWindow extends SetupWindow {
         gbc.anchor = GridBagConstraints.NORTHWEST;
         gbc.gridwidth = GridBagConstraints.REMAINDER;
         gbc.insets = new Insets(0, ButtonRow.BUTTON_SEP, 0, 0);
-        sharingPanelContainer.add(new JButton(new SelectSharedDirectoryAction(recursiveSharingPanel, _manager.getOwnerComponent())), gbc);
+        sharingPanelContainer.add(new JButton(new SelectSharedDirectoryAction(recursiveSharingPanel, framedDialog)), gbc);
         gbc.insets = new Insets(ButtonRow.BUTTON_SEP, ButtonRow.BUTTON_SEP, 0, 0);
         sharingPanelContainer.add(new JButton(new RemoveSharedDirectoryAction(recursiveSharingPanel)), gbc); 
         
@@ -215,8 +218,8 @@ class SaveWindow extends SetupWindow {
             }
         }
         
-        if(loadCoreComponents)
-            GuiCoreMediator.getFileManager().loadWithNewDirectories(roots, recursiveSharingPanel.getFoldersToExclude());
+//        if(loadCoreComponents)
+//            GuiCoreMediator.getFileManager().loadWithNewDirectories(roots, recursiveSharingPanel.getFoldersToExclude());
         
         if (!errors.isEmpty()) {
             throw new ApplySettingsException(StringUtils.explode(errors, "\n\n"));

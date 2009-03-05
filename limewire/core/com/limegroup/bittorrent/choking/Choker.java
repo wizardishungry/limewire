@@ -9,12 +9,19 @@ import java.util.concurrent.TimeUnit;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.limewire.collection.NECallable;
+import org.limewire.core.settings.BittorrentSettings;
 import org.limewire.nio.observer.Shutdownable;
 
 import com.limegroup.bittorrent.Chokable;
-import com.limegroup.bittorrent.settings.BittorrentSettings;
 import com.limegroup.gnutella.UploadServices;
 
+/**
+ * As defined at <a href="http://www.bittorrent.org/beps/bep_0003.html">The 
+ * BitTorrent Protocol Specification</a> "Choking is done for several reasons. 
+ * TCP congestion control behaves very poorly when sending over many 
+ * connections at once. Also, choking lets each peer use a 
+ * tit-for-tat-ish algorithm to ensure that they get a consistent download rate."
+ */
 public abstract class Choker implements Runnable, Shutdownable {
 	
 	private static final Log LOG = LogFactory.getLog(Choker.class);

@@ -57,11 +57,6 @@
     </dependency>
     <dependency>
       <groupId>org.limewire</groupId>
-      <artifactId>lw-lib</artifactId>
-      <version>${limewire.version}</version>
-    </dependency>
-    <dependency>
-      <groupId>org.limewire</groupId>
       <artifactId>mojito</artifactId>
       <version>1.0-SNAPSHOT</version>
     </dependency>
@@ -83,6 +78,21 @@
     <dependency>
       <groupId>org.limewire</groupId>
       <artifactId>lw-geocode</artifactId>
+      <version>${limewire.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.limewire</groupId>
+      <artifactId>lw-core-api</artifactId>
+      <version>${limewire.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.limewire</groupId>
+      <artifactId>lw-core-settings</artifactId>
+      <version>${limewire.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.limewire</groupId>
+      <artifactId>lw-swarm</artifactId>
       <version>${limewire.version}</version>
     </dependency>
 	<!-- Customized LimeWire Jars --> 
@@ -144,6 +154,16 @@
       <artifactId>cocoaFoundation</artifactId>
       <version>1</version>
 	  <scope>compile</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.limewire</groupId>
+      <artifactId>daap</artifactId>
+      <version>1.1</version>
+    </dependency>
+    <dependency>
+      <groupId>jmdns</groupId>
+      <artifactId>jmdns</artifactId>
+      <version>1.0</version>
     </dependency>
   </dependencies>
 

@@ -113,7 +113,7 @@ public class IntSet {
         //Don't forget to check last interval.
         Interval last=get(list.size()-1);
         assert last.low<=last.high :
-                    "Backwards interval: "+toString();
+                    "Backwards interval: " + this;
         countedSize+=(last.high-last.low+1);
 
         assert countedSize==size :
@@ -121,10 +121,25 @@ public class IntSet {
     }
     
     /** Returns the i'th Interval in this. */
-    private final Interval get(int i) {
+    private Interval get(int i) {
         return list.get(i);
     }
 
+    public int max() {
+        if(list.isEmpty()) {
+            return -1;
+        } else {
+            return list.get(list.size()-1).high;
+        }
+    }
+    
+    public int min() {
+        if(list.isEmpty()) {
+            return -1;
+        } else {
+            return list.get(0).low;
+        }
+    }
 
     /**
      * Returns the largest i s.t. list[i].low<=x, or -1 if no such i.
@@ -135,7 +150,7 @@ public class IntSet {
      * be used because they only return exact matches.  Also, they require
      * allocating a dummy Interval to represent x.
      */
-    private final int search(int x) {
+    private int search(int x) {
         int low=0;
         int high=list.size()-1;
 
@@ -168,6 +183,11 @@ public class IntSet {
 
     public int size() {
         return this.size;
+    }
+
+    public void clear() {
+        this.size = 0;
+        this.list.clear();
     }
 
     public boolean contains(int x) {
@@ -309,11 +329,11 @@ public class IntSet {
         for (IntSetIterator iter = this.iterator(); iter.hasNext(); ) {
             int x = iter.next();
             if (! s.contains(x))
-                removeList.add(new Integer(x));
+                removeList.add(x);
         }
         //It's marginally more efficient to remove items from end to beginning.
         for (int i=removeList.size()-1; i>=0; i--) {
-            int x = (removeList.get(i)).intValue();
+            int x = removeList.get(i);
             this.remove(x);
         }
         //Did we remove any items?

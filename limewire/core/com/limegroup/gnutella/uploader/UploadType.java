@@ -7,11 +7,11 @@ package com.limegroup.gnutella.uploader;
  */
 public enum UploadType {    
     SHARED_FILE(false),
-    BROWSE_HOST,
+    BROWSE_HOST(false),
     PUSH_PROXY,
     UPDATE_FILE,
     MALFORMED_REQUEST,
-    INVALID_URN,
+    FILE_NOT_FOUND,
     FILE_VIEW,
     RESOURCE_FILE,
     BROWSER_CONTROL,

@@ -15,6 +15,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import junit.framework.Test;
 
 import org.limewire.io.GGEP;
+import org.limewire.io.GUID;
 import org.limewire.io.IpPort;
 import org.limewire.io.IpPortImpl;
 import org.limewire.io.NetworkInstanceUtils;
@@ -34,10 +35,8 @@ import com.limegroup.gnutella.ConnectionManagerImpl;
 import com.limegroup.gnutella.ConnectionServices;
 import com.limegroup.gnutella.Endpoint;
 import com.limegroup.gnutella.ExtendedEndpoint;
-import com.limegroup.gnutella.GUID;
 import com.limegroup.gnutella.HostCatcher;
 import com.limegroup.gnutella.LimeTestUtils;
-import com.limegroup.gnutella.MessageRouter;
 import com.limegroup.gnutella.NetworkManager;
 import com.limegroup.gnutella.NodeAssigner;
 import com.limegroup.gnutella.QueryUnicaster;
@@ -46,7 +45,6 @@ import com.limegroup.gnutella.connection.RoutedConnectionFactory;
 import com.limegroup.gnutella.filters.IPFilter;
 import com.limegroup.gnutella.messages.Message.Network;
 import com.limegroup.gnutella.messages.vendor.CapabilitiesVMFactory;
-import com.limegroup.gnutella.settings.SSLSettings;
 import com.limegroup.gnutella.simpp.SimppManager;
 import com.limegroup.gnutella.stubs.NetworkManagerStub;
 import com.limegroup.gnutella.util.LimeTestCase;
@@ -82,6 +80,9 @@ public class PingReplyTest extends LimeTestCase {
         networkManagerStub = new NetworkManagerStub();
         networkManagerStub.setPort(5555);
         networkManagerStub.setAddress(new byte[] { 89, 1, 45, 54 }) ;
+        networkManagerStub.setTls(true);
+        networkManagerStub.setIncomingTLSEnabled(true);
+        networkManagerStub.setOutgoingTLSEnabled(true);
         
         Injector injector = LimeTestUtils.createInjector(new AbstractModule() {
             @Override
@@ -344,7 +345,7 @@ public class PingReplyTest extends LimeTestCase {
         //OK Now for the big pong part
         payload[14] = (byte) 65;
         payload[15] = (byte) 66;
-        PingReply pr=null;
+        PingReply pr;
         pr = pingReplyFactory.createFromNetwork(new byte[16], (byte)2, (byte)4, payload);
         assertTrue(! pr.hasGGEPExtension());
 
@@ -370,7 +371,7 @@ public class PingReplyTest extends LimeTestCase {
 
 
     public void testBasicGGEP() throws Exception {
-        SSLSettings.TLS_INCOMING.setValue(true);
+        networkManagerStub.setIncomingTLSEnabled(true);
         
         // create a pong
         PingReply pr = 
@@ -389,7 +390,7 @@ public class PingReplyTest extends LimeTestCase {
         assertFalse(pong.supportsUnicast());
         assertTrue(pong.isTLSCapable());
         // make sure it's still capable if we turn our settings off.
-        SSLSettings.TLS_INCOMING.setValue(false);
+        networkManagerStub.setIncomingTLSEnabled(false);
         assertTrue(pong.isTLSCapable());
         
         // And try creating a new pong w/o TLS.
@@ -402,7 +403,7 @@ public class PingReplyTest extends LimeTestCase {
         pong=(PingReply)m;
         assertFalse(pong.isTLSCapable());
         // make sure it's still off if we turn our settings on.
-        SSLSettings.TLS_INCOMING.setValue(true);
+        networkManagerStub.setIncomingTLSEnabled(true);
         assertFalse(pong.isTLSCapable());
     }
 
@@ -535,7 +536,7 @@ public class PingReplyTest extends LimeTestCase {
      *  these can be decoded.  Note that this will need to be changed if
      *  more extensions are added. */
     public void testGGEPEncodeDecodeNoTLS() throws Exception {
-        SSLSettings.TLS_INCOMING.setValue(false);
+        networkManagerStub.setIncomingTLSEnabled(false);
         PingReply pr=pingReplyFactory.create(new byte[16], (byte)3, 6349, IP,
                                       0l, 0l, true, 523, false);        
         ByteArrayOutputStream baos=new ByteArrayOutputStream();
@@ -602,7 +603,7 @@ public class PingReplyTest extends LimeTestCase {
     public void testQueryKeyPong() throws Exception {
         byte[] randBytes = new byte[8];
         (new Random()).nextBytes(randBytes);
-        AddressSecurityToken qk = null;
+        AddressSecurityToken qk;
         GUID guid = new GUID(GUID.makeGuid());
         byte[] ip={(byte)18, (byte)239, (byte)3, (byte)144};
         qk = new AddressSecurityToken(randBytes, macManager);
@@ -827,7 +828,6 @@ public class PingReplyTest extends LimeTestCase {
         l = new LinkedList(l);
         l.add(new Endpoint("1.5.3.5", 5));
         pr = pingReplyFactory.create(GUID.makeGuid(), (byte)1, l, null);
-        l = pr.getPackedIPPorts();
         assertFalse(pr.isUDPHostCache());
         l = pr.getPackedIPPorts();
         assertEquals(5, l.size());
@@ -1053,7 +1053,7 @@ public class PingReplyTest extends LimeTestCase {
         assertEquals(0, pr.getPackedUDPHostCaches().size());        
     }
     
-    private final byte[] toBytes(List l) throws Exception {
+    private byte[] toBytes(List l) throws Exception {
         StringBuffer sb = new StringBuffer();
         for(Iterator i = l.iterator(); i.hasNext(); ) {
             sb.append(i.next().toString());
@@ -1063,7 +1063,7 @@ public class PingReplyTest extends LimeTestCase {
         return sb.toString().getBytes();
     }
     
-    private final void addIP(byte[] payload) {
+    private void addIP(byte[] payload) {
         // fill up the ip so its not blank.
         payload[2] = 1;
         payload[3] = 1;
@@ -1088,7 +1088,6 @@ public class PingReplyTest extends LimeTestCase {
                 Provider<SimppManager> simppManager,
                 CapabilitiesVMFactory capabilitiesVMFactory,
                 RoutedConnectionFactory managedConnectionFactory,
-                Provider<MessageRouter> messageRouter,
                 Provider<QueryUnicaster> queryUnicaster,
                 SocketsManager socketsManager,
                 ConnectionServices connectionServices,
@@ -1099,7 +1098,7 @@ public class PingReplyTest extends LimeTestCase {
                 NetworkInstanceUtils networkInstanceUtils) {
             super(networkManager, hostCatcher, connectionDispatcher, 
                     backgroundExecutor, simppManager, capabilitiesVMFactory,
-                    managedConnectionFactory, messageRouter, queryUnicaster, 
+                    managedConnectionFactory, queryUnicaster, 
                     socketsManager, connectionServices, nodeAssigner, 
                     ipFilter, connectionCheckerManager, pingRequestFactory, networkInstanceUtils);
         }

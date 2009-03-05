@@ -3,16 +3,15 @@ package com.limegroup.gnutella.messages;
 import java.util.LinkedList;
 import java.util.List;
 
+import org.limewire.core.settings.ConnectionSettings;
+import org.limewire.io.GUID;
 import org.limewire.util.NameValue;
 
 import com.google.inject.Inject;
 import com.google.inject.Singleton;
 import com.limegroup.gnutella.ConnectionServices;
-import com.limegroup.gnutella.GUID;
 import com.limegroup.gnutella.NetworkManager;
 import com.limegroup.gnutella.messages.Message.Network;
-import com.limegroup.gnutella.settings.ConnectionSettings;
-import com.limegroup.gnutella.settings.SSLSettings;
 
 @Singleton
 public class PingRequestFactoryImpl implements PingRequestFactory {
@@ -126,7 +125,7 @@ public class PingRequestFactoryImpl implements PingRequestFactory {
         else
             data[0] = PingRequest.SCP_LEAF;
         
-        if(SSLSettings.isIncomingTLSEnabled())
+        if(networkManager.isIncomingTLSEnabled())
             data[0] |= PingRequest.SCP_TLS; // add our support for TLS.
         
         return data;

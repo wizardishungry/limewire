@@ -14,8 +14,12 @@ import javax.swing.SwingUtilities;
 import javax.swing.event.ChangeEvent;
 import javax.swing.event.ChangeListener;
 
+import org.limewire.core.settings.QuestionsHandler;
+import org.limewire.core.settings.SearchSettings;
+import org.limewire.core.settings.SharingSettings;
 import org.limewire.io.Connectable;
 import org.limewire.io.ConnectableImpl;
+import org.limewire.io.GUID;
 import org.limewire.io.IpPort;
 import org.limewire.io.IpPortSet;
 import org.limewire.promotion.PromotionSearcher;
@@ -27,12 +31,10 @@ import org.limewire.setting.FileSetting;
 import org.limewire.setting.evt.SettingEvent;
 import org.limewire.setting.evt.SettingListener;
 import org.limewire.util.I18NConvert;
+import org.limewire.util.MediaType;
 import org.limewire.util.StringUtils;
 
-import com.limegroup.gnutella.BrowseHostHandler;
 import com.limegroup.gnutella.Downloader;
-import com.limegroup.gnutella.GUID;
-import com.limegroup.gnutella.MediaType;
 import com.limegroup.gnutella.PushEndpoint;
 import com.limegroup.gnutella.RemoteFileDesc;
 import com.limegroup.gnutella.gui.DialogOption;
@@ -44,11 +46,8 @@ import com.limegroup.gnutella.gui.banner.Banner;
 import com.limegroup.gnutella.gui.download.DownloaderUtils;
 import com.limegroup.gnutella.gui.download.GuiDownloaderFactory;
 import com.limegroup.gnutella.gui.download.SearchResultDownloaderFactory;
-import com.limegroup.gnutella.search.HostData;
-import com.limegroup.gnutella.settings.QuestionsHandler;
-import com.limegroup.gnutella.settings.SearchSettings;
-import com.limegroup.gnutella.settings.SharingSettings;
-import com.limegroup.gnutella.settings.ThirdPartySearchResultsSettings;
+import com.limegroup.gnutella.gui.properties.ResultProperties;
+import com.limegroup.gnutella.messages.QueryReply;
 import com.limegroup.gnutella.util.LimeWireUtils;
 import com.limegroup.gnutella.xml.LimeXMLDocument;
 import com.limegroup.gnutella.xml.LimeXMLProperties;
@@ -273,22 +272,24 @@ public final class SearchMediator {
             return;
         
         // See if it is firewalled
-        byte[] serventIDBytes = rfd.getClientGUID();
+//        byte[] serventIDBytes = rfd.getClientGUID();
         // if the reply is to a multicast query, don't use any
         // push proxies so we definitely will send a UDP push request
-        Set<? extends IpPort> proxies = rfd.isReplyToMulticast() ? 
-            IpPort.EMPTY_SET : rfd.getPushProxies();
-        GUID serventID = new GUID(serventIDBytes);        
-        doBrowseHost2(rfd, serventID, proxies, rfd.supportsFWTransfer());
+// TODO       Set<? extends IpPort> proxies = rfd.isReplyToMulticast() ? 
+// TODO           IpPort.EMPTY_SET : rfd.getPushProxies();
+// TODO       GUID serventID = new GUID(serventIDBytes);        
+// TODO       doBrowseHost2(rfd, serventID, proxies, rfd.supportsFWTransfer());
+        throw new UnsupportedOperationException("old UI is broken");
      }
 
     /**
      * Allows for browsing of a host from outside of the search package.
      */
     public static void doBrowseHost(final RemoteFileDesc rfd) {
-        doBrowseHost2(rfd,
-                      new GUID(rfd.getClientGUID()), rfd.getPushProxies(),
-                      rfd.supportsFWTransfer());
+//        TODO doBrowseHost2(rfd,
+//        TODO              new GUID(rfd.getClientGUID()), rfd.getPushProxies(),
+//        TODO              rfd.supportsFWTransfer());
+        throw new UnsupportedOperationException("old UI is broken");
     }
 
 
@@ -308,13 +309,14 @@ public final class SearchMediator {
         // Update the GUID
         final GUID guid = new GUID(GUID.makeGuid());
         in.setGUID(guid);
-        BrowseHostHandler bhh =
-            GuiCoreMediator.getSearchServices().doAsynchronousBrowseHost(host, guid, 
-                                                   new GUID(GUID.makeGuid()), 
-                                                   null, false);
-                                         
-        in.setBrowseHostHandler(bhh);
+//        BrowseHostHandler bhh =
+//            GuiCoreMediator.getSearchServices().doAsynchronousBrowseHost(host, guid, 
+//                                                   new GUID(GUID.makeGuid()), 
+//                                                   null, false);
+//                                         
+//        in.setBrowseHostHandler(bhh);
         INPUT_MANAGER.panelReset(in);
+        throw new UnsupportedOperationException("broken");
     }
     
 
@@ -339,13 +341,14 @@ public final class SearchMediator {
         // Update the GUI
         GUID guid = new GUID(GUID.makeGuid());
         String title = host != null ? host.getAddress() + ":" + host.getPort() : I18n.tr("Firewalled Host"); 
-        ResultPanel rp =  addBrowseHostTab(guid, title);
+        /* ResultPanel rp = */ addBrowseHostTab(guid, title);
         // Do the actual browse host
-        BrowseHostHandler bhh = GuiCoreMediator.getSearchServices().doAsynchronousBrowseHost(
-                                    host, guid, serventID, proxies,
-                                    canDoFWTransfer);
-        
-        rp.setBrowseHostHandler(bhh);
+//        BrowseHostHandler bhh = GuiCoreMediator.getSearchServices().doAsynchronousBrowseHost(
+//                                    host, guid, serventID, proxies,
+//                                    canDoFWTransfer);
+//        
+//        rp.setBrowseHostHandler(bhh);
+        throw new UnsupportedOperationException("broken");
     }
 
     /**
@@ -367,24 +370,19 @@ public final class SearchMediator {
             return null;
             
         // generate a guid for the search.
-        byte[] guid = GuiCoreMediator.getSearchServices().newQueryGUID();
+        final byte[] guid = GuiCoreMediator.getSearchServices().newQueryGUID();
         
         // only add tab if this isn't a browse-host search.
+        //
+        // hand the SearchResultStats from doSearch() to addResultTab(), such 
+        // that it can access the search stats without having to looking them
+        // up.
+        //
         if (!info.isBrowseHostSearch())
             addResultTab(new GUID(guid), info);
         
-        doSearch(guid, info);        
-        doPromoSearch(guid, info);
+        doSearch(guid, info);
         
-        return guid;
-    }
-    
-    private static final boolean isPromotionalResultsDisabled() {
-        return (LimeWireUtils.isPro() && SearchSettings.DISABLE_PROMOTIONAL_RESULTS.getValue()) // local 
-            || !ThirdPartySearchResultsSettings.PROMOTION_SYSTEM_IS_ENABLED.getValue(); // remote
-    }
-    
-    private static void doPromoSearch(final byte[] guid, final SearchInformation info) {
         // Here is where we can intercept the query and look for terms
         // Only do this if we have enabled the promotion system
         // Also only do it if the promotion services are running
@@ -410,13 +408,13 @@ public final class SearchMediator {
                 public void run() {
                     final String query = info.getQuery();
                     promotionDatabase.search(query, new PromotionSearchResultsCallback() {
-                        
+    
                         public void process(final PromotionMessageContainer result) {
                             try {
                                 SwingUtilities.invokeAndWait(new Runnable() {
                                     public void run() {
                                         ResultPanel rp = SearchMediator
-                                        .getResultPanelForGUID(new GUID(guid));
+                                                .getResultPanelForGUID(new GUID(guid));
                                         if (rp == null)
                                             return;
                                         SearchResult sr = promoMessageConverter.convert(result, query);
@@ -432,8 +430,17 @@ public final class SearchMediator {
                         
                     }, GuiCoreMediator.getCachedGeoLocation().getGeocodeInformation());
                 }});
-        }
+        }     
+        
+        return guid;
     }
+    
+
+
+    private static final boolean isPromotionalResultsDisabled() {
+        return LimeWireUtils.isPro(); // && SearchSettings.DISABLE_PROMOTIONAL_RESULTS.getValue();
+    }
+
     
     /**
      * Triggers a search given the text in the search field.  For testing
@@ -583,13 +590,13 @@ public final class SearchMediator {
      * @modifies this
      */
     public static void handleQueryResult(RemoteFileDesc rfd,
-                                         HostData data,
+                                         QueryReply qr,
                                          Set<? extends IpPort> alts) {
-        byte[] replyGUID = data.getMessageGUID();
+        byte[] replyGUID = qr.getGUID();
         ResultPanel rp = getResultPanelForGUID(new GUID(replyGUID));
         
         if (rp != null)
-            RESULT_DISPLAYER.addQueryResult(replyGUID, new GnutellaSearchResult(rfd, data, alts), rp);
+            RESULT_DISPLAYER.addQueryResult(replyGUID, new GnutellaSearchResult(rfd, alts), rp);
     }
     
     /**
@@ -635,7 +642,7 @@ public final class SearchMediator {
     static void showProperties(final ResultPanel panel) {
         final TableLine[] lines = panel.getAllSelectedLines();
         if (lines.length > 0)
-            GUIMediator.showProperties(lines[0]);
+            GUIMediator.showProperties(new ResultProperties(lines[0]));
     }
 
     /**
@@ -689,18 +696,19 @@ public final class SearchMediator {
         // Also store the first SHA1 capable RFD for collecting alts.
         RemoteFileDesc sha1RFD = null;
         for(int i = 0; i < rfds.length; i++) {
-            RemoteFileDesc next = rfds[i];
+//            RemoteFileDesc next = rfds[i];
 			// this has been moved down until the download is actually started
             // next.setDownloading(true);
-            next.setRetryAfter(0);
-            if(next.getSHA1Urn() != null)
-                sha1RFD = next;
-            alts.remove(next);
+//            next.setRetryAfter(0);
+//            if(next.getSHA1Urn() != null)
+//                sha1RFD = next;
+//            alts.remove(next);
+            throw new UnsupportedOperationException("old UI is broken");
         }
 
         // If no SHA1 rfd, just use the first.
-        if(sha1RFD == null)
-            sha1RFD = rfds[0];
+//        if(sha1RFD == null)
+//            sha1RFD = rfds[0];
         
         // Now iterate through alts & add more rfds.
         for(IpPort next : alts) {
@@ -781,7 +789,8 @@ public final class SearchMediator {
 
 	private static void setAsDownloading(RemoteFileDesc[] rfds) {
 		for (int i = 0; i < rfds.length; i++) {
-			rfds[i].setDownloading(true);
+			//TODO rfds[i].setDownloading(true);
+            throw new UnsupportedOperationException("old UI is broken");
 		}
 	}
 	

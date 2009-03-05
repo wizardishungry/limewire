@@ -24,11 +24,20 @@ import org.apache.http.ProtocolException;
 import org.apache.http.message.BasicHttpRequest;
 import org.apache.http.message.BasicHttpResponse;
 import org.apache.http.message.BasicLineParser;
+import org.limewire.core.settings.ConnectionSettings;
+import org.limewire.core.settings.FilterSettings;
+import org.limewire.core.settings.LibrarySettings;
+import org.limewire.core.settings.NetworkSettings;
+import org.limewire.core.settings.SharingSettings;
+import org.limewire.core.settings.UltrapeerSettings;
+import org.limewire.core.settings.UploadSettings;
 import org.limewire.io.Connectable;
 import org.limewire.io.ConnectableImpl;
+import org.limewire.io.GUID;
 import org.limewire.io.NetworkInstanceUtils;
 import org.limewire.net.ConnectionDispatcher;
 import org.limewire.net.SocketsManager;
+import org.limewire.nio.ByteBufferCache;
 import org.limewire.util.TestUtils;
 
 import com.google.inject.AbstractModule;
@@ -36,18 +45,17 @@ import com.google.inject.Inject;
 import com.google.inject.Injector;
 import com.google.inject.Provider;
 import com.google.inject.Singleton;
+import com.google.inject.Stage;
 import com.google.inject.name.Named;
 import com.limegroup.gnutella.Acceptor;
 import com.limegroup.gnutella.ActivityCallback;
+import com.limegroup.gnutella.ApplicationServices;
 import com.limegroup.gnutella.ConnectionManager;
 import com.limegroup.gnutella.ConnectionManagerImpl;
 import com.limegroup.gnutella.ConnectionServices;
-import com.limegroup.gnutella.FileManager;
-import com.limegroup.gnutella.GUID;
 import com.limegroup.gnutella.HostCatcher;
 import com.limegroup.gnutella.LifecycleManager;
 import com.limegroup.gnutella.LimeTestUtils;
-import com.limegroup.gnutella.MessageRouter;
 import com.limegroup.gnutella.NetworkManager;
 import com.limegroup.gnutella.NetworkManagerImpl;
 import com.limegroup.gnutella.NodeAssigner;
@@ -62,6 +70,9 @@ import com.limegroup.gnutella.filters.IPFilter;
 import com.limegroup.gnutella.handshaking.HandshakeResponder;
 import com.limegroup.gnutella.handshaking.HandshakeResponse;
 import com.limegroup.gnutella.handshaking.HeadersFactory;
+import com.limegroup.gnutella.library.FileDesc;
+import com.limegroup.gnutella.library.FileManager;
+import com.limegroup.gnutella.library.FileManagerTestUtils;
 import com.limegroup.gnutella.messages.BadPacketException;
 import com.limegroup.gnutella.messages.Message;
 import com.limegroup.gnutella.messages.PingRequestFactory;
@@ -71,12 +82,6 @@ import com.limegroup.gnutella.messages.QueryReply;
 import com.limegroup.gnutella.messages.QueryRequest;
 import com.limegroup.gnutella.messages.QueryRequestFactory;
 import com.limegroup.gnutella.messages.vendor.CapabilitiesVMFactory;
-import com.limegroup.gnutella.settings.ConnectionSettings;
-import com.limegroup.gnutella.settings.FilterSettings;
-import com.limegroup.gnutella.settings.NetworkSettings;
-import com.limegroup.gnutella.settings.SharingSettings;
-import com.limegroup.gnutella.settings.UltrapeerSettings;
-import com.limegroup.gnutella.settings.UploadSettings;
 import com.limegroup.gnutella.simpp.SimppManager;
 import com.limegroup.gnutella.statistics.OutOfBandStatistics;
 import com.limegroup.gnutella.util.LimeTestCase;
@@ -84,23 +89,23 @@ import com.limegroup.gnutella.util.LimeTestCase;
 //ITEST
 public class PushUploadTest extends LimeTestCase {
 
-    private static final int PORT = 6668;
+    private final int PORT = 6668;
 
     /** Our listening port for pushes. */
-    private static final int PUSH_PORT = 6671;
+    private final int PUSH_PORT = 6671;
 
-    private static String testDirName = "com/limegroup/gnutella/uploader/data";
+    private String testDirName = "com/limegroup/gnutella/uploader/data";
 
-    private static String fileName = "alphabet test file#2.txt";
+    private String fileName = "alphabet test file#2.txt";
 
-    private static String url = "/get/0/alphabet%20test+file%232.txt";
+    private String url;
 
-    private static byte[] guid;
+    private byte[] guid;
 
-    private static Socket socket;
+    private Socket socket;
 
     /** The file contents. */
-    private static final String alphabet = "abcdefghijklmnopqrstuvwxyz";
+    private final String alphabet = "abcdefghijklmnopqrstuvwxyz";
 
     private FileManager fm;
 
@@ -124,21 +129,18 @@ public class PushUploadTest extends LimeTestCase {
         return buildTestSuite(PushUploadTest.class);
     }
 
-    private static void doSettings() throws Exception {
+    private void doSettings() throws Exception {
+        LibrarySettings.VERSION.setValue(LibrarySettings.LibraryVersion.FIVE_0_0.name());
         SharingSettings.ADD_ALTERNATE_FOR_SELF.setValue(false);
         FilterSettings.BLACK_LISTED_IP_ADDRESSES
                 .setValue(new String[] { "*.*.*.*" });
         FilterSettings.WHITE_LISTED_IP_ADDRESSES.setValue(new String[] {
                 "127.*.*.*", InetAddress.getLocalHost().getHostAddress() });
         NetworkSettings.PORT.setValue(PORT);
-
-        SharingSettings.EXTENSIONS_TO_SHARE.setValue("txt");
         UploadSettings.HARD_MAX_UPLOADS.setValue(10);
         UploadSettings.UPLOADS_PER_PERSON.setValue(10);
         UploadSettings.MAX_PUSHES_PER_HOST.setValue(9999);
-
         FilterSettings.FILTER_DUPLICATES.setValue(false);
-
         ConnectionSettings.NUM_CONNECTIONS.setValue(8);
         ConnectionSettings.CONNECT_ON_STARTUP.setValue(true);
         ConnectionSettings.LOCAL_IS_PRIVATE.setValue(false);
@@ -152,20 +154,7 @@ public class PushUploadTest extends LimeTestCase {
     protected void setUp() throws Exception {
         doSettings();
 
-        // copy resources
-        File testDir = TestUtils.getResourceFile(testDirName);
-        assertTrue("test directory could not be found", testDir.isDirectory());
-        File testFile = new File(testDir, fileName);
-        assertTrue("test file should exist", testFile.exists());
-        File sharedFile = new File(_sharedDir, fileName);
-        // we must use a separate copy method
-        // because the filename has a # in it which can't be a resource.
-        LimeTestUtils.copyFile(testFile, sharedFile);
-        assertTrue("should exist", new File(_sharedDir, fileName).exists());
-        assertGreaterThan("should have data", 0, new File(_sharedDir, fileName)
-                .length());
-
-        injector = LimeTestUtils.createInjector(new AbstractModule() {
+        injector = LimeTestUtils.createInjector(Stage.PRODUCTION, new AbstractModule() {
             @Override
             protected void configure() {
                 bind(NetworkManager.class).to(MyNetworkManager.class);
@@ -175,7 +164,10 @@ public class PushUploadTest extends LimeTestCase {
 
         // start services
         fm = injector.getInstance(FileManager.class);
-        fm.startAndWait(4000);
+        FileManagerTestUtils.waitForLoad(fm, 1000);
+        File testDir = TestUtils.getResourceFile(testDirName);
+        FileDesc fd = fm.getGnutellaFileList().add(new File(testDir, fileName)).get();
+        url = LimeTestUtils.getRelativeRequest(fd.getSHA1Urn());
         
         lifeCycleManager = injector.getInstance(LifecycleManager.class);
         lifeCycleManager.start();
@@ -184,6 +176,7 @@ public class PushUploadTest extends LimeTestCase {
         
         connectionManager = (MyConnectionManager) injector.getInstance(ConnectionManager.class);
     }
+        
 
     @Override
     public void tearDown() throws Exception {
@@ -452,9 +445,9 @@ public class PushUploadTest extends LimeTestCase {
         out = new BufferedWriter(new OutputStreamWriter(socket
                 .getOutputStream()));
 
-        assertEquals("Expected 'GIV', got null", "GIV 0:"
+        assertEquals("GIV 0:"
                 + new GUID(guid).toString() + "/file", in.readLine());
-        assertEquals("Expected blank line, got null", "", in.readLine());
+        assertEquals("", in.readLine());
     }
 
     private void closeConnection() throws IOException {
@@ -555,9 +548,10 @@ public class PushUploadTest extends LimeTestCase {
         public MyNetworkManager(Provider<UDPService> udpService, Provider<Acceptor> acceptor,
                 Provider<DHTManager> dhtManager, Provider<ConnectionManager> connectionManager,
                 Provider<ActivityCallback> activityCallback, OutOfBandStatistics outOfBandStatistics, 
-                NetworkInstanceUtils networkInstanceUtils, Provider<CapabilitiesVMFactory> capabilitiesVMFactory) {
-            super(udpService, acceptor, dhtManager, connectionManager, activityCallback,
-                    outOfBandStatistics, networkInstanceUtils, capabilitiesVMFactory);
+                NetworkInstanceUtils networkInstanceUtils, Provider<CapabilitiesVMFactory> capabilitiesVMFactory,
+                Provider<ByteBufferCache> bbCache, ApplicationServices applicationServices) {
+            super(udpService, acceptor, dhtManager, connectionManager,
+                    outOfBandStatistics, networkInstanceUtils, capabilitiesVMFactory, bbCache, applicationServices);
         }
 
         @Override
@@ -580,7 +574,6 @@ public class PushUploadTest extends LimeTestCase {
                 Provider<SimppManager> simppManager,
                 CapabilitiesVMFactory capabilitiesVMFactory,
                 RoutedConnectionFactory managedConnectionFactory,
-                Provider<MessageRouter> messageRouter,
                 Provider<QueryUnicaster> queryUnicaster,
                 SocketsManager socketsManager,
                 ConnectionServices connectionServices,
@@ -591,7 +584,7 @@ public class PushUploadTest extends LimeTestCase {
                 NetworkInstanceUtils networkInstanceUtils) {
             super(networkManager, hostCatcher, connectionDispatcher, backgroundExecutor,
                     simppManager, capabilitiesVMFactory, managedConnectionFactory,
-                    messageRouter, queryUnicaster, socketsManager, connectionServices,
+                    queryUnicaster, socketsManager, connectionServices,
                     nodeAssigner, ipFilter, connectionCheckerManager, pingRequestFactory, networkInstanceUtils);
         }
         

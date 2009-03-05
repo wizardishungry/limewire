@@ -1,10 +1,10 @@
 package com.limegroup.gnutella.gui.tables;
 
+import org.limewire.core.settings.LimeProps;
+import org.limewire.core.settings.TablesHandler;
 import org.limewire.setting.BooleanSetting;
 import org.limewire.setting.SettingsFactory;
 
-import com.limegroup.gnutella.settings.LimeProps;
-import com.limegroup.gnutella.settings.TablesHandler;
 
 /**
  * Manages settings for tables and their associated components.

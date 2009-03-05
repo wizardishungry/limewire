@@ -1,6 +1,5 @@
 package com.limegroup.gnutella.filters;
 
-import com.limegroup.gnutella.messages.BadPacketException;
 import com.limegroup.gnutella.messages.Message;
 import com.limegroup.gnutella.messages.QueryReply;
 
@@ -13,13 +12,8 @@ public class SpamReplyFilter implements SpamFilter {
         if (! (m instanceof QueryReply))
             return true;
 
-        try {
-            String vendor = ((QueryReply) m).getVendor();
-            return !vendor.equals("MUTE");
-        }
-        catch (BadPacketException bpe) {}
-
-        return true;
+        String vendor = ((QueryReply) m).getVendor();
+        return !vendor.equals("MUTE");
     }
 
 }

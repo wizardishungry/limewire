@@ -1,6 +1,10 @@
 package com.limegroup.bittorrent;
 
+import java.io.BufferedOutputStream;
 import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.OutputStream;
 import java.net.Socket;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -11,6 +15,10 @@ import java.util.concurrent.ScheduledExecutorService;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.limewire.core.settings.ConnectionSettings;
+import org.limewire.core.settings.SharingSettings;
+import org.limewire.core.settings.SpeedConstants;
+import org.limewire.io.IOUtils;
 import org.limewire.net.ConnectionDispatcher;
 import org.limewire.nio.AbstractNBSocket;
 import org.limewire.util.FileUtils;
@@ -21,28 +29,22 @@ import com.google.inject.Singleton;
 import com.google.inject.name.Named;
 import com.limegroup.bittorrent.Torrent.TorrentState;
 import com.limegroup.bittorrent.handshaking.IncomingConnectionHandler;
-import com.limegroup.gnutella.FileDesc;
-import com.limegroup.gnutella.FileManager;
-import com.limegroup.gnutella.SpeedConstants;
 import com.limegroup.gnutella.URN;
-import com.limegroup.gnutella.library.SharingUtils;
-import com.limegroup.gnutella.settings.ConnectionSettings;
-import com.limegroup.gnutella.settings.SharingSettings;
+import com.limegroup.gnutella.library.FileManager;
+import com.limegroup.gnutella.library.LibraryUtils;
 
 /**
- * Class which manages active torrents and dispatching of 
- * incoming BT connections.
- *   
- * Active torrents are torrents either in downloading or 
- * seeding state.
- * 
- * There number of active torrents cannot exceed certain limit.
- * 
+ * Manages active torrents and dispatching of incoming BitTorrent connections. 
+ * Active torrents are torrents either in downloading or seeding state.
+ * <p>
+ * The number of active torrents cannot exceed a certain limit, 
+ * <code>BittorrentSettings.TORRENT_MAX_UPLOADS</code>.
+ * <p>
  * After a torrent finishes its download, it stays in seeding state
  * indefinitely.  If the user wishes to start a new torrent download 
  * and the limit for active torrents is reached, the seeding torrent
  * with the best upload:download ratio gets terminated.
- * 
+ * <p>
  * If active torrent limit is reached and none of the torrents are seeding,
  * the new torrent is queued.
  */
@@ -83,12 +85,13 @@ public class TorrentManagerImpl implements TorrentManager {
     @Inject
     public TorrentManagerImpl(FileManager fileManager,
             @Named("backgroundExecutor") ScheduledExecutorService threadPool,
-            IncomingConnectionHandler incomingConnectionHandler) {
+            IncomingConnectionHandler incomingConnectionHandler, TorrentUploadCanceller torrentUploadCanceller) {
         this.incomingConnectionHandler = incomingConnectionHandler;
         this.fileManager = fileManager;
         this.threadPool = threadPool;
         // we are a torrent event listener too.
         listeners.add(this);
+        torrentUploadCanceller.register(this);
     }
     
     /**
@@ -324,8 +327,8 @@ public class TorrentManagerImpl implements TorrentManager {
         
         Runnable r = new Runnable() {
             public void run() {
-            	if (SharingUtils.isFilePhysicallyShareable(f))
-            		fileManager.addFileForSession(f);
+            	if (LibraryUtils.isFileManagable(f))
+            		fileManager.getGnutellaFileList().addForSession(f);
             }
         };
         threadPool.execute(r);
@@ -343,11 +346,14 @@ public class TorrentManagerImpl implements TorrentManager {
         final boolean fdelete = delete || t.getState().equals(TorrentState.TRACKER_FAILURE); 
         Runnable r = new Runnable() {
             public void run() {
-                FileDesc fd = fileManager.stopSharingFile(f);          
-                if(fd != null && fdelete){
-                    FileUtils.delete(fd.getFile(), false);
-                } else
-                	f.setLastModified(System.currentTimeMillis());
+                if(fileManager.getManagedFileList().remove(f)) {
+                    fileManager.getGnutellaFileList().remove(f);      
+                    if(fdelete) {
+                        FileUtils.delete(f, false);
+                    } else {
+                        f.setLastModified(System.currentTimeMillis());
+                    }
+                }
             }
         };
         threadPool.execute(r);
@@ -359,7 +365,39 @@ public class TorrentManagerImpl implements TorrentManager {
      */
     public File getSharedTorrentMetaDataFile(BTMetaInfo info) {
         String fileName = info.getFileSystem().getName().concat(".torrent");
-        File f = new File(SharingUtils.APPLICATION_SPECIAL_SHARE, fileName);
+        File f = new File(LibraryUtils.APPLICATION_SPECIAL_SHARE, fileName);
         return f;
+    }
+
+    @Override
+    public void shareTorrentFile(BTMetaInfo m, byte[] body) {
+        if (SharingSettings.SHARE_TORRENT_META_FILES.getValue() && !m.isPrivate()) {
+            final File tFile = getSharedTorrentMetaDataFile(m);
+            fileManager.getGnutellaFileList().remove(tFile);
+
+            File backup = null;
+            if (tFile.exists()) {
+                backup = new File(tFile.getParent(), tFile.getName().concat(".bak"));
+                FileUtils.forceRename(tFile, backup);
+            }
+            OutputStream out = null;
+            try {
+                out = new BufferedOutputStream(new FileOutputStream(tFile));
+                out.write(body);
+                out.flush();
+                if (backup != null) {
+                    backup.delete();
+                }
+            } catch (IOException ioe) {
+                if (backup != null) {
+                    // restore backup
+                    if (FileUtils.forceRename(backup, tFile)) {
+                        fileManager.getGnutellaFileList().add(tFile);
+                    }
+                }
+            } finally {
+                IOUtils.close(out);
+            }
+        }
     }
 }	

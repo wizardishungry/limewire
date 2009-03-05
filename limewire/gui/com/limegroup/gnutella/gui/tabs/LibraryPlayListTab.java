@@ -6,12 +6,13 @@ import javax.swing.JComponent;
 import javax.swing.JPanel;
 import javax.swing.JSplitPane;
 
+import org.limewire.core.settings.ApplicationSettings;
+import org.limewire.core.settings.UISettings;
+
 import com.limegroup.gnutella.gui.GUIMediator;
 import com.limegroup.gnutella.gui.I18n;
 import com.limegroup.gnutella.gui.library.LibraryMediator;
 import com.limegroup.gnutella.gui.util.DividerLocationSettingUpdater;
-import com.limegroup.gnutella.settings.ApplicationSettings;
-import com.limegroup.gnutella.settings.UISettings;
 
 /**
  * This class handles access to the tab that contains the library

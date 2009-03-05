@@ -15,19 +15,17 @@ import javax.swing.border.EmptyBorder;
 
 import org.limewire.util.FileUtils;
 
-import com.limegroup.gnutella.FileManager;
-import com.limegroup.gnutella.gui.GuiCoreMediator;
 import com.limegroup.gnutella.gui.I18n;
 import com.limegroup.gnutella.gui.actions.RemoveSharedDirectoryAction;
 import com.limegroup.gnutella.gui.actions.SelectSharedDirectoryAction;
 import com.limegroup.gnutella.gui.library.RecursiveSharingPanel;
-import com.limegroup.gnutella.settings.SharingSettings;
 
 /**
  * This class defines the panel in the options window that allows the user
  * to change the directory that are shared.
  */
 //2345678|012345678|012345678|012345678|012345678|012345678|012345678|012345678|
+@SuppressWarnings("deprecation")
 public final class SharedDirPaneItem extends AbstractPaneItem {
 
     public final static String TITLE = I18n.tr("Shared Folders");
@@ -51,9 +49,10 @@ public final class SharedDirPaneItem extends AbstractPaneItem {
 	    super(TITLE, LABEL);
 	    
 		sharingPanel.setFileFilter(new FileFilter() {
-		    private final FileManager fileManager = GuiCoreMediator.getFileManager();
+//		    private final FileManager fileManager = GuiCoreMediator.getFileManager();
             public boolean accept(File pathname) {
-                return fileManager.isFolderShareable(pathname, false);
+                return true;
+//                return fileManager.isFolderShareable(pathname, false);
             }
 		    
 		});
@@ -100,11 +99,12 @@ public final class SharedDirPaneItem extends AbstractPaneItem {
 	 * Sets the options for the fields in this <tt>PaneItem</tt> when the 
 	 * window is shown.
 	 */
-	@Override
+	@SuppressWarnings("deprecation")
+    @Override
     public void initOptions() {
-		File[] dirs = SharingSettings.DIRECTORIES_TO_SHARE.getValueAsArray();
+		File[] dirs = null; //OldLibrarySettings.DIRECTORIES_TO_SHARE.getValueAsArray();
 		initialFoldersToShare = new HashSet<File>(Arrays.asList(dirs));
-		initialFoldersToExclude = GuiCoreMediator.getFileManager().getFolderNotToShare();
+//		initialFoldersToExclude = GuiCoreMediator.getFileManager().getFolderNotToShare();
 		sharingPanel.setRoots(dirs);
 		sharingPanel.setFoldersToExclude(initialFoldersToExclude);
 	}

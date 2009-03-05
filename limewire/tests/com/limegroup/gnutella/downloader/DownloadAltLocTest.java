@@ -11,22 +11,22 @@ import junit.framework.Test;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.limewire.concurrent.ManagedThread;
+import org.limewire.core.settings.ConnectionSettings;
+import org.limewire.core.settings.SpeedConstants;
 import org.limewire.io.Connectable;
 import org.limewire.io.IpPort;
 import org.limewire.io.LocalSocketAddressProvider;
 import org.limewire.service.ErrorService;
 import org.limewire.util.PrivilegedAccessor;
 
-import com.limegroup.gnutella.FileDesc;
-import com.limegroup.gnutella.IncompleteFileDesc;
 import com.limegroup.gnutella.RemoteFileDesc;
-import com.limegroup.gnutella.SpeedConstants;
 import com.limegroup.gnutella.Downloader.DownloadStatus;
 import com.limegroup.gnutella.altlocs.AlternateLocation;
 import com.limegroup.gnutella.altlocs.AlternateLocationCollection;
 import com.limegroup.gnutella.altlocs.DirectAltLoc;
 import com.limegroup.gnutella.helpers.AlternateLocationHelper;
-import com.limegroup.gnutella.settings.ConnectionSettings;
+import com.limegroup.gnutella.library.FileDesc;
+import com.limegroup.gnutella.library.IncompleteFileDesc;
 import com.limegroup.gnutella.stubs.LocalSocketAddressProviderStub;
 
 public class DownloadAltLocTest extends DownloadTestCase {
@@ -414,8 +414,7 @@ public class DownloadAltLocTest extends DownloadTestCase {
             public void run() {
                 try {
                     Thread.sleep(complete ? 4000 : 1500);
-                    FileDesc fd = fileManager.
-                        getFileDescForUrn(TestFile.hash());
+                    FileDesc fd = fileManager.getManagedFileList().getFileDescsMatching(TestFile.hash()).get(0);
                     assertTrue(fd instanceof IncompleteFileDesc);
                     altLocManager.add(
                             alternateLocationFactory.create(rfd2),this);
@@ -478,8 +477,7 @@ public class DownloadAltLocTest extends DownloadTestCase {
         ifm.addEntry(incFile, verifyingFileFactory.createVerifyingFile(TestFile.length()), true);
         
         // Get the IncompleteFileDesc and add these alt locs to it.
-        FileDesc fd =
-            fileManager.getFileDescForUrn(TestFile.hash());
+        FileDesc fd = fileManager.getManagedFileList().getFileDescsMatching(TestFile.hash()).get(0);
         assertNotNull(fd);
         assertInstanceof(IncompleteFileDesc.class, fd);
         altLocManager.add(al1, null);

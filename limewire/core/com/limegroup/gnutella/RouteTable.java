@@ -9,13 +9,14 @@ import java.util.Map;
 import java.util.TreeMap;
 
 import org.limewire.collection.MultiIterable;
+import org.limewire.core.settings.MessageSettings;
 import org.limewire.inspection.Inspectable;
+import org.limewire.io.GUID;
 import org.limewire.util.Base32;
 
 import com.limegroup.gnutella.messages.QueryReply;
 import com.limegroup.gnutella.messages.Message.Network;
 import com.limegroup.gnutella.search.ResultCounter;
-import com.limegroup.gnutella.settings.MessageSettings;
 import com.limegroup.gnutella.util.ClassCNetworks;
 
 /**
@@ -91,6 +92,8 @@ public final class RouteTable implements Inspectable {
         private int repliesRouted;
         /** The number of replies for partial files already routed for this GUID */
         private int partialRepliesRouted;
+        /** The number of replies not counted for flow control */
+        private int repliesNotCounted;
         /** The ttl associated with this RTE - meaningful only if > 0. */
         private byte ttl = 0;
         /** The class C networks that have returned a reply for this query */
@@ -113,13 +116,16 @@ public final class RouteTable implements Inspectable {
             this.handlerID = handlerID;
             this.bytesRouted = 0;
 			this.repliesRouted = 0;
+            this.repliesNotCounted = 0;
         }
 		
         public void setTTL(byte ttl) { this.ttl = ttl; }
         public byte getTTL() { return ttl; }
 
 		/** Accessor for the number of results for this entry. */
-        public int getNumResults() { return Math.max(0,repliesRouted - partialRepliesRouted); }
+        public int getNumResults() {
+            return Math.max(0, repliesRouted - partialRepliesRouted);
+        }
         
         void updateClassCNetworks(int classCNetwork, int numReplies) {
             classCnetworks.add(classCNetwork, numReplies);
@@ -290,10 +296,8 @@ public final class RouteTable implements Inspectable {
     }
 
     public synchronized ReplyRoutePair getReplyHandler(byte[] guid, 
-            int replyBytes,
-               short numReplies,
-               short partialReplies) {
-        return getReplyHandler(guid, replyBytes, numReplies, partialReplies, 0);
+            int replyBytes, short numReplies, short partialReplies) {
+        return getReplyHandler(guid, replyBytes, numReplies, partialReplies, 0, true);
     }
     
     /**
@@ -302,6 +306,8 @@ public final class RouteTable implements Inspectable {
      *
      * @param classCNetwork integer representing the classC network the replies 
      * came from.  0 if it should not be counted (as 0 is not a valid classC network).
+     * @param classCNetwork the class c network the reply came from, 0 if the class c
+     * networ should not be counted
      * @requires guid.length==16
      * @effects if no mapping for guid, or guid maps to null (i.e., to a removed
      *  ReplyHandler) returns null.  Otherwise returns a tuple containing the
@@ -313,7 +319,8 @@ public final class RouteTable implements Inspectable {
                                                        int replyBytes,
 													   short numReplies,
 													   short partialReplies,
-                                                       int classCNetwork) {
+                                                       int classCNetwork,
+                                                       boolean count) {
         //no purge
         repOk();
 
@@ -333,10 +340,13 @@ public final class RouteTable implements Inspectable {
         //Increment count, returning old count in tuple.
         ReplyRoutePair ret = 
             new ReplyRoutePair(handler, entry.bytesRouted, entry.repliesRouted);
-
-        entry.bytesRouted += replyBytes;
-        entry.repliesRouted += numReplies;
-        entry.partialRepliesRouted += partialReplies;
+        if(count) {
+            entry.bytesRouted += replyBytes;
+            entry.repliesRouted += numReplies;
+            entry.partialRepliesRouted += partialReplies;
+        } else {
+            entry.repliesNotCounted += numReplies;
+        }
         if (classCNetwork != 0)
             entry.updateClassCNetworks(classCNetwork, numReplies);
         return ret;
@@ -554,7 +564,7 @@ public final class RouteTable implements Inspectable {
      */
     private static class ExperimentalGUIDMap extends TreeMap<byte [], RouteTableEntry> {
         ExperimentalGUIDMap() {
-            super(new GUID.GUIDByteComparator());
+            super(GUID.GUID_BYTE_COMPARATOR);
         }
 
         @Override
@@ -590,7 +600,7 @@ public final class RouteTable implements Inspectable {
      * its a good idea to first inspect the stats to see how many
      * entries there are.
      */
-    public Object inspect() {
+    public synchronized Object inspect() {
         Map<String, Object> ret = new HashMap<String, Object>();
         Iterable<Map.Entry<byte[], RouteTableEntry>> bothMaps = 
             new MultiIterable<Map.Entry<byte[],RouteTableEntry>>(_newMap.entrySet(),_oldMap.entrySet());
@@ -600,6 +610,7 @@ public final class RouteTable implements Inspectable {
             m.put("br", e.bytesRouted);
             m.put("ttl", e.ttl);
             m.put("rr", e.repliesRouted);
+            m.put("rnc", e.repliesNotCounted);
             m.put("prr", e.partialRepliesRouted);
             m.put("cc", e.classCnetworks.getMap());
             m.put("rt", e.resultTimeStamps);

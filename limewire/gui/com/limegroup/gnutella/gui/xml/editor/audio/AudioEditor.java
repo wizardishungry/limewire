@@ -10,10 +10,10 @@ import javax.swing.JComboBox;
 import javax.swing.JScrollPane;
 import javax.swing.JTextArea;
 
-import com.limegroup.gnutella.FileDesc;
 import com.limegroup.gnutella.gui.xml.editor.AutoCompleteComboBoxEditor;
 import com.limegroup.gnutella.gui.xml.editor.MetaEditorPanel;
 import com.limegroup.gnutella.gui.xml.editor.MetaEditorUtil;
+import com.limegroup.gnutella.library.FileDesc;
 import com.limegroup.gnutella.xml.LimeXMLDocument;
 import com.limegroup.gnutella.xml.LimeXMLNames;
 import com.limegroup.gnutella.xml.LimeXMLSchema;

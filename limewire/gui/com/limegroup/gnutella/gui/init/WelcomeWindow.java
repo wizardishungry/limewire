@@ -1,9 +1,7 @@
 package com.limegroup.gnutella.gui.init;
 
 import javax.swing.Icon;
-
 import org.limewire.i18n.I18nMarker;
-
 import com.limegroup.gnutella.gui.GUIMediator;
 
 /**
@@ -16,8 +14,8 @@ final class WelcomeWindow extends SetupWindow {
 	/**
 	 * Creates the window and its components
 	 */
-	WelcomeWindow(SetupManager manager, boolean partial) {
-		super(manager, I18nMarker.marktr("Welcome"), partial ?
+	WelcomeWindow(boolean partial) {
+		super(I18nMarker.marktr("Welcome"), partial ?
 		    I18nMarker
                     .marktr("Welcome to the LimeWire setup wizard. LimeWire has recently added new features that require your configuration. LimeWire will guide you through a series of steps to configure these new features.") : I18nMarker
                     .marktr("Welcome to the LimeWire setup wizard. LimeWire will guide you through a series of steps to configure LimeWire for optimum performance."));
@@ -27,4 +25,6 @@ final class WelcomeWindow extends SetupWindow {
     public Icon getIcon() {
 		return GUIMediator.getThemeImage("lw_logo");
 	}
+
+    protected void createPageContent() { }
 }

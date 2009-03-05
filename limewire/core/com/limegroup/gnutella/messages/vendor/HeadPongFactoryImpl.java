@@ -12,9 +12,11 @@ import org.apache.commons.logging.LogFactory;
 import org.limewire.collection.BitNumbers;
 import org.limewire.collection.IntervalSet;
 import org.limewire.collection.MultiRRIterator;
+import org.limewire.core.settings.UploadSettings;
 import org.limewire.io.Connectable;
 import org.limewire.io.CountingOutputStream;
 import org.limewire.io.GGEP;
+import org.limewire.io.GUID;
 import org.limewire.io.IpPort;
 import org.limewire.service.ErrorService;
 import org.limewire.util.ByteUtils;
@@ -23,10 +25,6 @@ import com.google.inject.Inject;
 import com.google.inject.Provider;
 import com.google.inject.Singleton;
 import com.limegroup.gnutella.DownloadManager;
-import com.limegroup.gnutella.FileDesc;
-import com.limegroup.gnutella.FileManager;
-import com.limegroup.gnutella.GUID;
-import com.limegroup.gnutella.IncompleteFileDesc;
 import com.limegroup.gnutella.NetworkManager;
 import com.limegroup.gnutella.PushEndpointFactory;
 import com.limegroup.gnutella.URN;
@@ -36,10 +34,11 @@ import com.limegroup.gnutella.altlocs.AlternateLocation;
 import com.limegroup.gnutella.altlocs.AlternateLocationCollection;
 import com.limegroup.gnutella.altlocs.DirectAltLoc;
 import com.limegroup.gnutella.altlocs.PushAltLoc;
+import com.limegroup.gnutella.library.FileDesc;
+import com.limegroup.gnutella.library.FileManager;
+import com.limegroup.gnutella.library.IncompleteFileDesc;
 import com.limegroup.gnutella.messages.BadPacketException;
 import com.limegroup.gnutella.messages.Message.Network;
-import com.limegroup.gnutella.settings.SSLSettings;
-import com.limegroup.gnutella.settings.UploadSettings;
 
 @Singleton
 public class HeadPongFactoryImpl implements HeadPongFactory {
@@ -161,15 +160,17 @@ public class HeadPongFactoryImpl implements HeadPongFactory {
     /** Calculates the queue status. */
     private byte calculateQueueStatus() {
         int queueSize = uploadManager.get().getNumQueuedUploads();
-        
-        if (queueSize >= UploadSettings.UPLOAD_QUEUE_SIZE.getValue())
+
+        if(queueSize >= UploadSettings.UPLOAD_QUEUE_SIZE.getValue()) {
             return HeadPong.BUSY;
-        else if (queueSize > 0) 
-            return (byte) queueSize;
-        else   
-            return (byte)(uploadManager.get().uploadsInProgress() - 
-                          UploadSettings.HARD_MAX_UPLOADS.getValue()
-                         );
+        } else if(queueSize > 0) {
+            return (byte) Math.min(queueSize, 127); // 127 == HeadPong.BUSY
+        } else {
+            // Negative queue status means free slots
+            queueSize = uploadManager.get().uploadsInProgress() - 
+                        UploadSettings.HARD_MAX_UPLOADS.getValue();
+            return (byte) Math.max(Math.min(queueSize, 127), -128);
+        }
     }
 
     /** Calculates the code that should be returned, based on the FileDesc. */
@@ -198,7 +199,10 @@ public class HeadPongFactoryImpl implements HeadPongFactory {
         GGEP ggep = new GGEP();
         
         URN urn = ping.getUrn();
-        FileDesc desc = fileManager.get().getSharedFileDescForUrn(urn);
+        FileDesc desc = fileManager.get().getGnutellaFileList().getFileDesc(urn);
+        if(desc == null) {
+            desc = fileManager.get().getIncompleteFileList().getFileDesc(urn);
+        }
         // Easy case: no file, add code & exit
         if(desc == null) {
             ggep.put(HeadPong.CODE, HeadPong.FILE_NOT_FOUND);
@@ -211,7 +215,7 @@ public class HeadPongFactoryImpl implements HeadPongFactory {
         // If we're not firewalled and support TLS,
         // spread word about our TLS status.
         if(networkManager.acceptedIncomingConnection() && 
-                SSLSettings.isIncomingTLSEnabled() ) {
+                networkManager.isIncomingTLSEnabled() ) {
             ggep.put(HeadPong.FEATURES, HeadPong.TLS_CAPABLE);
             size += 4;
         }
@@ -286,7 +290,10 @@ public class HeadPongFactoryImpl implements HeadPongFactory {
     	DataOutputStream daos = new DataOutputStream(caos);
     	byte retCode=0;
     	URN urn = ping.getUrn();
-    	FileDesc desc = fileManager.get().getSharedFileDescForUrn(urn);
+    	FileDesc desc = fileManager.get().getGnutellaFileList().getFileDesc(urn);
+    	if(desc == null) {
+    	    desc = fileManager.get().getIncompleteFileList().getFileDesc(urn);
+    	}
     	boolean didNotSendAltLocs=false;
     	boolean didNotSendPushAltLocs = false;
     	boolean didNotSendRanges = false;

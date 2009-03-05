@@ -6,8 +6,9 @@ import java.util.Dictionary;
 import javax.swing.JLabel;
 import javax.swing.JSlider;
 
+import org.limewire.core.settings.DaapSettings;
+
 import com.limegroup.gnutella.gui.I18n;
-import com.limegroup.gnutella.settings.DaapSettings;
 
 public final class DaapBufferSizePaneItem extends AbstractPaneItem {
 

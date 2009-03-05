@@ -6,6 +6,8 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.net.URI;
+import java.util.Collections;
+import java.util.List;
 
 import javax.swing.SwingUtilities;
 
@@ -16,6 +18,11 @@ import org.apache.http.client.params.HttpClientParams;
 import org.apache.http.params.BasicHttpParams;
 import org.apache.http.params.HttpConnectionParams;
 import org.apache.http.params.HttpParams;
+import org.limewire.core.api.download.SaveLocationException;
+import org.limewire.core.api.download.SaveLocationManager;
+import org.limewire.core.settings.SharingSettings;
+import org.limewire.io.Address;
+import org.limewire.io.GUID;
 import org.limewire.io.IOUtils;
 import org.limewire.listener.EventListener;
 import org.limewire.nio.observer.Shutdownable;
@@ -24,11 +31,8 @@ import org.limewire.util.FileUtils;
 import com.limegroup.bittorrent.BTMetaInfo;
 import com.limegroup.gnutella.Downloader;
 import com.limegroup.gnutella.Endpoint;
-import com.limegroup.gnutella.GUID;
 import com.limegroup.gnutella.InsufficientDataException;
 import com.limegroup.gnutella.RemoteFileDesc;
-import com.limegroup.gnutella.SaveLocationException;
-import com.limegroup.gnutella.SaveLocationManager;
 import com.limegroup.gnutella.URN;
 import com.limegroup.gnutella.downloader.CoreDownloader;
 import com.limegroup.gnutella.downloader.DownloadStatusEvent;
@@ -41,7 +45,6 @@ import com.limegroup.gnutella.gui.download.DownloaderUtils;
 import com.limegroup.gnutella.gui.download.GuiDownloaderFactory;
 import com.limegroup.gnutella.http.HTTPHeaderName;
 import com.limegroup.gnutella.http.HttpClientListener;
-import com.limegroup.gnutella.settings.SharingSettings;
 import com.limegroup.gnutella.util.LimeWireUtils;
 
 public class TorrentFileFetcher implements HttpClientListener, CoreDownloader {
@@ -120,7 +123,7 @@ public class TorrentFileFetcher implements HttpClientListener, CoreDownloader {
 		if(SharingSettings.SHARE_TORRENT_META_FILES.getValue()) {
             final File tFile = 
                 GuiCoreMediator.getTorrentManager().getSharedTorrentMetaDataFile(m);
-            GuiCoreMediator.getFileManager().stopSharingFile(tFile);
+            GuiCoreMediator.getFileManager().getGnutellaFileList().remove(tFile);
 
             File backup = null;
             if(tFile.exists()) {
@@ -139,7 +142,7 @@ public class TorrentFileFetcher implements HttpClientListener, CoreDownloader {
                 if(backup != null) {
                     //restore backup
                     if(FileUtils.forceRename(backup, tFile)){
-                        GuiCoreMediator.getFileManager().addFileIfShared(tFile);
+                        GuiCoreMediator.getFileManager().getGnutellaFileList().add(tFile);
                     }
                 }
             } 
@@ -168,7 +171,7 @@ public class TorrentFileFetcher implements HttpClientListener, CoreDownloader {
 	private synchronized void removeDataLine() {
 		failed = true;
 		urn = null;
-		GuiCoreMediator.getActivityCallback().removeDownload(this);
+		GuiCoreMediator.getActivityCallback().downloadCompleted(this);
 	}
 	
 	public boolean requestFailed(HttpUriRequest method, HttpResponse response, IOException exc) {
@@ -234,6 +237,15 @@ public class TorrentFileFetcher implements HttpClientListener, CoreDownloader {
 
 	public int getNumHosts() {
 		return delegate == null ? 0 : delegate.getNumHosts();
+	}
+	
+	@Override
+	public List<Address> getSourcesAsAddresses() {
+	    if(delegate == null) {
+	        return Collections.emptyList();
+	    } else {
+	        return delegate.getSourcesAsAddresses();
+	    }
 	}
 
 	public int getNumberOfAlternateLocations() {
@@ -358,9 +370,9 @@ public class TorrentFileFetcher implements HttpClientListener, CoreDownloader {
 			delegate.setSaveFile(saveDirectory, fileName, overwrite);
 	}
 
-	public void stop() {
+	public void stop(boolean deleteFile) {
 		if (delegate != null)
-			delegate.stop();
+			delegate.stop(deleteFile);
 		else {
 			stopped = true;
 			if (aborter != null) {
@@ -490,8 +502,13 @@ public class TorrentFileFetcher implements HttpClientListener, CoreDownloader {
         return false;
     }
 
+    @Override
     public boolean allowRequest(HttpUriRequest request) {
         return true;
     }
 
+    @Override
+    public boolean isMementoSupported() {
+        return false;
+    }
 }

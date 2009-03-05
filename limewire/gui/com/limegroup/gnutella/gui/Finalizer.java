@@ -163,22 +163,5 @@ final class Finalizer {
         if(_shutdownImminent && _uploadsComplete && _downloadsComplete) {
             GUIMediator.shutdown();
         }
-    }
-    
-    /**
-     * Adds the specified <tt>Finalizable</tt> instance to the list of
-     * classes to notify prior to shutdown.
-     * 
-     * @param fin the <tt>Finalizable</tt> instance to register
-     */
-    static void addFinalizeListener(final FinalizeListener fin) {
-        Thread t = new Thread("FinalizeItem") {
-            @Override
-            public void run() {
-                fin.doFinalize();
-            }
-        };
-        GuiCoreMediator.getLifecycleManager().addShutdownItem(t);
-    }
-    
+    }    
 }

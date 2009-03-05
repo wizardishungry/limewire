@@ -198,7 +198,7 @@ final class MetadataModel {
             Map.Entry entry = (Map.Entry)i.next();
             
             NamedMediaType nmt = (NamedMediaType)entry.getKey();
-            String schema = nmt.getMediaType().getMimeType();
+            String schema = nmt.getMediaType().getSchema();
             // Then add the fields of those schemas.
             Iterator fields = ((Map)entry.getValue()).keySet().iterator();
             for(; fields.hasNext();) {

@@ -10,9 +10,7 @@ import java.net.Socket;
 import java.net.SocketTimeoutException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 
@@ -20,20 +18,27 @@ import org.hamcrest.BaseMatcher;
 import org.hamcrest.Description;
 import org.hamcrest.Matcher;
 import org.limewire.io.IOUtils;
+import org.limewire.io.IpPort;
 import org.limewire.nio.NIODispatcher;
 import org.limewire.util.AssertComparisons;
 import org.limewire.util.Base32;
+import org.limewire.net.TLSManager;
+import org.limewire.net.address.AddressEvent;
+import org.limewire.listener.ListenerSupport;
 
 import com.google.inject.AbstractModule;
 import com.google.inject.Guice;
 import com.google.inject.Injector;
 import com.google.inject.Module;
+import com.google.inject.Stage;
+import com.google.inject.TypeLiteral;
+import com.google.inject.util.Modules;
 import com.limegroup.gnutella.connection.BlockingConnectionFactory;
 import com.limegroup.gnutella.connection.BlockingConnectionFactoryImpl;
-import com.limegroup.gnutella.settings.SharingSettings;
 import com.limegroup.gnutella.stubs.ActivityCallbackStub;
 import com.limegroup.gnutella.stubs.NetworkManagerStub;
 
+@SuppressWarnings("deprecation")
 public class LimeTestUtils {
 
     public static void waitForNIO() throws InterruptedException {
@@ -81,6 +86,18 @@ public class LimeTestUtils {
     }
 
     /**
+     * generate a dummy repeating String of the specified length
+     */
+    public static String generateRepeatingStringByLength(String stringtoRepeat, int length) {
+        StringBuilder longStr = new StringBuilder();
+
+        while (longStr.length() < length) {
+            longStr.append(stringtoRepeat);
+        }
+        return longStr.substring(0, length);
+    }
+
+    /**
      * Simple copy.  Horrible performance for large files.
      * Good performance for alphabets.
      */
@@ -101,6 +118,7 @@ public class LimeTestUtils {
             fis.close();
         }
     }
+
 
     
     /**
@@ -138,11 +156,6 @@ public class LimeTestUtils {
 	    for(int i = 0; i < files.length; i++)
 	        files[i].delete();
 	}
-    
-    public static void setSharedDirectories(File[] dirs) {
-        Set<File> set = new HashSet<File>(Arrays.asList(dirs));
-        SharingSettings.DIRECTORIES_TO_SHARE.setValue(set);
-    }
 
     /**
      * Creates the Guice injector with the limewire default modules and the 
@@ -153,12 +166,14 @@ public class LimeTestUtils {
      * @return the injector
      */
     public static Injector createInjector(Class<? extends ActivityCallback> callbackClass, Module...modules) {
-        List<Module> list = new ArrayList<Module>();
-        list.addAll(Arrays.asList(modules));
-        list.add(new BlockingConnectionFactoryModule());
-        list.add(new LimeWireCoreModule(callbackClass));
-        Injector injector = Guice.createInjector(list);        
-        return injector;
+        return createInjector(Stage.DEVELOPMENT, callbackClass, modules);
+    }
+    
+    public static Injector createInjector(Stage stage, Class<? extends ActivityCallback> callbackClass, Module...modules) {
+        Module combinedReplacements = Modules.combine(modules);
+        Module combinedOriginals = Modules.combine(new LimeWireCoreModule(callbackClass), new BlockingConnectionFactoryModule());
+        Module replaced = Modules.override(combinedOriginals).with(combinedReplacements);
+        return Guice.createInjector(stage, replaced);
     }
 
     /**
@@ -166,6 +181,10 @@ public class LimeTestUtils {
      */
     public static Injector createInjector(Module... modules) {
         return createInjector(ActivityCallbackStub.class, modules);
+    }
+    
+    public static Injector createInjector(Stage stage, Module... modules) {
+        return createInjector(stage, ActivityCallbackStub.class, modules);
     }
 
     /**
@@ -179,7 +198,8 @@ public class LimeTestUtils {
      * @return the injector
      */
     public static Injector createInjectorAndStart(Class<? extends ActivityCallback> callbackClass, Module...modules) {
-        Injector injector = createInjector(callbackClass, modules);
+        // Use PRODUCTION to ensure all Services are created.
+        Injector injector = createInjector(Stage.PRODUCTION, callbackClass, modules);
         LifecycleManager lifecycleManager = injector.getInstance(LifecycleManager.class);
         lifecycleManager.start();
         return injector;
@@ -203,6 +223,8 @@ public class LimeTestUtils {
         @Override
         protected void configure() {
             bind(NetworkManager.class).toInstance(networkManagerStub);
+            bind(TLSManager.class).toInstance(networkManagerStub);
+            bind(new TypeLiteral<ListenerSupport<AddressEvent>>(){}).toInstance(networkManagerStub);
         }
     }
     
@@ -231,6 +253,38 @@ public class LimeTestUtils {
         finally {
             IOUtils.close(s);
         }
+    }
+    
+    public static String getRelativeRequest(URN urn) {
+        return getRelativeRequest(urn.httpStringValue());
+    }
+    
+    public static String getRelativeRequest(String urn) {
+        return "/uri-res/N2R?" + urn;
+    }
+    
+    public static String getRequest(IpPort host, URN urn) {
+        return getRequest(host.getAddress(), host.getPort(), urn);
+    }
+    
+    public static String getRequest(IpPort host, String urn) {
+        return getRequest(host.getAddress(), host.getPort(), urn);
+    }
+    
+    public static String getRequest(String host, int port, URN urn) {
+        return getRequest(host + ":" + port, urn);
+    }
+    
+    public static String getRequest(String host, int port, String urn) {
+        return getRequest(host + ":" + port, urn);
+    }
+    
+    public static String getRequest(String hostAndPort, URN urn) {
+        return getRequest(hostAndPort, urn.httpStringValue());
+    }
+    
+    public static String getRequest(String hostAndPort, String urn) {
+        return "http://" + hostAndPort + getRelativeRequest(urn);
     }
     
     /**

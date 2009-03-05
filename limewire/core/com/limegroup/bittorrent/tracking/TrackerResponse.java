@@ -11,6 +11,7 @@ import java.util.Map;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.limewire.core.settings.BittorrentSettings;
 import org.limewire.io.NetworkUtils;
 import org.limewire.service.ErrorService;
 import org.limewire.util.ByteUtils;
@@ -18,10 +19,9 @@ import org.limewire.util.StringUtils;
 
 import com.limegroup.bittorrent.TorrentLocation;
 import com.limegroup.bittorrent.ValueException;
-import com.limegroup.bittorrent.settings.BittorrentSettings;
 
 /**
- * Class parsing the response from a tracker
+ * Parses the response from a tracker.
  */
 class TrackerResponse {
 	private static final Log LOG = LogFactory.getLog(TrackerResponse.class);
@@ -56,7 +56,8 @@ class TrackerResponse {
 	 * 
 	 * @param t_response
 	 *            the <tt>Map</tt> decoded from the InputSteam
-	 * @throws ValueException
+	 * @throws ValueException for received bencoded data that does not 
+	 * match the expected structure  
 	 */
 	public TrackerResponse(Object t_response) throws ValueException {
 		if (!(t_response instanceof Map))
@@ -146,7 +147,8 @@ class TrackerResponse {
 	 *            List of <tt>Map</tt>
 	 * @return List of <tt>TorrentLocation</tt>
 	 * 
-	 * @throws ValueException
+	 * @throws ValueException for received bencoded data that does not 
+     * match the expected structure
 	 */
 	private static List<TorrentLocation> parsePeers(List peers) throws ValueException {
 		List<TorrentLocation> ret = new ArrayList<TorrentLocation>();
@@ -167,7 +169,8 @@ class TrackerResponse {
 	 * @param bytes
 	 *            the array to parse the peers from
 	 * @return non-null <tt>List</tt> of <tt>TorrentLocation</tt>
-	 * @throws ValueException
+	 * @throws ValueException for received bencoded data that does not 
+     * match the expected structure
 	 */
 	static List<TorrentLocation> parsePeers(byte[] bytes) throws ValueException {
         boolean containedInvalid = false;
@@ -200,8 +203,9 @@ class TrackerResponse {
 	 * 
 	 * @param peer
 	 *            a <tt>Map</tt> containing peer address, port and id
-	 * @return @throws
-	 *         ValueException
+	 * @throws
+	 *         ValueException for received bencoded data that does not 
+     * match the expected structure
 	 */
 	private static TorrentLocation parsePeer(Map peer) throws ValueException {
 		Object t_ip = peer.get("ip");
@@ -210,7 +214,7 @@ class TrackerResponse {
 					+ t_ip);
 		InetAddress addr;
 		try {
-			String ipS = new String((byte [])t_ip, org.limewire.http.Constants.ASCII_ENCODING);
+			String ipS = new String((byte [])t_ip, org.limewire.util.Constants.ASCII_ENCODING);
 			addr = InetAddress.getByName(ipS);
 		} catch (UnknownHostException uhe) {
 			throw new ValueException("bad tracker response - bad peer ip "
@@ -250,7 +254,8 @@ class TrackerResponse {
 	 * @param peerId
 	 *            the peer ID of the location
 	 * @return new <tt>TorrentLocation</tt> object
-	 * @throws ValueException
+	 * @throws ValueException for received bencoded data that does not 
+     * match the expected structure
 	 */
 	private static TorrentLocation parsePeer(InetAddress addr, int port,
 			byte [] peerId) throws ValueException {

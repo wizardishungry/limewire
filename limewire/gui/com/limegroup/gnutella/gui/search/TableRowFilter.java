@@ -5,9 +5,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.limewire.core.settings.SearchSettings;
+
 import com.limegroup.gnutella.URN;
 import com.limegroup.gnutella.search.QueryHandler;
-import com.limegroup.gnutella.settings.SearchSettings;
 
 /**
  * Filters out certain rows from the data model.

@@ -1,9 +1,9 @@
 package com.limegroup.gnutella.gui.notify;
 
+import org.limewire.core.settings.UISettings;
 import org.limewire.util.OSUtils;
 
 import com.limegroup.gnutella.gui.ResourceManager;
-import com.limegroup.gnutella.settings.UISettings;
 
 /**
  * This class acts as a proxy for a platform-specific user notification class.

@@ -12,7 +12,10 @@ import java.util.Set;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.limewire.concurrent.ThreadExecutor;
+import org.limewire.core.settings.ContentSettings;
+import org.limewire.i18n.I18nMarker;
 import org.limewire.lifecycle.Service;
+import org.limewire.lifecycle.ServiceRegistry;
 import org.limewire.service.ErrorService;
 
 import com.google.inject.Inject;
@@ -20,7 +23,6 @@ import com.google.inject.Singleton;
 import com.limegroup.gnutella.URN;
 import com.limegroup.gnutella.messages.vendor.ContentRequest;
 import com.limegroup.gnutella.messages.vendor.ContentResponse;
-import com.limegroup.gnutella.settings.ContentSettings;
 
 /**
  * Keeps track of content requests & responses.
@@ -78,7 +80,16 @@ public class ContentManager implements Service {
         this.ipPortContentAuthorityFactory = ipPortContentAuthorityFactory;
     }
     
+    @Inject
+    void register(ServiceRegistry registry) {
+        registry.register(this);
+    }
+    
     public void initialize() {}
+    
+    public String getServiceName() {
+        return I18nMarker.marktr("Content Management");
+    }
     
     /**
      * Initializes this content manager.
@@ -126,7 +137,7 @@ public class ContentManager implements Service {
         ContentResponseData response = CACHE.getResponse(urn);
         if(response != null || !ContentSettings.isManagementActive()) {
             if(LOG.isDebugEnabled())
-                LOG.debug("Immediate response for URN: " + urn);
+                LOG.debug("Immediate response for URN: " + urn + ", response: " + response);
             observer.handleResponse(urn, response);
         } else {
             if(LOG.isDebugEnabled())

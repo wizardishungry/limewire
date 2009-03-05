@@ -11,16 +11,16 @@ import java.util.Set;
 import junit.framework.Test;
 
 import org.limewire.collection.Range;
+import org.limewire.core.settings.SharingSettings;
+import org.limewire.io.ConnectableImpl;
 import org.limewire.util.PrivilegedAccessor;
 
 import com.google.inject.Injector;
-import com.limegroup.gnutella.FileDesc;
-import com.limegroup.gnutella.FileManager;
-import com.limegroup.gnutella.IncompleteFileDesc;
 import com.limegroup.gnutella.LimeTestUtils;
 import com.limegroup.gnutella.RemoteFileDesc;
 import com.limegroup.gnutella.URN;
-import com.limegroup.gnutella.settings.SharingSettings;
+import com.limegroup.gnutella.library.FileDesc;
+import com.limegroup.gnutella.library.FileManager;
 import com.limegroup.gnutella.util.LimeTestCase;
 
 public class IncompleteFileManagerTest extends LimeTestCase {
@@ -53,8 +53,8 @@ public class IncompleteFileManagerTest extends LimeTestCase {
            Set<URN> urns=new HashSet<URN>(1);
            if (urn!=null) 
                urns.add(URN.createSHA1Urn(urn));
-           return injector.getInstance(RemoteFileDescFactory.class).createRemoteFileDesc("18.239.0.144", 6346, 13l, name, size, new byte[16],
-                56, false, 4, true, null, urns, false, false, "", null, -1, false);
+           return injector.getInstance(RemoteFileDescFactory.class).createRemoteFileDesc(new ConnectableImpl("18.239.0.144", 6346, false), 13l, name, size, new byte[16],
+                56, false, 4, true, null, urns, false, "", -1);
        } catch (IOException e) {
            fail("Invalid URN", e);
            return null;
@@ -176,7 +176,7 @@ public class IncompleteFileManagerTest extends LimeTestCase {
      * added / removed incomplete file.
      */
     public void testFileManagerIsNotified() throws Exception {
-        assertEquals(0, fm.getNumIncompleteFiles()); // begin with 0 shared.
+        assertEquals(0, fm.getIncompleteFileList().size()); // begin with 0 shared.
         
         //Populate IFM with a hash.
         rfd1=newRFD("some file name", 1839, 
@@ -185,18 +185,18 @@ public class IncompleteFileManagerTest extends LimeTestCase {
         VerifyingFile vf=verifyingFileFactory.createVerifyingFile(1839);
         incompleteFileManager.addEntry(tmp1, vf, true);
         
-        assertEquals(1, fm.getNumIncompleteFiles()); // 1 added.
+        assertEquals(1, fm.getIncompleteFileList().size()); // 1 added.
         
         // make sure it's associated with a URN.
         URN urn = URN.createSHA1Urn(    
             "urn:sha1:GLSTHIPQGSSZTS5FJUPAKPZWUGYQYPFB");
-        FileDesc fd = fm.getFileDescForUrn(urn);
+        FileDesc fd = fm.getIncompleteFileList().getFileDesc(urn);
         assertNotNull(urn);
-        assertInstanceof(IncompleteFileDesc.class, fd);
+        assertInstanceof(com.limegroup.gnutella.library.IncompleteFileDesc.class, fd);
         
         incompleteFileManager.removeEntry(tmp1);
         
-        assertEquals(0, fm.getNumIncompleteFiles()); // back to 0 shared.
+        assertEquals(0, fm.getIncompleteFileList().size()); // back to 0 shared.
     }   
 
     public void testCompletedHash_NotFound() throws Throwable{

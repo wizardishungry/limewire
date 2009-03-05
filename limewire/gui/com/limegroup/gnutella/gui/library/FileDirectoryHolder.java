@@ -2,7 +2,7 @@ package com.limegroup.gnutella.gui.library;
 
 import java.io.File;
 
-import com.limegroup.gnutella.library.SharingUtils;
+import com.limegroup.gnutella.library.LibraryUtils;
 
 /**
  * DirectoryHandler implementation backed by a simple directory.
@@ -31,6 +31,6 @@ public class FileDirectoryHolder extends AbstractDirectoryHolder {
 	
 	@Override
     public boolean accept(File f) {
-	    return super.accept(f) && (SharingUtils.isFilePhysicallyShareable(f) || f.isDirectory());
+	    return super.accept(f) && (LibraryUtils.isFileManagable(f) || f.isDirectory());
     }
 }

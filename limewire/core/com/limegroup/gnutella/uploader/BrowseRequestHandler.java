@@ -1,6 +1,8 @@
 package com.limegroup.gnutella.uploader;
 
 import java.io.IOException;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -12,30 +14,38 @@ import org.apache.http.HttpException;
 import org.apache.http.HttpRequest;
 import org.apache.http.HttpResponse;
 import org.apache.http.HttpStatus;
+import org.apache.http.RequestLine;
 import org.apache.http.nio.ContentEncoder;
 import org.apache.http.nio.ContentEncoderChannel;
 import org.apache.http.nio.IOControl;
 import org.apache.http.nio.entity.ConsumingNHttpEntity;
 import org.apache.http.nio.protocol.SimpleNHttpRequestHandler;
 import org.apache.http.protocol.HttpContext;
+import org.limewire.collection.MultiIterable;
+import org.limewire.core.api.browse.server.BrowseTracker;
 import org.limewire.http.HttpCoreUtils;
 import org.limewire.http.entity.AbstractProducingNHttpEntity;
+import org.limewire.i18n.I18nMarker;
+import org.limewire.io.GUID;
 import org.limewire.nio.channel.NoInterestWritableByteChannel;
 
-import com.google.inject.Inject;
+import com.google.inject.Provider;
 import com.limegroup.gnutella.Constants;
-import com.limegroup.gnutella.FileManager;
-import com.limegroup.gnutella.MessageRouter;
 import com.limegroup.gnutella.Response;
+import com.limegroup.gnutella.ResponseFactory;
 import com.limegroup.gnutella.Uploader.UploadStatus;
 import com.limegroup.gnutella.connection.BasicQueue;
 import com.limegroup.gnutella.connection.ConnectionStats;
 import com.limegroup.gnutella.connection.MessageWriter;
 import com.limegroup.gnutella.connection.SentMessageHandler;
+import com.limegroup.gnutella.http.HTTPHeaderName;
+import com.limegroup.gnutella.library.FileDesc;
+import com.limegroup.gnutella.library.FileList;
+import com.limegroup.gnutella.library.SharedFileList;
 import com.limegroup.gnutella.messages.Message;
+import com.limegroup.gnutella.messages.OutgoingQueryReplyFactory;
 import com.limegroup.gnutella.messages.QueryReply;
-import com.limegroup.gnutella.messages.QueryRequest;
-import com.limegroup.gnutella.messages.QueryRequestFactory;
+import com.limegroup.gnutella.uploader.authentication.HttpRequestFileListProvider;
 
 /**
  * Responds to Gnutella browse requests by returning a list of all shared files.
@@ -47,18 +57,27 @@ public class BrowseRequestHandler extends SimpleNHttpRequestHandler {
     private static final Log LOG = LogFactory.getLog(BrowseRequestHandler.class);
     
     private final HTTPUploadSessionManager sessionManager;
-    private final QueryRequestFactory queryRequestFactory;
-    private final FileManager fileManager;
-    private final MessageRouter messageRouter;
+    private final Provider<ResponseFactory> responseFactory;
+    private final OutgoingQueryReplyFactory outgoingQueryReplyFactory;
+    /**
+     * This is set to true as default while old clients still don't send 
+     * the request header correctly. Will be set to false in the future.
+     */
+    private boolean requestorCanDoFWT = true;
 
-    @Inject
+    private final HttpRequestFileListProvider browseRequestFileListProvider;
+    private final BrowseTracker tracker;
+
     BrowseRequestHandler(HTTPUploadSessionManager sessionManager,
-            QueryRequestFactory queryRequestFactory, FileManager fileManager,
-            MessageRouter messageRouter) {
+            Provider<ResponseFactory> responseFactory,
+            OutgoingQueryReplyFactory outgoingQueryReplyFactory,
+            HttpRequestFileListProvider browseRequestFileListProvider,
+            BrowseTracker tracker) {
         this.sessionManager = sessionManager;
-        this.queryRequestFactory = queryRequestFactory;
-        this.fileManager = fileManager;
-        this.messageRouter = messageRouter;
+        this.responseFactory = responseFactory;
+        this.outgoingQueryReplyFactory = outgoingQueryReplyFactory;
+        this.browseRequestFileListProvider = browseRequestFileListProvider;
+        this.tracker = tracker;
     }
     
     public ConsumingNHttpEntity entityRequest(HttpEntityEnclosingRequest request,
@@ -66,26 +85,84 @@ public class BrowseRequestHandler extends SimpleNHttpRequestHandler {
         return null;
     }
 
+    @SuppressWarnings("unchecked")
     @Override
     public void handle(HttpRequest request, HttpResponse response,
             HttpContext context) throws HttpException, IOException {
-        
-        HTTPUploader uploader = sessionManager.getOrCreateUploader(request,
-                context, UploadType.BROWSE_HOST, "Browse-File");
-        uploader.setState(UploadStatus.BROWSE_HOST);
-        
-        if (!HttpCoreUtils.hasHeaderListValue(request, "Accept",
-                Constants.QUERYREPLY_MIME_TYPE)) {
-            if (LOG.isDebugEnabled())
-                LOG.debug("Browse request is missing Accept header");
-            
-            response.setStatusCode(HttpStatus.SC_NOT_ACCEPTABLE);
-        } else {
-            response.setEntity(new BrowseResponseEntity(uploader));
-            response.setStatusCode(HttpStatus.SC_OK);
+
+        if (request.getHeaders(HTTPHeaderName.FW_NODE_INFO.name()).length > 0) {
+            requestorCanDoFWT = true;
+        }
+        HTTPUploader uploader = null;
+        try {
+            // TODO handler code should not know that much about request uris
+            String uri = request.getRequestLine().getUri();
+            String friendID;
+            if(uri.equals("/")) {
+                friendID = null;
+                uploader = sessionManager.getOrCreateUploader(request,
+                        context, UploadType.BROWSE_HOST, "");
+            } else {
+                friendID = getFriend(request);
+                tracker.browsed(friendID);
+                uploader = sessionManager.getOrCreateUploader(request,
+                        context, UploadType.BROWSE_HOST, friendID);
+            }
+            uploader.setState(UploadStatus.BROWSE_HOST);
+            Iterable<SharedFileList> lists = browseRequestFileListProvider.getFileLists(friendID, context);
+            List<Iterable<FileDesc>> iterables = new ArrayList<Iterable<FileDesc>>();
+            for (FileList list : lists) {
+                iterables.add(list.pausableIterable());
+            }
+            Iterable<FileDesc> files = new MultiIterable<FileDesc>(iterables.toArray(new Iterable[0]));
+            if (!HttpCoreUtils.hasHeaderListValue(request, "Accept", Constants.QUERYREPLY_MIME_TYPE)) {
+                if (LOG.isDebugEnabled())
+                    LOG.debug("Browse request is missing Accept header");
+                
+                response.setStatusCode(HttpStatus.SC_NOT_ACCEPTABLE);
+            } else {
+                response.setEntity(new BrowseResponseEntity(uploader, files));
+                response.setStatusCode(HttpStatus.SC_OK);
+            }
+        } catch (com.limegroup.gnutella.uploader.HttpException he) {
+            LOG.debug("invalid request", he);
+            response.setStatusCode(he.getErrorCode());
+            response.setReasonPhrase(he.getMessage());
         }
         
+        if (uploader == null) {
+            uploader = sessionManager.getOrCreateUploader(request, context, UploadType.BROWSE_HOST, I18nMarker.marktr("Browse"));
+        }
         sessionManager.sendResponse(uploader, response);
+    }
+    
+    /**
+     * Parses out the last element of the request uri's path and returns it.
+     * @throws com.limegroup.gnutella.uploader.HttpException if there was no such element
+     */
+    String getFriend(HttpRequest request) throws com.limegroup.gnutella.uploader.HttpException {
+        RequestLine requestLine = request.getRequestLine();
+        try {
+            URI uri = new URI(requestLine.getUri());
+            String path = uri.getPath();
+            if (path == null) {
+                throw new com.limegroup.gnutella.uploader.HttpException("no friend id:", HttpStatus.SC_BAD_REQUEST);
+            }
+            if (path.endsWith("/")) {
+                int previousSlash = path.lastIndexOf('/', path.length() - 2);
+                if (previousSlash != -1) {
+                    return path.substring(previousSlash + 1, path.length() - 1);
+                }
+            } else {
+                int lastSlash = path.lastIndexOf('/');
+                if (lastSlash != -1) {
+                    return path.substring(lastSlash + 1);
+                }
+            }
+        } catch (URISyntaxException e) {
+            throw new RuntimeException(e);
+        }
+        throw new com.limegroup.gnutella.uploader.HttpException("no friend id:", HttpStatus.SC_BAD_REQUEST);
     }
 
     public class BrowseResponseEntity extends AbstractProducingNHttpEntity {
@@ -96,16 +173,17 @@ public class BrowseRequestHandler extends SimpleNHttpRequestHandler {
 
         private final HTTPUploader uploader;
 
-        private QueryRequest query;
-
-        private Iterator<Response> iterable;
-
+        private Iterator<FileDesc> iterator;
+        
         private MessageWriter sender;
         
         private volatile int pendingMessageCount = 0;
 
-        public BrowseResponseEntity(HTTPUploader uploader) {
+        private GUID sessionGUID = new GUID();
+
+        public BrowseResponseEntity(HTTPUploader uploader, Iterable<FileDesc> files) {
             this.uploader = uploader;
+            iterator = files.iterator();
 
             // XXX LW can't handle chunked responses: CORE-199
             //setChunked(true);
@@ -130,10 +208,6 @@ public class BrowseRequestHandler extends SimpleNHttpRequestHandler {
             sender = new MessageWriter(new ConnectionStats(), new BasicQueue(), sentMessageHandler);
             sender.setWriteChannel(new NoInterestWritableByteChannel(new ContentEncoderChannel(
                     contentEncoder)));
-
-            query = queryRequestFactory.createBrowseHostQuery();
-            iterable = fileManager.getIndexingIterator(query.desiresXMLResponses() || 
-                    query.desiresOutOfBandReplies());
         }
         
         @Override
@@ -144,7 +218,7 @@ public class BrowseRequestHandler extends SimpleNHttpRequestHandler {
             assert more || pendingMessageCount == 0;
             
             activateTimeout();
-            return more || iterable.hasNext();
+            return more || iterator.hasNext();
         }
         
         /**
@@ -157,12 +231,15 @@ public class BrowseRequestHandler extends SimpleNHttpRequestHandler {
             }
             
             List<Response> responses = new ArrayList<Response>(RESPONSES_PER_REPLY); 
-            for (int i = 0; iterable.hasNext() && i < RESPONSES_PER_REPLY; i++) {
-                responses.add(iterable.next());
+            for (int i = 0; iterator.hasNext() && i < RESPONSES_PER_REPLY; i++) {
+                FileDesc fileDesc = iterator.next();
+                Response response = responseFactory.get().createResponse(fileDesc); 
+                responses.add(response);
             }
             
-            Iterable<QueryReply> it = messageRouter.responsesToQueryReplies(
-                    responses.toArray(new Response[0]), query);
+            Iterable<QueryReply> it = outgoingQueryReplyFactory.createReplies(responses.toArray(new Response[0]),
+                    10, null, sessionGUID.bytes(), (byte)1, false, requestorCanDoFWT);
+            
             for (QueryReply queryReply : it) {
                 sender.send(queryReply);
                 pendingMessageCount++;

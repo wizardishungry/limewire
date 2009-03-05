@@ -13,11 +13,12 @@ import java.util.Collections;
 import java.util.List;
 import java.util.StringTokenizer;
 
+import org.limewire.util.URIUtils;
+
 
 import com.limegroup.gnutella.gui.library.LibraryTableTransferable;
 import com.limegroup.gnutella.gui.library.LibraryTreeTransferable;
 import com.limegroup.gnutella.gui.playlist.PlaylistMediator.PlaylistTransferable;
-import com.limegroup.gnutella.http.URIUtils;
 
 /**
  * Static helper class with DND tasks that provides methods for handling

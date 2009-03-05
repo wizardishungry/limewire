@@ -16,6 +16,8 @@ import javax.swing.JRadioButton;
 import javax.swing.JScrollPane;
 import javax.swing.JTextArea;
 
+import org.limewire.core.settings.BugSettings;
+
 import com.google.inject.Inject;
 import com.limegroup.gnutella.bugs.LocalClientInfo;
 import com.limegroup.gnutella.gui.GUIUtils;
@@ -23,7 +25,6 @@ import com.limegroup.gnutella.gui.I18n;
 import com.limegroup.gnutella.gui.LocalClientInfoFactory;
 import com.limegroup.gnutella.gui.MessageService;
 import com.limegroup.gnutella.gui.GUIUtils.SizePolicy;
-import com.limegroup.gnutella.settings.BugSettings;
 import com.limegroup.gnutella.util.LimeWireUtils;
 
 /**
@@ -126,9 +127,9 @@ public final class BugsPaneItem extends AbstractPaneItem {
 	 */
 	@Override
     public void initOptions() {
-        if( BugSettings.IGNORE_ALL_BUGS.getValue() )
+        if( !BugSettings.REPORT_BUGS.getValue() )
             BGROUP.setSelected(DISCARD_BOX.getModel(), true);
-        else if (BugSettings.USE_BUG_SERVLET.getValue() )
+        else if (!BugSettings.SHOW_BUGS.getValue() )
             BGROUP.setSelected(SEND_BOX.getModel(), true);
         else
             BGROUP.setSelected(REVIEW_BOX.getModel(), true);
@@ -148,13 +149,13 @@ public final class BugsPaneItem extends AbstractPaneItem {
     public boolean applyOptions() throws IOException {
 	    ButtonModel bm = BGROUP.getSelection();
 	    if( bm.equals(DISCARD_BOX.getModel()) )
-	        BugSettings.IGNORE_ALL_BUGS.setValue(true);
+	        BugSettings.REPORT_BUGS.setValue(false);
 	    else if ( bm.equals(SEND_BOX.getModel()) ) {
-	        BugSettings.IGNORE_ALL_BUGS.setValue(false);
-	        BugSettings.USE_BUG_SERVLET.setValue(true);
+	        BugSettings.REPORT_BUGS.setValue(true);
+	        BugSettings.SHOW_BUGS.setValue(false);
 	    } else {
-	        BugSettings.IGNORE_ALL_BUGS.setValue(false);
-	        BugSettings.USE_BUG_SERVLET.setValue(false);
+	        BugSettings.REPORT_BUGS.setValue(true);
+	        BugSettings.SHOW_BUGS.setValue(true);
 	    }
         
         BugSettings.SEND_DEADLOCK_BUGS.setValue(DEADLOCK_OPTION.isSelected());
@@ -166,11 +167,11 @@ public final class BugsPaneItem extends AbstractPaneItem {
             return true;
             
         if(BGROUP.getSelection().equals(DISCARD_BOX.getModel()))
-            return !BugSettings.IGNORE_ALL_BUGS.getValue();
+            return BugSettings.REPORT_BUGS.getValue();
         if(BGROUP.getSelection().equals(SEND_BOX.getModel()))
-            return BugSettings.IGNORE_ALL_BUGS.getValue() ||
-                   !BugSettings.USE_BUG_SERVLET.getValue();
-        return BugSettings.IGNORE_ALL_BUGS.getValue() ||
-               BugSettings.USE_BUG_SERVLET.getValue();
+            return ! BugSettings.REPORT_BUGS.getValue() ||
+                   BugSettings.SHOW_BUGS.getValue();
+        return ! BugSettings.REPORT_BUGS.getValue() ||
+               ! BugSettings.SHOW_BUGS.getValue();
     }	
 }

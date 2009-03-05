@@ -1,4 +1,7 @@
-bin
-temp
+.DS_Store
 testData
+temp
 log.txt
+bin
+changes.txt
+out.txt

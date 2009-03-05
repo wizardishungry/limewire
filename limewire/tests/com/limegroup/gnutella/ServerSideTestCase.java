@@ -1,21 +1,23 @@
 package com.limegroup.gnutella;
 
-import java.io.File;
 import java.net.InetAddress;
 import java.util.Properties;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
-import org.limewire.util.FileUtils;
+import org.limewire.core.settings.ConnectionSettings;
+import org.limewire.core.settings.FilterSettings;
+import org.limewire.core.settings.NetworkSettings;
+import org.limewire.core.settings.UltrapeerSettings;
 import org.limewire.util.TestUtils;
 
 import com.google.inject.Injector;
+import com.google.inject.Stage;
 import com.limegroup.gnutella.connection.BlockingConnection;
 import com.limegroup.gnutella.connection.BlockingConnectionFactory;
 import com.limegroup.gnutella.handshaking.HeadersFactory;
-import com.limegroup.gnutella.settings.ConnectionSettings;
-import com.limegroup.gnutella.settings.FilterSettings;
-import com.limegroup.gnutella.settings.NetworkSettings;
-import com.limegroup.gnutella.settings.SharingSettings;
-import com.limegroup.gnutella.settings.UltrapeerSettings;
+import com.limegroup.gnutella.library.FileDesc;
+import com.limegroup.gnutella.library.FileManager;
 import com.limegroup.gnutella.util.EmptyResponder;
 import com.limegroup.gnutella.util.LimeTestCase;
 
@@ -66,6 +68,10 @@ public abstract class ServerSideTestCase extends LimeTestCase {
     protected BlockingConnectionFactory blockingConnectionFactory;
     
     protected Injector injector;
+    
+    protected FileManager fileManager;
+    protected FileDesc berkeleyFD;
+    protected FileDesc susheelFD;
 
     public ServerSideTestCase(String name) {
         super(name);
@@ -90,15 +96,6 @@ public abstract class ServerSideTestCase extends LimeTestCase {
         FilterSettings.WHITE_LISTED_IP_ADDRESSES.setValue(
             new String[] {"127.*.*.*", localIP});
         NetworkSettings.PORT.setValue(PORT);
-        SharingSettings.EXTENSIONS_TO_SHARE.setValue("txt;");
-        // get the resource file for com/limegroup/gnutella
-        File berkeley = 
-            TestUtils.getResourceFile("com/limegroup/gnutella/berkeley.txt");
-        File susheel = 
-            TestUtils.getResourceFile("com/limegroup/gnutella/susheel.txt");
-        // now move them to the share dir        
-        FileUtils.copy(berkeley, new File(_sharedDir, "berkeley.txt"));
-        FileUtils.copy(susheel, new File(_sharedDir, "susheel.txt"));
 		ConnectionSettings.CONNECT_ON_STARTUP.setValue(false);
 		UltrapeerSettings.EVER_ULTRAPEER_CAPABLE.setValue(true);
 		UltrapeerSettings.DISABLE_ULTRAPEER_MODE.setValue(false);
@@ -143,7 +140,7 @@ public abstract class ServerSideTestCase extends LimeTestCase {
     
     @Override
     protected void setUp() throws Exception {
-        setUp(LimeTestUtils.createInjector());
+        setUp(LimeTestUtils.createInjector(Stage.PRODUCTION));
     }
     
     protected void setUp(Injector injector) throws Exception {
@@ -154,6 +151,7 @@ public abstract class ServerSideTestCase extends LimeTestCase {
         connectionServices = injector.getInstance(ConnectionServices.class);
         headersFactory = injector.getInstance(HeadersFactory.class);
         blockingConnectionFactory = injector.getInstance(BlockingConnectionFactory.class);
+        fileManager = injector.getInstance(FileManager.class);
 
         assertEquals("unexpected port", PORT, NetworkSettings.PORT.getValue());
 
@@ -162,6 +160,17 @@ public abstract class ServerSideTestCase extends LimeTestCase {
         connectionServices.connect();
         
         assertEquals("unexpected port", PORT, NetworkSettings.PORT.getValue());
+        
+        Future<FileDesc> f1 = fileManager.getGnutellaFileList().add(
+                TestUtils.getResourceFile("com/limegroup/gnutella/berkeley.txt"));
+        Future<FileDesc> f2 = fileManager.getGnutellaFileList().add(
+                TestUtils.getResourceFile("com/limegroup/gnutella/susheel.txt"));
+        
+        berkeleyFD = f1.get(1, TimeUnit.SECONDS);
+        susheelFD = f2.get(1, TimeUnit.SECONDS);
+        assertNotNull(berkeleyFD);
+        assertNotNull(susheelFD);
+        
 
         // set up ultrapeer stuff
         int numUPs = getNumberOfUltrapeers();

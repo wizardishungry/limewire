@@ -21,6 +21,8 @@ import java.util.zip.ZipFile;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.limewire.core.settings.LimeProps;
+import org.limewire.io.Expand;
 import org.limewire.service.ErrorService;
 import org.limewire.setting.FileSetting;
 import org.limewire.setting.IntSetting;
@@ -30,8 +32,6 @@ import org.limewire.util.OSUtils;
 
 import com.limegroup.gnutella.gui.GUIMediator;
 import com.limegroup.gnutella.gui.I18n;
-import com.limegroup.gnutella.settings.LimeProps;
-import com.limegroup.gnutella.util.Expand;
 import com.limegroup.gnutella.util.LimeWireUtils;
 
 /**

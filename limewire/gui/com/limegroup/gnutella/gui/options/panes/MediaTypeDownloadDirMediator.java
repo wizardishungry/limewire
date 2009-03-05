@@ -15,7 +15,8 @@ import javax.swing.ListSelectionModel;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 
-import com.limegroup.gnutella.MediaType;
+import org.limewire.util.MediaType;
+
 import com.limegroup.gnutella.gui.FileChooserHandler;
 import com.limegroup.gnutella.gui.I18n;
 import com.limegroup.gnutella.gui.PaddedPanel;
@@ -129,7 +130,7 @@ class MediaTypeDownloadDirMediator extends AbstractTableMediator<MediaTypeDownlo
 		DATA_MODEL.clear();
 		for (Iterator i = NamedMediaType.getAllNamedMediaTypes().iterator(); i.hasNext();) {
 			NamedMediaType nm = (NamedMediaType) i.next();
-			if (!nm.getMediaType().getMimeType().equals(MediaType.SCHEMA_ANY_TYPE))
+			if (!nm.getMediaType().getSchema().equals(MediaType.SCHEMA_ANY_TYPE))
 				DATA_MODEL.add(nm);
 		}
 		//  sort alphabetically, so sort twice

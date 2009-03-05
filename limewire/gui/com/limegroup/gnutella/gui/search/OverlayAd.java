@@ -26,6 +26,9 @@ import javax.swing.JScrollPane;
 import javax.swing.JTextArea;
 import javax.swing.OverlayLayout;
 
+import org.limewire.core.settings.UISettings;
+import org.limewire.core.settings.UISettings.ImageInfo;
+
 import com.limegroup.gnutella.gui.BoxPanel;
 import com.limegroup.gnutella.gui.GUIMediator;
 import com.limegroup.gnutella.gui.GUIUtils;
@@ -33,8 +36,6 @@ import com.limegroup.gnutella.gui.GuiCoreMediator;
 import com.limegroup.gnutella.gui.I18n;
 import com.limegroup.gnutella.gui.themes.ThemeObserver;
 import com.limegroup.gnutella.gui.util.BackgroundExecutorService;
-import com.limegroup.gnutella.settings.UISettings;
-import com.limegroup.gnutella.settings.UISettings.ImageInfo;
 import com.limegroup.gnutella.util.LimeWireUtils;
 
 /**

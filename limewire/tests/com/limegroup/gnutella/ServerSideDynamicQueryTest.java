@@ -5,7 +5,11 @@ import java.util.Iterator;
 
 import junit.framework.Test;
 
+import org.limewire.io.GUID;
+
 import com.google.inject.Injector;
+import com.google.inject.Stage;
+import com.limegroup.gnutella.helpers.UrnHelper;
 import com.limegroup.gnutella.messages.QueryReply;
 import com.limegroup.gnutella.messages.QueryReplyFactory;
 import com.limegroup.gnutella.messages.QueryRequest;
@@ -76,7 +80,7 @@ public final class ServerSideDynamicQueryTest extends ServerSideTestCase {
 
     @Override
     protected void setUp() throws Exception {
-        Injector injector = LimeTestUtils.createInjector();
+        Injector injector = LimeTestUtils.createInjector(Stage.PRODUCTION);
         super.setUp(injector);
         queryRequestFactory = injector.getInstance(QueryRequestFactory.class);
         responseFactory = injector.getInstance(ResponseFactory.class);
@@ -100,7 +104,7 @@ public final class ServerSideDynamicQueryTest extends ServerSideTestCase {
         assertTrue(BlockingConnectionUtils.noUnexpectedMessages(ULTRAPEER[0]));
 
         // make sure probes are routed back correctly....
-		Response response1=responseFactory.createResponse(0L, 0L, "berkeley rocks");
+		Response response1=responseFactory.createResponse(0L, 0L, "berkeley rocks", UrnHelper.SHA1);
 		byte[] guid1=GUID.makeGuid();
 		QueryReply reply1=queryReplyFactory.createQueryReply(request.getGUID(), (byte)2, 6346,
                 IP, 56, new Response[] {response1}, guid1, false);
@@ -150,7 +154,7 @@ public final class ServerSideDynamicQueryTest extends ServerSideTestCase {
         assertTrue(BlockingConnectionUtils.noUnexpectedMessages(ULTRAPEER[0]));
 
         // make sure probes are routed back correctly....
-		Response response1=responseFactory.createResponse(0L, 0L, "berkeley rocks");
+		Response response1=responseFactory.createResponse(0L, 0L, "berkeley rocks", UrnHelper.SHA1);
 		byte[] guid1=GUID.makeGuid();
 		QueryReply reply1=queryReplyFactory.createQueryReply(request.getGUID(), (byte)2, 6346,
                 IP, 56, new Response[] {response1}, guid1, false);

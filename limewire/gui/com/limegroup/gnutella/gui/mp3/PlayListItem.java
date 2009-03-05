@@ -12,7 +12,6 @@ import org.limewire.util.CommonUtils;
 
 import com.limegroup.gnutella.gui.GuiCoreMediator;
 import com.limegroup.gnutella.gui.I18n;
-import com.limegroup.gnutella.metadata.MetaReader;
 import com.limegroup.gnutella.metadata.audio.AudioMetaData;
 
 /**
@@ -167,12 +166,8 @@ public class PlayListItem implements Comparable<PlayListItem>{
         if( isLocal ){
             try {
                 File file = new File(uri);
-                MetaReader data = GuiCoreMediator.getMetaDataFactory().parse(file);
-                // if we can't parse this file type return
-                if(data == null)
-                    return;
-                
-                AudioMetaData amd = (AudioMetaData) data.getMetaData();
+                AudioMetaData amd = (AudioMetaData) GuiCoreMediator.getMetaDataFactory().parse(file);
+
                 // if it has no meta data we can read just return
                 if(amd == null)
                     return;                

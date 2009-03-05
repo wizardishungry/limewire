@@ -2,11 +2,11 @@ package com.limegroup.gnutella.downloader;
 
 import java.io.File;
 
+import org.limewire.io.GUID;
 import org.limewire.io.InvalidDataException;
 import org.limewire.listener.ListenerSupport;
 
 import com.limegroup.gnutella.Downloader;
-import com.limegroup.gnutella.GUID;
 import com.limegroup.gnutella.URN;
 import com.limegroup.gnutella.downloader.serial.DownloadMemento;
 
@@ -21,6 +21,10 @@ public interface CoreDownloader extends Downloader, ListenerSupport<DownloadStat
      */
     public void setInactivePriority(int priority);
     
+    /**
+     * Returns the guid that was used for query from which this download
+     * was triggered, or null.
+     */
     public GUID getQueryGUID();
 
     /**
@@ -81,5 +85,10 @@ public interface CoreDownloader extends Downloader, ListenerSupport<DownloadStat
      * @throws InvalidDataException if the memento contains invalid data.
      */
     void initFromMemento(DownloadMemento memento) throws InvalidDataException;
+    
+    /**
+     * Indicator of whether this downloader supports a memento or not.
+     */
+    public boolean isMementoSupported();
 
 }

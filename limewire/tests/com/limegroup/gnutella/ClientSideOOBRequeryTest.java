@@ -11,18 +11,22 @@ import java.net.InetAddress;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 
 import junit.framework.Test;
 
-import org.limewire.io.IpPort;
+import org.limewire.core.settings.ConnectionSettings;
+import org.limewire.core.settings.UploadSettings;
+import org.limewire.io.ConnectableImpl;
+import org.limewire.io.GUID;
 import org.limewire.security.AddressSecurityToken;
 import org.limewire.security.MACCalculatorRepositoryManager;
-import org.limewire.util.FileUtils;
 import org.limewire.util.PrivilegedAccessor;
 import org.limewire.util.TestUtils;
 
 import com.google.inject.Injector;
 import com.google.inject.Singleton;
+import com.google.inject.Stage;
 import com.limegroup.gnutella.Downloader.DownloadStatus;
 import com.limegroup.gnutella.altlocs.AlternateLocationFactory;
 import com.limegroup.gnutella.downloader.RemoteFileDescFactory;
@@ -30,6 +34,8 @@ import com.limegroup.gnutella.downloader.TestFile;
 import com.limegroup.gnutella.downloader.TestUploader;
 import com.limegroup.gnutella.guess.GUESSEndpoint;
 import com.limegroup.gnutella.guess.OnDemandUnicaster;
+import com.limegroup.gnutella.helpers.UrnHelper;
+import com.limegroup.gnutella.library.FileManager;
 import com.limegroup.gnutella.messages.Message;
 import com.limegroup.gnutella.messages.MessageFactory;
 import com.limegroup.gnutella.messages.PingReply;
@@ -43,9 +49,6 @@ import com.limegroup.gnutella.messages.Message.Network;
 import com.limegroup.gnutella.messages.vendor.MessagesSupportedVendorMessage;
 import com.limegroup.gnutella.messages.vendor.ReplyNumberVendorMessage;
 import com.limegroup.gnutella.messages.vendor.ReplyNumberVendorMessageFactory;
-import com.limegroup.gnutella.settings.ConnectionSettings;
-import com.limegroup.gnutella.settings.SharingSettings;
-import com.limegroup.gnutella.settings.UploadSettings;
 import com.limegroup.gnutella.stubs.ActivityCallbackStub;
 import com.limegroup.gnutella.stubs.NetworkManagerStub;
 
@@ -97,6 +100,8 @@ public class ClientSideOOBRequeryTest extends ClientSideTestCase {
     
     private RemoteFileDescFactory remoteFileDescFactory;
 
+    private PushEndpointFactory pushEndpointFactory;
+
     public ClientSideOOBRequeryTest(String name) {
         super(name);
     }
@@ -112,19 +117,13 @@ public class ClientSideOOBRequeryTest extends ClientSideTestCase {
     @Override
     public void setSettings() {
         TIMEOUT = 4000;
-        SharingSettings.EXTENSIONS_TO_SHARE.setValue("txt;mp3");
-        // get the resource file for com/limegroup/gnutella
-        File mp3 = 
-            TestUtils.getResourceFile("com/limegroup/gnutella/metadata/mpg1layIII_0h_58k-VBRq30_frame1211_44100hz_joint_XingTAG_sample.mp3");
-        // now move them to the share dir
-        FileUtils.copy(mp3, new File(_sharedDir, "metadata.mp3"));
         ConnectionSettings.DO_NOT_BOOTSTRAP.setValue(true);
     }   
     
     @Override
     public void setUp() throws Exception {
         networkManagerStub = new NetworkManagerStub();
-        Injector injector = LimeTestUtils.createInjector(MyCallback.class, new LimeTestUtils.NetworkManagerStubModule(networkManagerStub));
+        Injector injector = LimeTestUtils.createInjector(Stage.PRODUCTION, MyCallback.class, new LimeTestUtils.NetworkManagerStubModule(networkManagerStub));
         super.setUp(injector);
         
         fileManager = injector.getInstance(FileManager.class);
@@ -143,6 +142,7 @@ public class ClientSideOOBRequeryTest extends ClientSideTestCase {
         callback = (MyCallback) injector.getInstance(ActivityCallback.class);
         macManager = injector.getInstance(MACCalculatorRepositoryManager.class);
         remoteFileDescFactory = injector.getInstance(RemoteFileDescFactory.class);
+        pushEndpointFactory = injector.getInstance(PushEndpointFactory.class);
         
         networkManagerStub.setAcceptedIncomingConnection(true);
         networkManagerStub.setCanReceiveSolicited(true);
@@ -150,9 +150,9 @@ public class ClientSideOOBRequeryTest extends ClientSideTestCase {
         networkManagerStub.setOOBCapable(true);
         networkManagerStub.setPort(SERVER_PORT);
         
-        fileManager.loadSettingsAndWait(2000);
-        
-        
+        File file = TestUtils.getResourceFile("com/limegroup/gnutella/metadata/metadata.mp3");
+        assertNotNull(fileManager.getGnutellaFileList().add(file).get(1, TimeUnit.SECONDS));
+                
         UDP_ACCESS = new DatagramSocket[10];
         for (int i = 0; i < UDP_ACCESS.length; i++)
             UDP_ACCESS[i] = new DatagramSocket();
@@ -202,7 +202,7 @@ public class ClientSideOOBRequeryTest extends ClientSideTestCase {
         for (int i = 0; i < testUP.length; i++) {
             Response[] res = new Response[200];
             for (int j = 0; j < res.length; j++)
-                res[j] = responseFactory.createResponse(10+j+i, 10+j+i, "whatever "+ j + i);
+                res[j] = responseFactory.createResponse(10+j+i, 10+j+i, "whatever "+ j + i, UrnHelper.SHA1);
             m = queryReplyFactory.createQueryReply(qr.getGUID(), (byte) 1, 6355,
                     myIP(), 0, res, GUID.makeGuid(), new byte[0], false, false,
                     true, true, false, false, null);
@@ -292,7 +292,7 @@ public class ClientSideOOBRequeryTest extends ClientSideTestCase {
         for (int i = 0; i < testUP.length; i++) {
             res = new Response[75];
             for (int j = 0; j < res.length; j++)
-                res[j] = responseFactory.createResponse(10+j+i, 10+j+i, "berkeley "+ j + i);
+                res[j] = responseFactory.createResponse(10+j+i, 10+j+i, "berkeley "+ j + i, UrnHelper.SHA1);
             m = queryReplyFactory.createQueryReply(guid, (byte) 1,
                     testUP[0].getPort(), myIP(), 0, res, GUID.makeGuid(), new byte[0],
                     false, false, true, true, false, false, null);
@@ -332,11 +332,9 @@ public class ClientSideOOBRequeryTest extends ClientSideTestCase {
         
         // now do the download, wait for it to finish, and then bypassed results
         // should be empty again
-        RemoteFileDesc rfd = resp.toRemoteFileDesc(reply.getHostData(), remoteFileDescFactory);
+        RemoteFileDesc rfd = resp.toRemoteFileDesc(reply, null, remoteFileDescFactory, pushEndpointFactory);
         assertFalse("file should not be saved yet", 
             new File( _savedDir, "berkeley.txt").exists());
-        assertTrue("file should be shared",
-            new File(_sharedDir, "berkeley.txt").exists());
         
         downloadServices.download(new RemoteFileDesc[] { rfd }, false, new GUID(guid));
         callback.clearGUID();
@@ -346,8 +344,6 @@ public class ClientSideOOBRequeryTest extends ClientSideTestCase {
         
         assertTrue("file should saved", 
             new File( _savedDir, "berkeley.txt").exists());
-        assertTrue("file should be shared",
-            new File(_sharedDir, "berkeley.txt").exists());
 
         {
             // now we should make sure MessageRouter clears the map
@@ -414,7 +410,7 @@ public class ClientSideOOBRequeryTest extends ClientSideTestCase {
         for (int i = 0; i < testUP.length; i++) {
             res = new Response[75];
             for (int j = 0; j < res.length; j++)
-                res[j] = responseFactory.createResponse(10+j+i, 10+j+i, "berkeley "+ j + i);
+                res[j] = responseFactory.createResponse(10+j+i, 10+j+i, "berkeley "+ j + i, UrnHelper.SHA1);
             m = queryReplyFactory.createQueryReply(guid, (byte) 1,
                     testUP[0].getPort(), myIP(), 0, res, GUID.makeGuid(), new byte[0],
                     false, false, true, true, false, false, null);
@@ -454,12 +450,10 @@ public class ClientSideOOBRequeryTest extends ClientSideTestCase {
         
         // now do the download, wait for it to finish, and then bypassed results
         // should not be empty since the query is still alive
-        RemoteFileDesc rfd = resp.toRemoteFileDesc(reply.getHostData(), remoteFileDescFactory);
+        RemoteFileDesc rfd = resp.toRemoteFileDesc(reply, null, remoteFileDescFactory, pushEndpointFactory);
         
         assertFalse("file should not be saved yet", 
             new File( _savedDir, "berkeley.txt").exists());
-        assertTrue("file should be shared",
-            new File(_sharedDir, "berkeley.txt").exists());
         
         Downloader d = downloadServices.download(new RemoteFileDesc[] { rfd }, false, new GUID(guid));
         // sleep to make sure the download starts
@@ -471,8 +465,6 @@ public class ClientSideOOBRequeryTest extends ClientSideTestCase {
         
         assertTrue("file should saved", 
             new File( _savedDir, "berkeley.txt").exists());
-        assertTrue("file should be shared",
-            new File(_sharedDir, "berkeley.txt").exists());
 
         {
             // all the UDP ReplyNumberVMs should have been bypassed
@@ -543,7 +535,7 @@ public class ClientSideOOBRequeryTest extends ClientSideTestCase {
         for (int i = 0; i < testUP.length; i++) {
             res = new Response[75];
             for (int j = 0; j < res.length; j++)
-                res[j] = responseFactory.createResponse(10+j+i, 10+j+i, "metadata "+ j + i);
+                res[j] = responseFactory.createResponse(10+j+i, 10+j+i, "metadata "+ j + i, UrnHelper.SHA1);
             m = queryReplyFactory.createQueryReply(guid, (byte) 1,
                     testUP[0].getPort(), myIP(), 0, res, GUID.makeGuid(), new byte[0],
                     false, false, true, true, false, false, null);
@@ -583,12 +575,10 @@ public class ClientSideOOBRequeryTest extends ClientSideTestCase {
         
         // now do the download, wait for it to finish, and then bypassed results
         // should be empty again
-        RemoteFileDesc rfd = resp.toRemoteFileDesc(reply.getHostData(), remoteFileDescFactory);
+        RemoteFileDesc rfd = resp.toRemoteFileDesc(reply, null, remoteFileDescFactory, pushEndpointFactory);
         
         assertFalse("file should not be saved yet", 
             new File( _savedDir, "metadata.mp3").exists());
-        assertTrue("file should be shared",
-            new File(_sharedDir, "metadata.mp3").exists());
         
         downloadServices.download(new RemoteFileDesc[] { rfd }, false, new GUID(guid));
         UploadSettings.UPLOAD_SPEED.setValue(5);
@@ -596,26 +586,19 @@ public class ClientSideOOBRequeryTest extends ClientSideTestCase {
         searchServices.stopQuery(new GUID(guid));
         callback.clearGUID();
 
-        {
-            // download still in progress, don't purge
-            assertByPassedResultsCacheHasSize(guid, 1);
-        }
+        // download still in progress, don't purge
+        assertByPassedResultsCacheHasSize(guid, 1);
 
         UploadSettings.UPLOAD_SPEED.setValue(100);
 
         // sleep to make sure the download starts 
-        Thread.sleep(10000);
+        Thread.sleep(20000);
         
         assertTrue("file should saved", 
             new File( _savedDir, "metadata.mp3").exists());
-        assertTrue("file should be shared",
-            new File(_sharedDir, "metadata.mp3").exists());
 
-        {
-            // now we should make sure MessageRouter clears the cache
-            assertByPassedResultsCacheHasSize(qr.getGUID(), 0);
-        }
-
+        // now we should make sure MessageRouter clears the cache
+        assertByPassedResultsCacheHasSize(qr.getGUID(), 0);
     }
 
 
@@ -645,7 +628,7 @@ public class ClientSideOOBRequeryTest extends ClientSideTestCase {
         for (int i = 0; i < testUP.length; i++) {
             Response[] res = new Response[200];
             for (int j = 0; j < res.length; j++)
-                res[j] = responseFactory.createResponse(10+j+i, 10+j+i, "whatever "+ j + i);
+                res[j] = responseFactory.createResponse(10+j+i, 10+j+i, "whatever "+ j + i, UrnHelper.SHA1);
             m = queryReplyFactory.createQueryReply(qr.getGUID(), (byte) 1, 6355,
                     myIP(), 0, res, GUID.makeGuid(), new byte[0], false, false,
                     true, true, false, false, null);
@@ -722,7 +705,7 @@ public class ClientSideOOBRequeryTest extends ClientSideTestCase {
         assertEquals(DownloadStatus.BUSY, downloader.getState());
 
         callback.clearGUID();
-        downloader.stop();
+        downloader.stop(false);
 
         Thread.sleep(1000);
 
@@ -761,7 +744,7 @@ public class ClientSideOOBRequeryTest extends ClientSideTestCase {
         for (int i = 0; i < testUP.length; i++) {
             Response[] res = new Response[200];
             for (int j = 0; j < res.length; j++)
-                res[j] = responseFactory.createResponse(10+j+i, 10+j+i, "whatever "+ j + i);
+                res[j] = responseFactory.createResponse(10+j+i, 10+j+i, "whatever "+ j + i, UrnHelper.SHA1);
             m = queryReplyFactory.createQueryReply(qr.getGUID(), (byte) 1, 6355,
                     myIP(), 0, res, GUID.makeGuid(), new byte[0], false, false,
                     true, true, false, false, null);
@@ -893,7 +876,7 @@ public class ClientSideOOBRequeryTest extends ClientSideTestCase {
 
         { // send back a query request, the TestUploader should service upload
             rfd = makeRFD(urn, UPLOADER_PORT + 1);
-            Response[] res = new Response[] { responseFactory.createResponse(10, 10, "whatever") };
+            Response[] res = new Response[] { responseFactory.createResponse(10, 10, "whatever", urn) };
             m = queryReplyFactory.createQueryReply(urnQueryGUID, (byte) 1,
                     UPLOADER_PORT+1, myIP(), 0, res, GUID.makeGuid(),
                     new byte[0], false, false, true, true, false, false, null);
@@ -945,7 +928,7 @@ public class ClientSideOOBRequeryTest extends ClientSideTestCase {
         for (int i = 0; i < testUP.length; i++) {
             Response[] res = new Response[200];
             for (int j = 0; j < res.length; j++)
-                res[j] = responseFactory.createResponse(10+j+i, 10+j+i, "whatever "+ j + i);
+                res[j] = responseFactory.createResponse(10+j+i, 10+j+i, "whatever "+ j + i, UrnHelper.SHA1);
             m = queryReplyFactory.createQueryReply(qr.getGUID(), (byte) 1, 6355,
                     myIP(), 0, res, GUID.makeGuid(), new byte[0], false, false,
                     true, true, false, false, null);
@@ -1043,7 +1026,7 @@ public class ClientSideOOBRequeryTest extends ClientSideTestCase {
         assertEquals(DownloadStatus.BUSY, downloader.getState());
 
         callback.clearGUID();
-        downloader.stop();
+        downloader.stop(false);
 
         Thread.sleep(1000);
 
@@ -1082,7 +1065,7 @@ public class ClientSideOOBRequeryTest extends ClientSideTestCase {
         for (int i = 0; i < testUP.length; i++) {
             Response[] res = new Response[200];
             for (int j = 0; j < res.length; j++)
-                res[j] = responseFactory.createResponse(10+j+i, 10+j+i, "whatever "+ j + i);
+                res[j] = responseFactory.createResponse(10+j+i, 10+j+i, "whatever "+ j + i, UrnHelper.SHA1);
             m = queryReplyFactory.createQueryReply(qr.getGUID(), (byte) 1, 6355,
                     myIP(), 0, res, GUID.makeGuid(), new byte[0], false, false,
                     true, true, false, false, null);
@@ -1147,7 +1130,7 @@ public class ClientSideOOBRequeryTest extends ClientSideTestCase {
         }
 
         callback.clearGUID();  // isQueryAlive == false 
-        downloader.stop();
+        downloader.stop(false);
 
         Thread.sleep(500);
 
@@ -1156,7 +1139,7 @@ public class ClientSideOOBRequeryTest extends ClientSideTestCase {
             assertByPassedResultsCacheHasSize(qr.getGUID(), 1);
         }
 
-        downloader2.stop();
+        downloader2.stop(false);
         Thread.sleep(1000);
 
         {
@@ -1209,7 +1192,7 @@ public class ClientSideOOBRequeryTest extends ClientSideTestCase {
         for (int i = 0; i < testUP.length; i++) {
             Response[] res = new Response[200];
             for (int j = 0; j < res.length; j++)
-                res[j] = responseFactory.createResponse(10+j+i, 10+j+i, "whatever "+ j + i);
+                res[j] = responseFactory.createResponse(10+j+i, 10+j+i, "whatever "+ j + i, UrnHelper.SHA1);
             m = queryReplyFactory.createQueryReply(qr.getGUID(), (byte) 1, 6355,
                     myIP(), 0, res, GUID.makeGuid(), new byte[0], false, false,
                     true, true, false, false, null);
@@ -1348,7 +1331,7 @@ public class ClientSideOOBRequeryTest extends ClientSideTestCase {
         assertEquals(DownloadStatus.BUSY, downloader.getState());
 
         callback.clearGUID();
-        downloader.stop();
+        downloader.stop(false);
 
         Thread.sleep(1000);
 
@@ -1366,8 +1349,8 @@ public class ClientSideOOBRequeryTest extends ClientSideTestCase {
     private RemoteFileDesc makeRFD(URN urn, int port) throws Exception {
         Set<URN> urns = new HashSet<URN>();
         urns.add(urn);
-        return injector.getInstance(RemoteFileDescFactory.class).createRemoteFileDesc("127.0.0.1", port, 1, "whatever", 10, GUID.makeGuid(), 1,
-                false, 3, false, null, urns, false, false, "LIME", IpPort.EMPTY_SET, -1, false);
+        return injector.getInstance(RemoteFileDescFactory.class).createRemoteFileDesc(new ConnectableImpl("127.0.0.1", port, false), 1, "whatever", 10, GUID.makeGuid(), 1,
+                false, 3, false, null, urns, false, "LIME", -1);
     }
     
     private RemoteFileDesc makeRFD(String sha1) throws Exception {

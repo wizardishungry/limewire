@@ -4,11 +4,11 @@ import java.util.ArrayList;
 import java.util.List;
 
 import org.limewire.collection.IntervalSet;
+import org.limewire.core.settings.SharingSettings;
 import org.limewire.io.BadGGEPPropertyException;
 import org.limewire.io.GGEP;
 import org.limewire.util.ByteUtils;
 
-import com.limegroup.gnutella.settings.SharingSettings;
 
 
 /**
@@ -96,11 +96,8 @@ public class IntervalEncoder {
         IntervalSet ret = null;
         for (int i = 1; i <= 4; i++ ) {
             String key = GGEPKeys.GGEP_HEADER_PARTIAL_RESULT_PREFIX+i;
-            if (ggep.hasKey(key)) {
-                byte [] b = ggep.get(key);
-                if (b == null)
-                    continue;
-                
+            if (ggep.hasValueFor(key)) {
+                byte [] b = ggep.get(key);                
                 if (ret == null)
                     ret = new IntervalSet();
 

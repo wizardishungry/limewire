@@ -5,6 +5,7 @@ import java.util.Arrays;
 import java.util.List;
 
 import org.limewire.collection.Comparators;
+import org.limewire.core.settings.FilterSettings;
 
 import com.google.inject.Inject;
 import com.google.inject.Provider;
@@ -12,27 +13,40 @@ import com.google.inject.Singleton;
 import com.limegroup.gnutella.connection.RoutedConnection;
 import com.limegroup.gnutella.filters.IPFilter;
 import com.limegroup.gnutella.filters.SpamFilterFactory;
-import com.limegroup.gnutella.settings.FilterSettings;
+import com.limegroup.gnutella.filters.URNFilter;
+import com.limegroup.gnutella.filters.response.ResponseFilterFactory;
+import com.limegroup.gnutella.search.SearchResultHandler;
 
 @Singleton
 public class SpamServicesImpl implements SpamServices {
     
     private final Provider<ConnectionManager> connectionManager;
     private final Provider<IPFilter> ipFilter;
+    private final Provider<URNFilter> urnFilter;
     private final SpamFilterFactory spamFilterFactory;
     private final UDPReplyHandlerCache udpReplyHandlerCache;
+    private final SearchResultHandler searchResultHandler;
+    private final ResponseFilterFactory responseFilterFactory;
 
     @Inject
     public SpamServicesImpl(Provider<ConnectionManager> connectionManager,
-            Provider<IPFilter> ipFilter, SpamFilterFactory spamFilterFactory,
-            UDPReplyHandlerCache udpReplyHandlerCache) {
+            Provider<IPFilter> ipFilter, Provider<URNFilter> urnFilter,
+            SpamFilterFactory spamFilterFactory,
+            UDPReplyHandlerCache udpReplyHandlerCache,
+            SearchResultHandler searchResultHandler,
+            ResponseFilterFactory responseFilterFactory) {
         this.connectionManager = connectionManager;
         this.ipFilter = ipFilter;
+        this.urnFilter = urnFilter;
         this.spamFilterFactory = spamFilterFactory;
         this.udpReplyHandlerCache = udpReplyHandlerCache;
+        this.searchResultHandler = searchResultHandler;
+        this.responseFilterFactory = responseFilterFactory;
     }
     
     public void adjustSpamFilters() {
+        searchResultHandler.setResponseFilter(responseFilterFactory.createResponseFilter());
+        
         udpReplyHandlerCache.setPersonalFilter(spamFilterFactory.createPersonalFilter());
         
         //Just replace the spam filters.  No need to do anything
@@ -56,6 +70,10 @@ public class SpamServicesImpl implements SpamServices {
                 adjustSpamFilters();
             }
         });
+    }
+    
+    public void reloadURNFilter() {
+        urnFilter.get().refreshURNs();
     }
 
 

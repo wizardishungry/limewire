@@ -7,7 +7,7 @@ import java.util.Set;
 import junit.framework.Test;
 
 import org.limewire.io.IpPort;
-import org.limewire.security.SecureMessage;
+import org.limewire.security.SecureMessage.Status;
 import org.limewire.util.NameValue;
 
 import com.google.inject.AbstractModule;
@@ -21,6 +21,7 @@ import com.limegroup.gnutella.Response;
 import com.limegroup.gnutella.ResponseFactory;
 import com.limegroup.gnutella.ResponseVerifier;
 import com.limegroup.gnutella.ResponseVerifierImpl;
+import com.limegroup.gnutella.helpers.UrnHelper;
 import com.limegroup.gnutella.messages.QueryReply;
 import com.limegroup.gnutella.messages.QueryReplyFactory;
 import com.limegroup.gnutella.stubs.ActivityCallbackStub;
@@ -76,20 +77,20 @@ public class SearchResultHandlerTest extends LimeTestCase {
         List<NameValue<String>> list = new LinkedList<NameValue<String>>();
         list.add(new NameValue<String>("audios__audio__action__", "http://somewhere.com"));
         LimeXMLDocument actionDoc = factory.createLimeXMLDocument(list, "http://www.limewire.com/schemas/audio.xsd");
-        Response actionResponse = responseFactory.createResponse(0, 1, "test", actionDoc);
+        Response actionResponse = responseFactory.createResponse(0, 1, "test", actionDoc, UrnHelper.SHA1);
         QueryReply reply = newQueryReply(new Response[] { actionResponse } );
-        reply.setSecureStatus(SecureMessage.SECURE);
+        reply.setSecureStatus(Status.SECURE);
         assertEquals(0, callback.results.size());
         searchResultHandler.handleQueryReply(reply);
         assertEquals(1, callback.results.size());
         RemoteFileDesc rfd = callback.getRFD();
         assertNotNull(rfd.getXMLDocument());
         assertEquals("http://somewhere.com", rfd.getXMLDocument().getAction());
-        assertEquals(SecureMessage.SECURE, rfd.getSecureStatus());
+        assertEquals(Status.SECURE, rfd.getSecureStatus());
     }
     
     public void testInsecureActionNotSent() throws Exception {
-        Response actionResponse = responseFactory.createResponse(0, 1, "test");
+        Response actionResponse = responseFactory.createResponse(0, 1, "test", UrnHelper.SHA1);
         List<NameValue<String>> list = new LinkedList<NameValue<String>>();
         list.add(new NameValue<String>("audios__audio__action__", "http://somewhere.com"));
         LimeXMLDocument actionDoc = factory.createLimeXMLDocument(list, "http://www.limewire.com/schemas/audio.xsd");
@@ -101,13 +102,13 @@ public class SearchResultHandlerTest extends LimeTestCase {
     }
     
     public void testInsecureResponseWithoutActionSent() throws Exception {
-        Response actionResponse = responseFactory.createResponse(0, 1, "test");
+        Response actionResponse = responseFactory.createResponse(0, 1, "test", UrnHelper.SHA1);
         List<NameValue<String>> list = new LinkedList<NameValue<String>>();
         list.add(new NameValue<String>("audios__audio__action__", "http://somewhere.com"));
         LimeXMLDocument actionDoc = factory.createLimeXMLDocument(list, "http://www.limewire.com/schemas/audio.xsd");
         actionResponse.setDocument(actionDoc);
         
-        Response noDoc = responseFactory.createResponse(1, 2, "other");
+        Response noDoc = responseFactory.createResponse(1, 2, "other", UrnHelper.SHA1);
         QueryReply reply = newQueryReply(new Response[] { actionResponse, noDoc } );
         assertEquals(0, callback.results.size());
         searchResultHandler.handleQueryReply(reply);
@@ -118,15 +119,15 @@ public class SearchResultHandlerTest extends LimeTestCase {
     }
     
     public void testFailedReplyNotForwarded() throws Exception {
-        Response actionResponse = responseFactory.createResponse(0, 1, "test");
+        Response actionResponse = responseFactory.createResponse(0, 1, "test", UrnHelper.SHA1);
         List<NameValue<String>> list = new LinkedList<NameValue<String>>();
         list.add(new NameValue<String>("audios__audio__action__", "http://somewhere.com"));
         LimeXMLDocument actionDoc = factory.createLimeXMLDocument(list, "http://www.limewire.com/schemas/audio.xsd");
         actionResponse.setDocument(actionDoc);
         
-        Response noDoc = responseFactory.createResponse(1, 2, "other");
+        Response noDoc = responseFactory.createResponse(1, 2, "other", UrnHelper.SHA1);
         QueryReply reply = newQueryReply(new Response[] { actionResponse, noDoc } );
-        reply.setSecureStatus(SecureMessage.FAILED);
+        reply.setSecureStatus(Status.FAILED);
         
         assertEquals(0, callback.results.size());
         searchResultHandler.handleQueryReply(reply);
@@ -148,7 +149,7 @@ public class SearchResultHandlerTest extends LimeTestCase {
         List<RemoteFileDesc> results = new LinkedList<RemoteFileDesc>();
 
         @Override
-        public void handleQueryResult(RemoteFileDesc rfd, HostData data, Set alts) {
+        public void handleQueryResult(RemoteFileDesc rfd, QueryReply queryReply, Set alts) {
             results.add(rfd);
         }
         

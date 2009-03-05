@@ -6,8 +6,9 @@ import java.io.File;
 import javax.swing.JPopupMenu;
 
 import org.limewire.collection.ApproximateMatcher;
+import org.limewire.io.GUID;
+import org.limewire.security.SecureMessage.Status;
 
-import com.limegroup.gnutella.GUID;
 import com.limegroup.gnutella.URN;
 import com.limegroup.gnutella.xml.LimeXMLDocument;
 
@@ -91,7 +92,7 @@ interface SearchResult {
      *  <li>{@link SecureMessage#INSECURE</li>
      * </ul>
      */
-    int getSecureStatus();
+    Status getSecureStatus();
     
     /** 
      * @return <code>0</code> for not spam or a higher value for spam

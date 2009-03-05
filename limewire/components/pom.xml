@@ -54,7 +54,14 @@
     <module>security</module>
     <module>setting</module>
     <module>statistic</module>
+    <module>swarm</module>
+    <module>xmpp</module>
+    <module>player</module>
     <module>test-util</module>
+    <module>core-api</module>
+    <module>core-settings</module>
+    <module>xmpp-api</module>
+    <module>player-api</module>
   </modules>
 
   <repositories>
@@ -81,6 +88,12 @@
 		<name>Laughing Panda Repository</name>
 		<layout>default</layout>
 		<url>http://www.laughingpanda.org/maven2/</url>
+	</repository>
+	<repository>
+	    <id>ibiblio</id>
+	    <name>ibiblio repository</name>
+	    <layout>default</layout>
+	    <url>http://mirrors.ibiblio.org/pub/mirrors/maven2/</url>
 	</repository>
   </repositories>
 
@@ -109,8 +122,8 @@
 	    <groupId>org.apache.maven.plugins</groupId>
 	    <artifactId>maven-compiler-plugin</artifactId>
 		<configuration>
-		  <source>1.5</source>
-		  <target>1.5</target>
+		  <source>1.6</source>
+		  <target>1.6</target>
 	    </configuration>
      </plugin>
      <plugin>

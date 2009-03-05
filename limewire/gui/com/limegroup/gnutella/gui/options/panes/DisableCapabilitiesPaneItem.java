@@ -4,14 +4,13 @@ import java.io.IOException;
 
 import javax.swing.JCheckBox;
 
+import org.limewire.core.settings.DHTSettings;
+import org.limewire.core.settings.UltrapeerSettings;
 import org.limewire.i18n.I18nMarker;
 
 import com.limegroup.gnutella.gui.GuiCoreMediator;
 import com.limegroup.gnutella.gui.I18n;
 import com.limegroup.gnutella.gui.LabeledComponent;
-import com.limegroup.gnutella.settings.DHTSettings;
-import com.limegroup.gnutella.settings.SSLSettings;
-import com.limegroup.gnutella.settings.UltrapeerSettings;
 
 /**
  * This class gives the user the option of whether or not to automatically
@@ -40,8 +39,8 @@ public final class DisableCapabilitiesPaneItem extends AbstractPaneItem {
                 UP_CHECK_BOX, LabeledComponent.LEFT_GLUE).getComponent());
         add(new LabeledComponent(I18nMarker.marktr("Disable Mojito DHT Capabilities:"),
                 DHT_CHECK_BOX, LabeledComponent.LEFT_GLUE).getComponent());
-        
-        if(!SSLSettings.isTLSDisabled()) {
+
+        if(GuiCoreMediator.getNetworkManager().isTLSSupported()) {
             add(new LabeledComponent(I18nMarker.marktr("Disable TLS Capabilities:"),
                     TLS_CHECK_BOX, LabeledComponent.LEFT_GLUE).getComponent());
         }
@@ -51,18 +50,19 @@ public final class DisableCapabilitiesPaneItem extends AbstractPaneItem {
     public void initOptions() {
         UP_CHECK_BOX.setSelected(UltrapeerSettings.DISABLE_ULTRAPEER_MODE.getValue());
         DHT_CHECK_BOX.setSelected(DHTSettings.DISABLE_DHT_USER.getValue());
-        TLS_CHECK_BOX.setSelected(!SSLSettings.TLS_INCOMING.getValue() || !SSLSettings.TLS_OUTGOING.getValue());
+        TLS_CHECK_BOX.setSelected(!GuiCoreMediator.getNetworkManager().isIncomingTLSEnabled() ||
+                !GuiCoreMediator.getNetworkManager().isOutgoingTLSEnabled());
     }
 
     @Override
     public boolean applyOptions() throws IOException {
         boolean upChanged = UltrapeerSettings.DISABLE_ULTRAPEER_MODE.getValue() != UP_CHECK_BOX.isSelected();
-        boolean tlsServerChanged = TLS_CHECK_BOX.isSelected() != !SSLSettings.TLS_INCOMING.getValue();
+        boolean tlsServerChanged = TLS_CHECK_BOX.isSelected() != !GuiCoreMediator.getNetworkManager().isIncomingTLSEnabled();
         boolean isSupernode = GuiCoreMediator.getConnectionServices().isSupernode();
 		UltrapeerSettings.DISABLE_ULTRAPEER_MODE.setValue(UP_CHECK_BOX.isSelected());
         DHTSettings.DISABLE_DHT_USER.setValue(DHT_CHECK_BOX.isSelected());
-        SSLSettings.TLS_INCOMING.setValue(!TLS_CHECK_BOX.isSelected());
-        SSLSettings.TLS_OUTGOING.setValue(!TLS_CHECK_BOX.isSelected());
+        GuiCoreMediator.getNetworkManager().setIncomingTLSEnabled(!TLS_CHECK_BOX.isSelected());
+        GuiCoreMediator.getNetworkManager().setOutgoingTLSEnabled(!TLS_CHECK_BOX.isSelected());
         
         if((tlsServerChanged || (upChanged && UP_CHECK_BOX.isSelected()) && isSupernode)) {
             GuiCoreMediator.getConnectionServices().disconnect();
@@ -74,7 +74,8 @@ public final class DisableCapabilitiesPaneItem extends AbstractPaneItem {
     public boolean isDirty() {
         return UltrapeerSettings.DISABLE_ULTRAPEER_MODE.getValue() != UP_CHECK_BOX.isSelected() 
             || DHTSettings.DISABLE_DHT_USER.getValue() != DHT_CHECK_BOX.isSelected()
-            || (!SSLSettings.TLS_INCOMING.getValue() && !SSLSettings.TLS_OUTGOING.getValue())
+            || (!GuiCoreMediator.getNetworkManager().isIncomingTLSEnabled() &&
+                !GuiCoreMediator.getNetworkManager().isOutgoingTLSEnabled())
                    != TLS_CHECK_BOX.isSelected();
     }	
 }

@@ -2,9 +2,10 @@ package com.limegroup.gnutella.gui.tabs;
 
 import javax.swing.JComponent;
 
+import org.limewire.core.settings.ApplicationSettings;
+
 import com.limegroup.gnutella.gui.I18n;
 import com.limegroup.gnutella.gui.tables.ComponentMediator;
-import com.limegroup.gnutella.settings.ApplicationSettings;
 
 /**
  * This class contains access to the connections tab properties.

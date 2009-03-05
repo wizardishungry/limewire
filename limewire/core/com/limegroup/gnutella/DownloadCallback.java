@@ -10,7 +10,7 @@ public interface DownloadCallback {
     public void addDownload(Downloader d);
 
     /** Remove a downloader from the download window. */
-    public void removeDownload(Downloader d);
+    public void downloadCompleted(Downloader d);
 
      /** 
       * Notifies the GUI that all active downloads have been completed.
@@ -30,7 +30,5 @@ public interface DownloadCallback {
      * otherwise there will be threads piling up waiting for a notification
      */
     public void promptAboutCorruptDownload(Downloader dloader);
-
-    public String getHostValue(String key);
     
 }

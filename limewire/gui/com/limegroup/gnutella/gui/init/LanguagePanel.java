@@ -21,13 +21,13 @@ import javax.swing.JComboBox;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 
+import org.limewire.core.settings.ApplicationSettings;
 import org.limewire.io.IOUtils;
 
 import com.limegroup.gnutella.gui.I18n;
 import com.limegroup.gnutella.gui.LanguageFlagFactory;
 import com.limegroup.gnutella.gui.LanguageUtils;
 import com.limegroup.gnutella.gui.ResourceManager;
-import com.limegroup.gnutella.settings.ApplicationSettings;
 
 public class LanguagePanel extends JPanel {
     

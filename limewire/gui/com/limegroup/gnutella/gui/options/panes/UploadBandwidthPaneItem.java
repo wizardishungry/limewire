@@ -10,13 +10,13 @@ import javax.swing.JSlider;
 import javax.swing.event.ChangeEvent;
 import javax.swing.event.ChangeListener;
 
+import org.limewire.core.settings.ConnectionSettings;
+import org.limewire.core.settings.UploadSettings;
 import org.limewire.i18n.I18nMarker;
 
 import com.limegroup.gnutella.gui.GuiCoreMediator;
 import com.limegroup.gnutella.gui.I18n;
 import com.limegroup.gnutella.gui.LabeledComponent;
-import com.limegroup.gnutella.settings.ConnectionSettings;
-import com.limegroup.gnutella.settings.UploadSettings;
 
 /**
  * This class defines the panel in the options window that allows the user

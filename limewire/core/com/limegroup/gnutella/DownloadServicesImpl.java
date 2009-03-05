@@ -3,6 +3,9 @@ package com.limegroup.gnutella;
 import java.io.File;
 import java.util.List;
 
+import org.limewire.core.api.download.SaveLocationException;
+import org.limewire.io.GUID;
+
 import com.google.inject.Inject;
 import com.google.inject.Provider;
 import com.google.inject.Singleton;

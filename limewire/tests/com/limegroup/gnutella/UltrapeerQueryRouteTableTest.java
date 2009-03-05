@@ -4,17 +4,19 @@ import java.net.InetAddress;
 
 import junit.framework.Test;
 
+import org.limewire.core.settings.ConnectionSettings;
+import org.limewire.core.settings.FilterSettings;
+import org.limewire.core.settings.SearchSettings;
+import org.limewire.core.settings.UltrapeerSettings;
+import org.limewire.util.MediaType;
+
 import com.google.inject.AbstractModule;
 import com.google.inject.Injector;
+import com.google.inject.Stage;
 import com.limegroup.gnutella.connection.RoutedConnection;
 import com.limegroup.gnutella.messages.Message;
 import com.limegroup.gnutella.messages.QueryRequest;
 import com.limegroup.gnutella.routing.QueryRouteTable;
-import com.limegroup.gnutella.settings.ConnectionSettings;
-import com.limegroup.gnutella.settings.FilterSettings;
-import com.limegroup.gnutella.settings.SearchSettings;
-import com.limegroup.gnutella.settings.SharingSettings;
-import com.limegroup.gnutella.settings.UltrapeerSettings;
 import com.limegroup.gnutella.xml.LimeXMLDocument;
 
 
@@ -24,7 +26,6 @@ import com.limegroup.gnutella.xml.LimeXMLDocument;
  *
  * ULTRAPEER_1  ----  ULTRAPEER_2
  */
-@SuppressWarnings("unchecked")
 public final class UltrapeerQueryRouteTableTest extends ServerSideTestCase {
 
 
@@ -60,7 +61,6 @@ public final class UltrapeerQueryRouteTableTest extends ServerSideTestCase {
     @Override
     protected void setSettings() throws Exception {
 
-        SharingSettings.EXTENSIONS_TO_SHARE.setValue("tmp");
         ConnectionSettings.NUM_CONNECTIONS.setValue(4);
         SearchSettings.GUESS_ENABLED.setValue(true);
         UltrapeerSettings.DISABLE_ULTRAPEER_MODE.setValue(false);
@@ -94,7 +94,7 @@ public final class UltrapeerQueryRouteTableTest extends ServerSideTestCase {
     public void setUp() throws Exception {
 
         final ResponseVerifier testVerifier = new TestResponseVerifier();
-        Injector injector = LimeTestUtils.createInjector(new AbstractModule() {
+        Injector injector = LimeTestUtils.createInjector(Stage.PRODUCTION, new AbstractModule() {
             @Override
             protected void configure() {
                 bind(ResponseVerifier.class).toInstance(testVerifier);

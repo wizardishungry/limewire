@@ -3,7 +3,7 @@ package com.limegroup.gnutella.gui.library;
 import java.io.File;
 
 import com.limegroup.gnutella.gui.I18n;
-import com.limegroup.gnutella.library.SharingUtils;
+import com.limegroup.gnutella.library.LibraryUtils;
 
 public class TorrentMetaFileDirectoryHolder extends AbstractDirectoryHolder{
     
@@ -18,7 +18,7 @@ public class TorrentMetaFileDirectoryHolder extends AbstractDirectoryHolder{
     }
 
     public File getDirectory() {
-        return SharingUtils.APPLICATION_SPECIAL_SHARE;
+        return LibraryUtils.APPLICATION_SPECIAL_SHARE;
     }
     
     @Override

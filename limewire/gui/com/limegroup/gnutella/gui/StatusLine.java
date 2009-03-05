@@ -30,16 +30,15 @@ import javax.swing.JSeparator;
 import javax.swing.SwingConstants;
 import javax.swing.ToolTipManager;
 
+import org.limewire.core.settings.ApplicationSettings;
+import org.limewire.core.settings.PlayerSettings;
+import org.limewire.core.settings.StatusBarSettings;
 import org.limewire.setting.BooleanSetting;
 
 import com.limegroup.gnutella.NetworkManager;
 import com.limegroup.gnutella.gui.mp3.MediaPlayerComponent;
-import com.limegroup.gnutella.gui.themes.ThemeFileHandler;
 import com.limegroup.gnutella.gui.themes.ThemeMediator;
 import com.limegroup.gnutella.gui.themes.ThemeObserver;
-import com.limegroup.gnutella.settings.ApplicationSettings;
-import com.limegroup.gnutella.settings.PlayerSettings;
-import com.limegroup.gnutella.settings.StatusBarSettings;
 import com.limegroup.gnutella.util.LimeWireUtils;
 import com.limegroup.gnutella.version.UpdateInformation;
 
@@ -644,8 +643,8 @@ public final class StatusLine implements ThemeObserver {
      * @modifies this
      * @return A displayable Horizon string.
      */
-    public void setStatistics(int share, int pending) {
-		_sharedFiles.update(share, pending);
+    public void setStatistics(int share) {
+		_sharedFiles.update(share);
     }
 
     /**
@@ -871,7 +870,6 @@ public final class StatusLine implements ThemeObserver {
 		private String _string = "0...";
 		
 		private int _share;
-		private int _pending;
 
 		@Override
         public Dimension getMinimumSize() {
@@ -886,21 +884,18 @@ public final class StatusLine implements ThemeObserver {
 		/**
 		 * Updates the component with information about the sharing state. 
 		 */
-		public void update(int share, int pending) {
+		public void update(int share) {
 			boolean shareChanged = share != _share;
-			boolean pendingChanged = pending != _pending;
 			
 			_share = share;
-			_pending = pending;
 
 			//  if no changes, return
-			if (!(shareChanged || pendingChanged))
+			if (!(shareChanged))
 				return;
 			
 			_string = GUIUtils.toLocalizedInteger(_share);
-			if (!GuiCoreMediator.getFileManager().isLoadFinished() ||
-                    GuiCoreMediator.getFileManager().isUpdating())
-				_string += "...";
+//			if (!GuiCoreMediator.getFileManager().isLoadFinished())
+//				_string += "...";
 			
 			if (fm != null)
 				_width = fm.stringWidth(_string) + _height;
@@ -913,13 +908,13 @@ public final class StatusLine implements ThemeObserver {
 		}
 
         private void updateToolTip(int share) {
-            if (GuiCoreMediator.getFileManager().isLoadFinished()) {
-                // {0}: number of shared files
-				setToolTipText(I18n.trn("You are sharing {0} file", "You are sharing {0} files", share, share));
-            } else {
-                // {0}: number of shared files
-                setToolTipText(I18n.trn("You are sharing {0} file (Loading...)", "You are sharing {0} files (Loading...)", share, share));
-            }
+//            if (GuiCoreMediator.getFileManager().isLoadFinished()) {
+//                // {0}: number of shared files
+//				setToolTipText(I18n.trn("You are sharing {0} file", "You are sharing {0} files", share, share));
+//            } else {
+//                // {0}: number of shared files
+//                setToolTipText(I18n.trn("You are sharing {0} file (Loading...)", "You are sharing {0} files (Loading...)", share, share));
+//            }
         }
 		
 		/**
@@ -937,21 +932,20 @@ public final class StatusLine implements ThemeObserver {
 				fm = g2.getFontMetrics();
 			
             //  create string, set background color
-			if (!GuiCoreMediator.getFileManager().isLoadFinished() ||
-                    GuiCoreMediator.getFileManager().isUpdating()) {
-                g2.setPaint(new Color(165, 165, 2));
-                if (!_string.endsWith("..."))
-                    _string += "...";
-            } else if (_string.startsWith("0")) {
-                g2.setPaint(ThemeFileHandler.NOT_SHARING_LABEL_COLOR.getValue());
-                if (_string.endsWith("..."))
-                    _string = _string.substring(0, _string.length() - 3);
-            }
-            else {
-                g2.setPaint(new Color(2, 137, 2));
-                if (_string.endsWith("..."))
-                    _string = _string.substring(0, _string.length() - 3);
-            }
+//			if (!GuiCoreMediator.getFileManager().isLoadFinished()) {
+//                g2.setPaint(new Color(165, 165, 2));
+//                if (!_string.endsWith("..."))
+//                    _string += "...";
+//            } else if (_string.startsWith("0")) {
+//                g2.setPaint(ThemeFileHandler.NOT_SHARING_LABEL_COLOR.getValue());
+//                if (_string.endsWith("..."))
+//                    _string = _string.substring(0, _string.length() - 3);
+//            }
+//            else {
+//                g2.setPaint(new Color(2, 137, 2));
+//                if (_string.endsWith("..."))
+//                    _string = _string.substring(0, _string.length() - 3);
+//            }
 
             //  figure out size
             int width = fm.stringWidth(_string) + _height; 

@@ -1,8 +1,10 @@
 package com.limegroup.gnutella;
 
+import org.limewire.core.settings.ApplicationSettings;
+import org.limewire.io.GUID;
+
 import com.google.inject.Inject;
 import com.google.inject.Singleton;
-import com.limegroup.gnutella.settings.ApplicationSettings;
 import com.limegroup.gnutella.util.LimeWireUtils;
 
 @Singleton

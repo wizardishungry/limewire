@@ -37,9 +37,7 @@ import javax.swing.tree.TreePath;
 
 import org.limewire.util.FileUtils;
 
-import com.limegroup.gnutella.FileManager;
 import com.limegroup.gnutella.gui.GUIMediator;
-import com.limegroup.gnutella.gui.GuiCoreMediator;
 import com.limegroup.gnutella.gui.I18n;
 import com.limegroup.gnutella.gui.MultiLineLabel;
 import com.limegroup.gnutella.gui.themes.ThemeSettings;
@@ -197,7 +195,7 @@ public class RecursiveSharingPanel extends JPanel {
      */
     public void setFoldersToExclude(Set<File> blackListSet) {
         deselected.clear();
-        deselected.addAll(blackListSet);
+       // deselected.addAll(blackListSet);
     }
     
     /**
@@ -667,19 +665,20 @@ public class RecursiveSharingPanel extends JPanel {
     }
 
     private static class SharedFolderFilter implements FileFilter {
-        private final FileManager manager = GuiCoreMediator.getFileManager();
-        private final boolean hideExcludedDirectories;
+//        private final FileManager manager = GuiCoreMediator.getFileManager();
+//        private final boolean hideExcludedDirectories;
         
         public SharedFolderFilter(boolean hideExlucdedDirectories) {
-            this.hideExcludedDirectories = hideExlucdedDirectories;
+//            this.hideExcludedDirectories = hideExlucdedDirectories;
         }
         
         
         public boolean accept(File pathname) {
-            // passing in true so we don't show explicitly excluded folders
-            // from previous sessions, they would have to be explicitly 
-            // shared in an extra user interaction
-            return manager.isFolderShareable(pathname, hideExcludedDirectories);
+            return true;
+//            // passing in true so we don't show explicitly excluded folders
+//            // from previous sessions, they would have to be explicitly 
+//            // shared in an extra user interaction
+//            return manager.isFolderShareable(pathname, hideExcludedDirectories);
         }
     };
 

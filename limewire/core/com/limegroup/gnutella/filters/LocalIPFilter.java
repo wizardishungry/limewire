@@ -10,6 +10,7 @@ import java.util.concurrent.ScheduledExecutorService;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.limewire.core.settings.FilterSettings;
 import org.limewire.inspection.Inspectable;
 import org.limewire.inspection.InspectableContainer;
 import org.limewire.inspection.InspectionPoint;
@@ -20,7 +21,6 @@ import org.limewire.util.CommonUtils;
 import com.google.inject.Inject;
 import com.google.inject.Singleton;
 import com.google.inject.name.Named;
-import com.limegroup.gnutella.settings.FilterSettings;
 
 
 /**
@@ -130,10 +130,13 @@ public final class LocalIPFilter extends AbstractIPFilter {
     
     /** The logmin distance to bad or hostile ips. */
     public int logMinDistanceTo(IP ip) {
-        int minDistance = badHosts.logMinDistanceTo(ip);
+        // If the address is on the whitelist, return the maximum distance
+        if(goodHosts.logMinDistanceTo(ip) == 0)
+            return 32;
+        int min = badHosts.logMinDistanceTo(ip);
         if(FilterSettings.USE_NETWORK_FILTER.getValue())
-            minDistance = Math.min(minDistance, hostileNetworkFilter.logMinDistanceTo(ip));
-        return minDistance;
+            min = Math.min(min, hostileNetworkFilter.logMinDistanceTo(ip));
+        return min;
     }
     
     @Override
@@ -173,6 +176,7 @@ public final class LocalIPFilter extends AbstractIPFilter {
             }
         };
     }
+
 }
 
 

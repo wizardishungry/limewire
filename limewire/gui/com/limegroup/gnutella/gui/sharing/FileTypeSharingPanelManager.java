@@ -7,14 +7,9 @@ import java.awt.Container;
 import java.awt.Dimension;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashSet;
-import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.TreeSet;
 
 import javax.swing.AbstractAction;
 import javax.swing.Action;
@@ -27,22 +22,17 @@ import javax.swing.JPanel;
 import javax.swing.JSplitPane;
 
 import org.limewire.i18n.I18nMarker;
-import org.limewire.setting.StringArraySetting;
+import org.limewire.util.MediaType;
 
-import com.limegroup.gnutella.MediaType;
 import com.limegroup.gnutella.gui.CheckBoxList;
 import com.limegroup.gnutella.gui.GUIMediator;
-import com.limegroup.gnutella.gui.GUIUtils;
-import com.limegroup.gnutella.gui.GuiCoreMediator;
 import com.limegroup.gnutella.gui.I18n;
-import com.limegroup.gnutella.gui.IconManager;
 import com.limegroup.gnutella.gui.MultiLineLabel;
 import com.limegroup.gnutella.gui.CheckBoxList.CheckBoxListCheckChangeEvent;
 import com.limegroup.gnutella.gui.CheckBoxList.CheckBoxListCheckChangeListener;
 import com.limegroup.gnutella.gui.CheckBoxList.CheckBoxListSelectionEvent;
 import com.limegroup.gnutella.gui.CheckBoxList.CheckBoxListSelectionListener;
 import com.limegroup.gnutella.gui.search.NamedMediaType;
-import com.limegroup.gnutella.settings.SharingSettings;
 
 /**
  * Constructs the file type sharing panel to be used in the options
@@ -75,7 +65,7 @@ public final class FileTypeSharingPanelManager {
     
     private Map<NamedMediaType,CheckBoxList<String>> panels;
     
-    private final ExtensionProvider extensionProvider = new ExtensionProvider();
+//    private final ExtensionProvider extensionProvider = new ExtensionProvider();
 
     public static final String CUSTOM = "__Custom$";
     public static final String OTHER = "_Other$";
@@ -83,15 +73,15 @@ public final class FileTypeSharingPanelManager {
     public static final String OTHER_NAME = I18nMarker.marktr("Other");
 
     
-    private static final NamedMediaType otherMedia 
-        = new NamedMediaType(new MediaType(OTHER_NAME, OTHER, null),null);
+//    private static final NamedMediaType otherMedia 
+//        = new NamedMediaType(new MediaType(OTHER_NAME, OTHER, null),null);
 
     private static final NamedMediaType customMedia
         = new NamedMediaType(new MediaType("CUSTOM_NAME", CUSTOM, null),null);
 
     
     private JCheckBox disableSensitive;
-    private boolean migrate;
+//    private boolean migrate;
     private Set<NamedMediaType> mediaKeys;
     private Set<NamedMediaType> mediaUnchecked;        
 
@@ -106,7 +96,7 @@ public final class FileTypeSharingPanelManager {
      */
     private NamedMediaType               currentKey;
     
-    private String                       originalExtensions;
+//    private String                       originalExtensions;
     
     public FileTypeSharingPanelManager(Component parent) {
         this();
@@ -156,10 +146,10 @@ public final class FileTypeSharingPanelManager {
     private void revert() {
         NamedMediaType oldKey = this.currentKey;
         
-        SharingSettings.EXTENSIONS_TO_SHARE.revertToDefault();
-        SharingSettings.EXTENSIONS_LIST_CUSTOM.revertToDefault();
-        SharingSettings.EXTENSIONS_LIST_UNSHARED.revertToDefault();
-        SharingSettings.DISABLE_SENSITIVE.revertToDefault();
+//        OldLibrarySettings.EXTENSIONS_TO_SHARE.revertToDefault();
+//        OldLibrarySettings.EXTENSIONS_LIST_CUSTOM.revertToDefault();
+//        OldLibrarySettings.EXTENSIONS_LIST_UNSHARED.revertToDefault();
+//        OldLibrarySettings.DISABLE_SENSITIVE.revertToDefault();
         
         initCore();
         buildUI();
@@ -191,118 +181,118 @@ public final class FileTypeSharingPanelManager {
     }
    
     void initCore() {
-        this.customUnchecked.clear();
-        
-        Set<String> customExts = new HashSet<String>();
-        
-        String[] totalExtensions = SharingSettings.getDefaultExtensions();
-        String[] selectedExtensions;
-        
-        
-        migrate = SharingSettings.EXTENSIONS_MIGRATE.getValue();
-        
-        if (migrate) { 
-            selectedExtensions = StringArraySetting.decode(SharingSettings.EXTENSIONS_TO_SHARE.getValue().toLowerCase());
-            
-            for ( int i = 0 ; i<selectedExtensions.length ; i++ ) {
-                if (!contains(totalExtensions, selectedExtensions[i])) {
-                    customExts.add(selectedExtensions[i]);
-                }
-            }
-        }
-        else {
-            String[] custom           = StringArraySetting.decode(SharingSettings.EXTENSIONS_LIST_CUSTOM.getValue().toLowerCase());
-            String[] unselected       = StringArraySetting.decode(SharingSettings.EXTENSIONS_LIST_UNSHARED.getValue().toLowerCase());
-                        
-            Set<String> extSet = new HashSet<String>();
-            Set<String> newTotalSet = new HashSet<String>();
-            
-            for ( int i=0 ; i<totalExtensions.length ; i++ ) {
-                extSet.add(totalExtensions[i]);
-                newTotalSet.add(totalExtensions[i]);
-            }
-
-            for ( int i=0 ; i<custom.length ; i++ ) {
-                if (custom[i].length() > 0) {
-                    if (!contains(totalExtensions, custom[i]))
-                    customExts.add(custom[i]);
-                }
-            }
-            
-            for ( int i=0 ; i<unselected.length ; i++ ) {
-                extSet.remove(unselected[i]);
-                
-                if (customExts.contains(unselected[i])) {
-                    this.customUnchecked.add(unselected[i]);
-                }
-            }
-
-            
-            totalExtensions = newTotalSet.toArray(new String[newTotalSet.size()]);
-                        
-            selectedExtensions = new String[extSet.size()];
-            selectedExtensions = extSet.toArray(selectedExtensions);
-        }
-                
-        Map<NamedMediaType, List<String>> extensionsByType = createExtensionsMap(selectedExtensions, customExts);
-        Map<NamedMediaType, List<String>> defaultsByType   = createExtensionsMap(totalExtensions, customExts);
-
-        mediaKeys = new TreeSet<NamedMediaType>();
-        Set<NamedMediaType> s; 
-        if ((s = extensionsByType.keySet()) != null) {        
-            mediaKeys.addAll(s);
-        }
-        if ((s = defaultsByType.keySet()) != null) {        
-            mediaKeys.addAll(s);
-        }
-
-        this.panels = new LinkedHashMap<NamedMediaType,CheckBoxList<String>>();
-        this.mediaUnchecked = new HashSet<NamedMediaType>();
-        this.currentKey = null;
-
-        PanelsCheckChangeListener refreshListener = new PanelsCheckChangeListener(this);
-        
-        for (NamedMediaType key : mediaKeys) {
-
-            if (this.currentKey == null) {
-                this.currentKey = key;
-            }
-            
-            List<String> list = extensionsByType.get(key);
-            List<String> defList = defaultsByType.get(key);
-
-            
-            Set<String> total = new TreeSet<String>();
-            Set<String> notSelected = new TreeSet<String>();
-
-            if (defList != null) {
-                total.addAll(defList);
-                notSelected.addAll(defList);
-            }
-
-            if (list != null) {
-                total.addAll(list);
-                notSelected.removeAll(list);
-            }
-
-            
-            CheckBoxList<String> newPanel = new CheckBoxList<String>(total, notSelected, extensionProvider,
-                    CheckBoxList.SELECT_FIRST_OFF);
-            
-            newPanel.setDisabledTooltip(I18n.tr("To allow selection enable sharing of sensitive types."));
-            newPanel.setCheckChangeListener(refreshListener);
-            
-            if (total.equals(notSelected)) {
-                newPanel.setEnabled(false);
-                this.mediaUnchecked.add(key);
-            }
-            
-            this.panels.put(key, newPanel);
-        }
-        
-        this.insertNewCustomPanel(customExts);
-        
-        this.originalExtensions = this.getExtensions();
+//        this.customUnchecked.clear();
+//        
+//        Set<String> customExts = new HashSet<String>();
+//        
+//        String[] totalExtensions = null; //OldLibrarySettings.getDefaultExtensions();
+//        String[] selectedExtensions;
+//        
+//        
+//        migrate = OldLibrarySettings.EXTENSIONS_MIGRATE.getValue();
+//        
+//        if (migrate) { 
+//            selectedExtensions = StringArraySetting.decode(OldLibrarySettings.EXTENSIONS_TO_SHARE.getValue().toLowerCase());
+//            
+//            for ( int i = 0 ; i<selectedExtensions.length ; i++ ) {
+//                if (!contains(totalExtensions, selectedExtensions[i])) {
+//                    customExts.add(selectedExtensions[i]);
+//                }
+//            }
+//        }
+//        else {
+//            String[] custom           = StringArraySetting.decode(OldLibrarySettings.EXTENSIONS_LIST_CUSTOM.getValue().toLowerCase());
+//            String[] unselected       = StringArraySetting.decode(OldLibrarySettings.EXTENSIONS_LIST_UNSHARED.getValue().toLowerCase());
+//                        
+//            Set<String> extSet = new HashSet<String>();
+//            Set<String> newTotalSet = new HashSet<String>();
+//            
+//            for ( int i=0 ; i<totalExtensions.length ; i++ ) {
+//                extSet.add(totalExtensions[i]);
+//                newTotalSet.add(totalExtensions[i]);
+//            }
+//
+//            for ( int i=0 ; i<custom.length ; i++ ) {
+//                if (custom[i].length() > 0) {
+//                    if (!contains(totalExtensions, custom[i]))
+//                    customExts.add(custom[i]);
+//                }
+//            }
+//            
+//            for ( int i=0 ; i<unselected.length ; i++ ) {
+//                extSet.remove(unselected[i]);
+//                
+//                if (customExts.contains(unselected[i])) {
+//                    this.customUnchecked.add(unselected[i]);
+//                }
+//            }
+//
+//            
+//            totalExtensions = newTotalSet.toArray(new String[newTotalSet.size()]);
+//                        
+//            selectedExtensions = new String[extSet.size()];
+//            selectedExtensions = extSet.toArray(selectedExtensions);
+//        }
+//                
+//        Map<NamedMediaType, List<String>> extensionsByType = createExtensionsMap(selectedExtensions, customExts);
+//        Map<NamedMediaType, List<String>> defaultsByType   = createExtensionsMap(totalExtensions, customExts);
+//
+//        mediaKeys = new TreeSet<NamedMediaType>();
+//        Set<NamedMediaType> s; 
+//        if ((s = extensionsByType.keySet()) != null) {        
+//            mediaKeys.addAll(s);
+//        }
+//        if ((s = defaultsByType.keySet()) != null) {        
+//            mediaKeys.addAll(s);
+//        }
+//
+//        this.panels = new LinkedHashMap<NamedMediaType,CheckBoxList<String>>();
+//        this.mediaUnchecked = new HashSet<NamedMediaType>();
+//        this.currentKey = null;
+//
+//        PanelsCheckChangeListener refreshListener = new PanelsCheckChangeListener(this);
+//        
+//        for (NamedMediaType key : mediaKeys) {
+//
+//            if (this.currentKey == null) {
+//                this.currentKey = key;
+//            }
+//            
+//            List<String> list = extensionsByType.get(key);
+//            List<String> defList = defaultsByType.get(key);
+//
+//            
+//            Set<String> total = new TreeSet<String>();
+//            Set<String> notSelected = new TreeSet<String>();
+//
+//            if (defList != null) {
+//                total.addAll(defList);
+//                notSelected.addAll(defList);
+//            }
+//
+//            if (list != null) {
+//                total.addAll(list);
+//                notSelected.removeAll(list);
+//            }
+//
+//            
+//            CheckBoxList<String> newPanel = new CheckBoxList<String>(total, notSelected, extensionProvider,
+//                    CheckBoxList.SELECT_FIRST_OFF);
+//            
+//            newPanel.setDisabledTooltip(I18n.tr("To allow selection enable sharing of sensitive types."));
+//            newPanel.setCheckChangeListener(refreshListener);
+//            
+//            if (total.equals(notSelected)) {
+//                newPanel.setEnabled(false);
+//                this.mediaUnchecked.add(key);
+//            }
+//            
+//            this.panels.put(key, newPanel);
+//        }
+//        
+//        this.insertNewCustomPanel(customExts);
+//        
+//        this.originalExtensions = this.getExtensions();
     }
 
     
@@ -334,7 +324,7 @@ public final class FileTypeSharingPanelManager {
         
         this.addBottomPanel();
         
-        this.shareProtect(!SharingSettings.DISABLE_SENSITIVE.getValue());
+//        this.shareProtect(!OldLibrarySettings.DISABLE_SENSITIVE.getValue());
         
         this.mainContainer.validate();
 
@@ -346,81 +336,81 @@ public final class FileTypeSharingPanelManager {
      */
     private void shareProtect(boolean state) {
 
-        String[] disabled = SharingSettings.getDefaultDisabledExtensions();
-        
-        Set<String> totalDisabled = new HashSet<String>();
-                
-        for( String item : disabled ) {
-            totalDisabled.add(item);
-        }
-        
-        for ( CheckBoxList<String> panel : this.panels.values() ) {
-            panel.setItemsEnabled(totalDisabled, state);
-        }
-
-        this.refreshSidePanel();
+//        String[] disabled = OldLibrarySettings.getDefaultDisabledExtensions();
+//        
+//        Set<String> totalDisabled = new HashSet<String>();
+//                
+//        for( String item : disabled ) {
+//            totalDisabled.add(item);
+//        }
+//        
+//        for ( CheckBoxList<String> panel : this.panels.values() ) {
+//            panel.setItemsEnabled(totalDisabled, state);
+//        }
+//
+//        this.refreshSidePanel();
     }
     
 
     
     
     
-    private static Map<NamedMediaType, List<String>> createExtensionsMap(String[] extensions, Set<String> ignoreList) {
-
-        if (extensions == null || extensions.length == 0) {
-            return Collections.emptyMap();
-        }
-        Map<NamedMediaType, List<String>> extensionsByType = new LinkedHashMap<NamedMediaType, List<String>>();
-
-        for (String extension : extensions) { 
-            NamedMediaType nm = NamedMediaType.getFromExtension(extension);
-            if (nm == null) {
-                nm = otherMedia;
-            }
-            if (!extensionsByType.containsKey(nm)) {
-                extensionsByType.put(nm, new ArrayList<String>(8));
-            }
-            List<String> typeExtension = extensionsByType.get(nm);
-            if (   !typeExtension.contains(extension)
-                && (ignoreList == null || !ignoreList.contains(extension))) {
-                typeExtension.add(extension);
-            }
-        }
-        
-        return extensionsByType;
-    }
+//    private static Map<NamedMediaType, List<String>> createExtensionsMap(String[] extensions, Set<String> ignoreList) {
+//
+//        if (extensions == null || extensions.length == 0) {
+//            return Collections.emptyMap();
+//        }
+//        Map<NamedMediaType, List<String>> extensionsByType = new LinkedHashMap<NamedMediaType, List<String>>();
+//
+//        for (String extension : extensions) { 
+//            NamedMediaType nm = NamedMediaType.getFromExtension(extension);
+//            if (nm == null) {
+//                nm = otherMedia;
+//            }
+//            if (!extensionsByType.containsKey(nm)) {
+//                extensionsByType.put(nm, new ArrayList<String>(8));
+//            }
+//            List<String> typeExtension = extensionsByType.get(nm);
+//            if (   !typeExtension.contains(extension)
+//                && (ignoreList == null || !ignoreList.contains(extension))) {
+//                typeExtension.add(extension);
+//            }
+//        }
+//        
+//        return extensionsByType;
+//    }
     
-    private String getExtensions() {
-        Set<String> elements = new HashSet<String>();
-        
-        for ( CheckBoxList<String> panel : this.panels.values() ) {
-             elements.addAll(panel.getCheckedElements());
-        }
-         
-        String[] array = elements.toArray(new String[elements.size()]);
-        return StringArraySetting.encode(array);
-    }
+//    private String getExtensions() {
+//        Set<String> elements = new HashSet<String>();
+//        
+//        for ( CheckBoxList<String> panel : this.panels.values() ) {
+//             elements.addAll(panel.getCheckedElements());
+//        }
+//         
+//        String[] array = elements.toArray(new String[elements.size()]);
+//        return StringArraySetting.encode(array);
+//    }
     
     
-    private String getUncheckedExtensions() {
-        Set<String> elements = new HashSet<String>();
-        
-        for ( CheckBoxList<String> panel : this.panels.values() ) {
-             elements.addAll(panel.getUncheckedElements());
-        }
-         
-        String[] array = elements.toArray(new String[elements.size()]);
-        return StringArraySetting.encode(array);
-    }
-    
-    private static boolean contains(Object[] list, Object value) {
-        for ( int i=0 ; i<list.length ; i++ ) {
-            if (list[i].equals(value)) {
-                return true;
-            }
-        }
-        return false;
-    }
+//    private String getUncheckedExtensions() {
+//        Set<String> elements = new HashSet<String>();
+//        
+//        for ( CheckBoxList<String> panel : this.panels.values() ) {
+//             elements.addAll(panel.getUncheckedElements());
+//        }
+//         
+//        String[] array = elements.toArray(new String[elements.size()]);
+//        return StringArraySetting.encode(array);
+//    }
+//    
+//    private static boolean contains(Object[] list, Object value) {
+//        for ( int i=0 ; i<list.length ; i++ ) {
+//            if (list[i].equals(value)) {
+//                return true;
+//            }
+//        }
+//        return false;
+//    }
     
     private boolean checkExt(String text) {
         if (text == null) {
@@ -439,26 +429,26 @@ public final class FileTypeSharingPanelManager {
         
            
         
-        if (contains(SharingSettings.getDefaultExtensions(), text)) {
-            NamedMediaType type = NamedMediaType.getFromExtension(text);
-            
-            if (type == null) {
-                type = otherMedia;
-            }
-            
-            CheckBoxList<String> panel = this.panels.get(type); 
-            
-            if (panel == null) {
-                JOptionPane.showMessageDialog(this.parent, malformedMsg);
-                return false;    
-            }
-         
-            this.switchPanel(type);
-            panel.setItemChecked(text);
-            this.sidePanel.setItemSelected(type);
-            
-            return false;
-        }
+//        if (contains(OldLibrarySettings.getDefaultExtensions(), text)) {
+//            NamedMediaType type = NamedMediaType.getFromExtension(text);
+//            
+//            if (type == null) {
+//                type = otherMedia;
+//            }
+//            
+//            CheckBoxList<String> panel = this.panels.get(type); 
+//            
+//            if (panel == null) {
+//                JOptionPane.showMessageDialog(this.parent, malformedMsg);
+//                return false;    
+//            }
+//         
+//            this.switchPanel(type);
+//            panel.setItemChecked(text);
+//            this.sidePanel.setItemSelected(type);
+//            
+//            return false;
+//        }
 
         if (this.customPanel.getElements().contains(text)) {
             CheckBoxList<String> panel = this.panels.get(this.customKey); 
@@ -529,7 +519,7 @@ public final class FileTypeSharingPanelManager {
         
         this.disableSensitive = new JCheckBox(I18n.tr("Do Not Share Sensitive File Types"));        
         this.disableSensitive.setToolTipText(I18n.tr("This stops LimeWire from sharing certain files that may contain sensitive information."));
-        this.disableSensitive.setSelected(SharingSettings.DISABLE_SENSITIVE.getValue());
+//        this.disableSensitive.setSelected(OldLibrarySettings.DISABLE_SENSITIVE.getValue());
         
         JPanel buffer = new JPanel(new BorderLayout());
         buffer.setBorder(BorderFactory.createEmptyBorder(6, 0, 0, 0));
@@ -551,20 +541,20 @@ public final class FileTypeSharingPanelManager {
        
     }
 
-    private void insertNewCustomPanel(Set<String> customExts) {
-        
-        this.customPanel = new CheckBoxList<String>(customExts, this.customUnchecked,
-                                   extensionProvider, CheckBoxList.SELECT_FIRST_OFF);
-        
-        this.customPanel.setRemovable(true);
-        this.customPanel.setCheckChangeListener(new PanelsCheckChangeListener(this));
-        
-        this.currentPanel.add(this.customPanel, this.customKey.toString());
-        
-        this.mediaKeys.add(this.customKey);
-        
-        this.panels.put(this.customKey, this.customPanel);
-    }
+//    private void insertNewCustomPanel(Set<String> customExts) {
+//        
+//        this.customPanel = new CheckBoxList<String>(customExts, this.customUnchecked,
+//                                   extensionProvider, CheckBoxList.SELECT_FIRST_OFF);
+//        
+//        this.customPanel.setRemovable(true);
+//        this.customPanel.setCheckChangeListener(new PanelsCheckChangeListener(this));
+//        
+//        this.currentPanel.add(this.customPanel, this.customKey.toString());
+//        
+//        this.mediaKeys.add(this.customKey);
+//        
+//        this.panels.put(this.customKey, this.customPanel);
+//    }
     
      
 
@@ -576,31 +566,32 @@ public final class FileTypeSharingPanelManager {
     }
 
     public boolean applyOptions() {
-      
-        String newList = this.getExtensions();
-              
-        SharingSettings.EXTENSIONS_TO_SHARE.setValue(newList);
-        GuiCoreMediator.getFileManager().loadSettings();
-               
-        SharingSettings.DISABLE_SENSITIVE.setValue(
-                   this.disableSensitive == null 
-                || this.disableSensitive.isSelected());
-        
-        // Save new database
-        
-        String[] customArray = new String[this.customPanel.getElements().size()];
-        customArray = this.customPanel.getElements().toArray(customArray);
-        
-        SharingSettings.EXTENSIONS_MIGRATE.setValue(false);
-        SharingSettings.EXTENSIONS_LIST_UNSHARED.setValue(getUncheckedExtensions());
-        SharingSettings.EXTENSIONS_LIST_CUSTOM.setValue(StringArraySetting.encode(customArray)); 
-        
+//      
+//        String newList = this.getExtensions();
+//              
+//        OldLibrarySettings.EXTENSIONS_TO_SHARE.setValue(newList);
+////        GuiCoreMediator.getFileManager().loadSettings();
+//               
+//        OldLibrarySettings.DISABLE_SENSITIVE.setValue(
+//                   this.disableSensitive == null 
+//                || this.disableSensitive.isSelected());
+//        
+//        // Save new database
+//        
+//        String[] customArray = new String[this.customPanel.getElements().size()];
+//        customArray = this.customPanel.getElements().toArray(customArray);
+//        
+//        OldLibrarySettings.EXTENSIONS_MIGRATE.setValue(false);
+//        OldLibrarySettings.EXTENSIONS_LIST_UNSHARED.setValue(getUncheckedExtensions());
+//        OldLibrarySettings.EXTENSIONS_LIST_CUSTOM.setValue(StringArraySetting.encode(customArray)); 
+//        
         return false;
     }
 
     public boolean isDirty() {
-        return    !this.originalExtensions.equals(this.getExtensions())
-               || !this.disableSensitive.isSelected() == SharingSettings.DISABLE_SENSITIVE.getValue();
+        return false;
+//        !this.originalExtensions.equals(this.getExtensions())
+//               || !this.disableSensitive.isSelected() == OldLibrarySettings.DISABLE_SENSITIVE.getValue();
     }
 
   
@@ -643,76 +634,76 @@ public final class FileTypeSharingPanelManager {
         }
     }  
     
-    private static class PanelsCheckChangeListener implements
-    CheckBoxListCheckChangeListener<NamedMediaType> {
-
-        private FileTypeSharingPanelManager parent;
-
-        public PanelsCheckChangeListener(FileTypeSharingPanelManager parent) {
-            this.parent = parent;
-        }
-
-        public void valueChanged(CheckBoxListCheckChangeEvent<NamedMediaType> e) {
-            this.parent.refreshSidePanel();
-        }
-    }  
+//    private static class PanelsCheckChangeListener implements
+//    CheckBoxListCheckChangeListener<NamedMediaType> {
+//
+//        private FileTypeSharingPanelManager parent;
+//
+//        public PanelsCheckChangeListener(FileTypeSharingPanelManager parent) {
+//            this.parent = parent;
+//        }
+//
+//        public void valueChanged(CheckBoxListCheckChangeEvent<NamedMediaType> e) {
+//            this.parent.refreshSidePanel();
+//        }
+//    }  
 
     
     
     
     // Providers   
     
-    private static class ExtensionProvider implements CheckBoxList.TextProvider<String> {
-        
-        private Set<String> mediaNames;
-        
-        public ExtensionProvider() {
-            mediaNames = new HashSet<String>();
-            for ( NamedMediaType mt : NamedMediaType.getAllNamedMediaTypes() ) {
-                mediaNames.add(mt.getName());
-            }
-        }
-        
-        public String getText(String obj) {
-            if (obj == null) {
-                throw new IllegalArgumentException();
-            }
-            
-            return obj;
-        }
-        
-        public String getToolTipText(String obj) {
-            if (obj == null) {
-                throw new IllegalArgumentException();
-            }
-            
-            Icon icon = IconManager.instance().getIconForExtension(obj);
-            
-            if (icon == null) {
-                return null;
-            }
-            
-            if (icon.toString().indexOf("@") > -1) {
-                return null;
-            }
-            
-            if (mediaNames.contains(icon.toString())) {
-                return null;
-            }
-            
-            return icon.toString(); 
-        }
-
-        public Icon getIcon(String obj) {
-            if (obj == null) {
-                throw new IllegalArgumentException();
-            }
-            
-            Icon icon = IconManager.instance().getIconForExtension(obj);
-            return icon != null ? icon : new GUIUtils.EmptyIcon(obj, 16, 16);
-        }
-        
-    }
+//    private static class ExtensionProvider implements CheckBoxList.TextProvider<String> {
+//        
+//        private Set<String> mediaNames;
+//        
+//        public ExtensionProvider() {
+//            mediaNames = new HashSet<String>();
+//            for ( NamedMediaType mt : NamedMediaType.getAllNamedMediaTypes() ) {
+//                mediaNames.add(mt.getName());
+//            }
+//        }
+//        
+//        public String getText(String obj) {
+//            if (obj == null) {
+//                throw new IllegalArgumentException();
+//            }
+//            
+//            return obj;
+//        }
+//        
+//        public String getToolTipText(String obj) {
+//            if (obj == null) {
+//                throw new IllegalArgumentException();
+//            }
+//            
+//            Icon icon = IconManager.instance().getIconForExtension(obj);
+//            
+//            if (icon == null) {
+//                return null;
+//            }
+//            
+//            if (icon.toString().indexOf("@") > -1) {
+//                return null;
+//            }
+//            
+//            if (mediaNames.contains(icon.toString())) {
+//                return null;
+//            }
+//            
+//            return icon.toString(); 
+//        }
+//
+//        public Icon getIcon(String obj) {
+//            if (obj == null) {
+//                throw new IllegalArgumentException();
+//            }
+//            
+//            Icon icon = IconManager.instance().getIconForExtension(obj);
+//            return icon != null ? icon : new GUIUtils.EmptyIcon(obj, 16, 16);
+//        }
+//        
+//    }
     
     
     private static class MediaProvider 

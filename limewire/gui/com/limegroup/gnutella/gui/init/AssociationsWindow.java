@@ -13,6 +13,7 @@ import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JRadioButton;
 
+import org.limewire.core.settings.QuestionsHandler;
 import org.limewire.i18n.I18nMarker;
 
 import com.limegroup.gnutella.gui.DialogOption;
@@ -20,9 +21,8 @@ import com.limegroup.gnutella.gui.I18n;
 import com.limegroup.gnutella.gui.Line;
 import com.limegroup.gnutella.gui.shell.LimeAssociationOption;
 import com.limegroup.gnutella.gui.shell.LimeAssociations;
-import com.limegroup.gnutella.settings.QuestionsHandler;
 
-public class AssociationsWindow extends SetupWindow {
+final class AssociationsWindow extends SetupWindow {
 	/** a mapping of checkboxes to associations */
 	private Map<JCheckBox, LimeAssociationOption> associations =
 		new HashMap<JCheckBox, LimeAssociationOption>();
@@ -30,13 +30,11 @@ public class AssociationsWindow extends SetupWindow {
 	/** Check box to check associations on startup. */
 	private JRadioButton always, never, ask;
 	
-	AssociationsWindow(SetupManager manager) {
-		super(manager, I18nMarker.marktr("File & Protocol Associations"), I18nMarker.marktr("What type of resources should LimeWire open?"));
+	AssociationsWindow() {
+		super(I18nMarker.marktr("File & Protocol Associations"), I18nMarker.marktr("What type of resources should LimeWire open?"));
 	}
 	
-	@Override
-    protected void createWindow() {
-		super.createWindow();
+    protected void createPageContent() {
 
         // Similar to the options window, except that the radio buttons default to
         // "always" and all supported associations are allowed.
@@ -96,15 +94,15 @@ public class AssociationsWindow extends SetupWindow {
     public void applySettings(boolean loadCoreComponents) {
 		for (Map.Entry<JCheckBox, LimeAssociationOption>entry : associations.entrySet()) {
 			LimeAssociationOption option = entry.getValue();
-			if (entry.getKey().isSelected()) {
+//			if (entry.getKey().isSelected()) {
 				option.setAllowed(true);
 				option.setEnabled(true);
-			} else {
-				// only disallow options that were previously enabled.
-				if (option.isEnabled())
-					option.setAllowed(false);
-				option.setEnabled(false);
-			}
+//			} else {
+//				// only disallow options that were previously enabled.
+//				if (option.isEnabled())
+//					option.setAllowed(false);
+//				option.setEnabled(false);
+//			}
 		}
 		
 		DialogOption value = DialogOption.INVALID;

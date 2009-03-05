@@ -10,7 +10,8 @@ import java.util.MissingResourceException;
 import javax.swing.Icon;
 import javax.swing.ImageIcon;
 
-import com.limegroup.gnutella.MediaType;
+import org.limewire.util.MediaType;
+
 import com.limegroup.gnutella.gui.GUIMediator;
 import com.limegroup.gnutella.gui.GUIUtils;
 import com.limegroup.gnutella.gui.GuiCoreMediator;
@@ -146,7 +147,7 @@ public class NamedMediaType implements IconAndNameHolder, Comparable<NamedMediaT
         if(mt == null)
             return null;
             
-        String description = mt.getMimeType();
+        String description = mt.getSchema();
         return getFromDescription(description);
     }
     
@@ -197,7 +198,7 @@ public class NamedMediaType implements IconAndNameHolder, Comparable<NamedMediaT
      * Retrieves the named media type for the specified media type.
      */
     public static NamedMediaType getFromMediaType(MediaType media) {
-        String description = media.getMimeType();
+        String description = media.getSchema();
         NamedMediaType type = CACHED_TYPES.get(description);
         if(type != null)
             return type;
@@ -228,7 +229,7 @@ public class NamedMediaType implements IconAndNameHolder, Comparable<NamedMediaT
         if(type == MediaType.getAnyTypeMediaType())
             icon = GUIMediator.getThemeImage("lime");
         else {
-            String location = GuiCoreMediator.getLimeXMLProperties().getXMLImagesResourcePath() + type.getMimeType();
+            String location = GuiCoreMediator.getLimeXMLProperties().getXMLImagesResourcePath() + type.getSchema();
             icon = GUIMediator.getImageFromResourcePath(location);
             if(icon == null) {
                 return new GUIUtils.EmptyIcon(getName(), 16, 16);
@@ -256,7 +257,7 @@ public class NamedMediaType implements IconAndNameHolder, Comparable<NamedMediaT
             
             // If still no name, capitalize the mime-type.
             if(name == null) {
-				name = type.getMimeType();
+				name = type.getSchema();
                 name = name.substring(0, 1).toUpperCase(Locale.US) + name.substring(1);
             }
         } else {

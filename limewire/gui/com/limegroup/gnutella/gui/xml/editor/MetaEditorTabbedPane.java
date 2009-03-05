@@ -8,8 +8,8 @@ import javax.swing.JTabbedPane;
 
 import org.limewire.util.NameValue;
 
-import com.limegroup.gnutella.FileDesc;
 import com.limegroup.gnutella.gui.GuiCoreMediator;
+import com.limegroup.gnutella.library.FileDesc;
 import com.limegroup.gnutella.xml.LimeXMLDocument;
 import com.limegroup.gnutella.xml.LimeXMLSchema;
 import com.limegroup.gnutella.xml.LimeXMLSchemaRepository;

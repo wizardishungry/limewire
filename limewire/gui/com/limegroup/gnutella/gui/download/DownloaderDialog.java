@@ -24,21 +24,22 @@ import javax.swing.UIManager;
 import javax.swing.WindowConstants;
 import javax.swing.border.EmptyBorder;
 
+import org.limewire.core.api.download.SaveLocationException;
+import org.limewire.core.api.download.SaveLocationException.LocationCode;
+import org.limewire.core.settings.QuestionsHandler;
 import org.limewire.util.OSUtils;
 
 import com.limegroup.gnutella.Downloader;
-import com.limegroup.gnutella.FileDesc;
-import com.limegroup.gnutella.SaveLocationException;
 import com.limegroup.gnutella.gui.ButtonRow;
 import com.limegroup.gnutella.gui.GUIMediator;
 import com.limegroup.gnutella.gui.GUIUtils;
 import com.limegroup.gnutella.gui.I18n;
 import com.limegroup.gnutella.gui.MessageService;
 import com.limegroup.gnutella.gui.util.CoreExceptionHandler;
-import com.limegroup.gnutella.settings.QuestionsHandler;
+import com.limegroup.gnutella.library.FileDesc;
 
 /**
- * Handles {@link com.limegroup.gnutella.SaveLocationException SaveLocationExceptions}
+ * Handles {@link org.limewire.core.api.download.SaveLocationException SaveLocationExceptions}
  * showing the user the exact cause of the exception and giving them a choice
  * to choose a different download location or overwrite the existing file.
  * <p>
@@ -190,7 +191,7 @@ public class DownloaderDialog extends JDialog {
 	private void setContentFromException(SaveLocationException sle) {
 		
 		// special case, close this dialog if visible and show warning dialog
-		if (sle.getErrorCode() == SaveLocationException.FILE_ALREADY_DOWNLOADING) {
+		if (sle.getErrorCode() == LocationCode.FILE_ALREADY_DOWNLOADING) {
 			dispose();
 			DownloaderUtils.showIsAlreadyDownloadingWarning(factory);
 			return;
@@ -209,7 +210,7 @@ public class DownloaderDialog extends JDialog {
 		
 		String error = CoreExceptionHandler.getSaveLocationErrorString(sle, true);
 		
-		if (sle.getErrorCode() == SaveLocationException.FILE_ALREADY_EXISTS) {
+		if (sle.getErrorCode() == LocationCode.FILE_ALREADY_EXISTS) {
 			setTitleLabel(MessageFormat.format(I18n.tr
 					("Warning: {0}"),
 					new Object[] { CoreExceptionHandler.getShortSaveLocationErrorString(sle) }));
@@ -231,7 +232,7 @@ public class DownloaderDialog extends JDialog {
 		}
 		
 		buttons.getButtonAtIndex(0).setVisible
-			(sle.getErrorCode() == SaveLocationException.FILE_ALREADY_EXISTS);
+			(sle.getErrorCode() == LocationCode.FILE_ALREADY_EXISTS);
 	}
 	
 	private void setTitleLabel(String text) {
@@ -250,7 +251,7 @@ public class DownloaderDialog extends JDialog {
 	public static Downloader handle(GuiDownloaderFactory factory,
 			SaveLocationException sle) {
 		
-		if (sle.getErrorCode() == SaveLocationException.FILE_ALREADY_DOWNLOADING) {
+		if (sle.getErrorCode() == LocationCode.FILE_ALREADY_DOWNLOADING) {
 			DownloaderUtils.showIsAlreadyDownloadingWarning(factory);
 			return null;
 		}

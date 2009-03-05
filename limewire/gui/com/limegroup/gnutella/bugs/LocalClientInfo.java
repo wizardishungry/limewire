@@ -15,6 +15,8 @@ import java.util.Properties;
 
 import org.apache.http.NameValuePair;
 import org.apache.http.message.BasicNameValuePair;
+import org.limewire.core.settings.LimeProps;
+import org.limewire.core.settings.SharingSettings;
 import org.limewire.mojito.settings.MojitoProps;
 import org.limewire.nio.NIODispatcher;
 import org.limewire.setting.Setting;
@@ -25,8 +27,6 @@ import org.limewire.util.VersionUtils;
 
 import com.limegroup.gnutella.gui.GUIMediator;
 import com.limegroup.gnutella.gui.GuiCoreMediator;
-import com.limegroup.gnutella.settings.LimeProps;
-import com.limegroup.gnutella.settings.SharingSettings;
 import com.limegroup.gnutella.util.LimeWireUtils;
 
 /**
@@ -117,7 +117,7 @@ public final class LocalClientInfo extends LocalAbstractInfo {
             _httpDownloaders = "" +sessionInfo.getNumIndividualDownloaders();
             _waitingDownloaders = "" + sessionInfo.getNumWaitingDownloads();
             _acceptedIncoming = "" +sessionInfo.acceptedIncomingConnection();
-            _sharedFiles = "" +GuiCoreMediator.getFileManager().getNumFiles();
+            _sharedFiles = "" +GuiCoreMediator.getFileManager().getGnutellaFileList().size();
             _guessCapable = "" + sessionInfo.isGUESSCapable();
             _solicitedCapable= ""+sessionInfo.canReceiveSolicited();
             _latestSIMPP= "" + GuiCoreMediator.getSimppManager().getVersion();

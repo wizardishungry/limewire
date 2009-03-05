@@ -15,8 +15,8 @@ import javax.swing.text.Document;
 
 import org.limewire.collection.AutoCompleteDictionary;
 import org.limewire.collection.StringTrieSet;
+import org.limewire.core.settings.UISettings;
 
-import com.limegroup.gnutella.settings.UISettings;
 
 /**
  *

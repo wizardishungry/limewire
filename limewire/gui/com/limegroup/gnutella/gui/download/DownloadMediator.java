@@ -21,27 +21,25 @@ import javax.swing.JMenu;
 import javax.swing.JMenuItem;
 import javax.swing.JPopupMenu;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
+import org.limewire.core.api.download.SaveLocationException;
+import org.limewire.core.settings.BittorrentSettings;
+import org.limewire.core.settings.QuestionsHandler;
+import org.limewire.core.settings.SearchSettings;
+import org.limewire.core.settings.SharingSettings;
 import org.limewire.i18n.I18nMarker;
 import org.limewire.inspection.Inspectable;
 import org.limewire.inspection.InspectablePrimitive;
 import org.limewire.inspection.InspectionPoint;
 import org.limewire.util.FileUtils;
+import org.limewire.util.MediaType;
 import org.limewire.util.OSUtils;
 
 import com.limegroup.bittorrent.gui.TorrentDownloadFactory;
 import com.limegroup.bittorrent.gui.TorrentFileFetcher;
-import com.limegroup.bittorrent.settings.BittorrentSettings;
 import com.limegroup.gnutella.Downloader;
 import com.limegroup.gnutella.Endpoint;
-import com.limegroup.gnutella.FileDesc;
 import com.limegroup.gnutella.FileDetails;
-import com.limegroup.gnutella.FileManager;
-import com.limegroup.gnutella.MediaType;
 import com.limegroup.gnutella.RemoteFileDesc;
-import com.limegroup.gnutella.SaveLocationException;
-import com.limegroup.gnutella.URN;
 import com.limegroup.gnutella.Downloader.DownloadStatus;
 import com.limegroup.gnutella.gui.DialogOption;
 import com.limegroup.gnutella.gui.FileChooserHandler;
@@ -72,9 +70,6 @@ import com.limegroup.gnutella.gui.themes.ThemeSettings;
 import com.limegroup.gnutella.gui.util.CoreExceptionHandler;
 import com.limegroup.gnutella.gui.util.GUILauncher;
 import com.limegroup.gnutella.gui.util.GUILauncher.LaunchableProvider;
-import com.limegroup.gnutella.settings.QuestionsHandler;
-import com.limegroup.gnutella.settings.SearchSettings;
-import com.limegroup.gnutella.settings.SharingSettings;
 import com.limegroup.gnutella.util.QueryUtils;
 
 /**
@@ -85,7 +80,7 @@ import com.limegroup.gnutella.util.QueryUtils;
 public final class DownloadMediator extends AbstractTableMediator<DownloadModel, DownloadDataLine, Downloader>
 	implements FileDetailsProvider {
 
-	private static final Log LOG = LogFactory.getLog(DownloadMediator.class);
+//	private static final Log LOG = LogFactory.getLog(DownloadMediator.class);
 	
 	/**
 	 * Count the number of resume clicks
@@ -509,7 +504,7 @@ public final class DownloadMediator extends AbstractTableMediator<DownloadModel,
                         return;
                     }
                     
-                    GuiCoreMediator.getFileManager().stopSharingFile(tFile);
+                    GuiCoreMediator.getFileManager().getManagedFileList().remove(tFile);
 
                     backup = new File(tFile.getParent(), tFile.getName().concat(".bak"));
                     FileUtils.forceRename(tFile, backup);
@@ -517,7 +512,7 @@ public final class DownloadMediator extends AbstractTableMediator<DownloadModel,
                 if(!FileUtils.copy(file, tFile) && (backup != null)) {
                     //try restoring backup
                     if(FileUtils.forceRename(backup, tFile)) {
-                        GuiCoreMediator.getFileManager().addFileIfShared(tFile);
+                        GuiCoreMediator.getFileManager().getGnutellaFileList().add(tFile);
                     }
                 } 
             }
@@ -668,7 +663,7 @@ public final class DownloadMediator extends AbstractTableMediator<DownloadModel,
             Downloader downloader= dd.getInitializeObject();
             Endpoint end = downloader.getChatEnabledHost();
             if (end != null) {
-                GUIMediator.createChat(end.getAddress(), end.getPort());
+//                GUIMediator.createChat(end.getAddress(), end.getPort());
             }
         }
     }
@@ -738,24 +733,24 @@ public final class DownloadMediator extends AbstractTableMediator<DownloadModel,
 	 */
 	public FileDetails[] getFileDetails() {
         int[] sel = TABLE.getSelectedRows();
-		FileManager fmanager = GuiCoreMediator.getFileManager();
+//		FileManager fmanager = GuiCoreMediator.getFileManager();
 		List<FileDetails> list = new ArrayList<FileDetails>(sel.length);
-        for(int i = 0; i < sel.length; i++) {
-            URN urn = DATA_MODEL.get(sel[i]).getDownloader().getSha1Urn();
-			if (urn != null) {
-				FileDesc fd = fmanager.getFileDescForUrn(urn);
-				if (fd != null) {
-				    // DPINJ:  Use passed in LocalFileDetailsFactory
-					list.add(GuiCoreMediator.getLocalFileDetailsFactory().create(fd));
-				}
-				else if (LOG.isDebugEnabled()) {
-					LOG.debug("not filedesc for urn " + urn);
-				}
-			}
-			else if (LOG.isDebugEnabled()) {
-				LOG.debug("no urn");
-			}
-		}
+//        for(int i = 0; i < sel.length; i++) {
+//            URN urn = DATA_MODEL.get(sel[i]).getDownloader().getSha1Urn();
+//			if (urn != null) {
+//				FileDesc fd = fmanager.getManagedFileList().getFileDesc(urn);
+//				if (fd != null) {
+//				    // DPINJ:  Use passed in LocalFileDetailsFactory
+//					list.add(GuiCoreMediator.getLocalFileDetailsFactory().create(fd));
+//				}
+//				else if (LOG.isDebugEnabled()) {
+//					LOG.debug("not filedesc for urn " + urn);
+//				}
+//			}
+//			else if (LOG.isDebugEnabled()) {
+//				LOG.debug("no urn");
+//			}
+//		}
 		return list.toArray(new FileDetails[0]);
 	}
 

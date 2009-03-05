@@ -3,6 +3,7 @@ package com.limegroup.gnutella;
 import java.io.File;
 import java.io.IOException;
 import java.util.Random;
+import java.util.concurrent.TimeUnit;
 
 import junit.framework.Test;
 
@@ -15,14 +16,17 @@ import org.apache.http.HttpVersion;
 import org.apache.http.client.HttpClient;
 import org.apache.http.impl.client.DefaultHttpClient;
 import org.apache.http.message.BasicHttpRequest;
+import org.limewire.core.settings.ConnectionSettings;
+import org.limewire.core.settings.UploadSettings;
 import org.limewire.util.FileUtils;
 
 import com.google.inject.Injector;
+import com.google.inject.Stage;
 import com.limegroup.gnutella.http.HTTPHeaderName;
 import com.limegroup.gnutella.http.HttpTestUtils;
-import com.limegroup.gnutella.settings.ConnectionSettings;
-import com.limegroup.gnutella.settings.SharingSettings;
-import com.limegroup.gnutella.settings.UploadSettings;
+import com.limegroup.gnutella.library.FileDesc;
+import com.limegroup.gnutella.library.FileManager;
+import com.limegroup.gnutella.library.FileManagerTestUtils;
 import com.limegroup.gnutella.util.LimeTestCase;
 
 /**
@@ -35,6 +39,7 @@ public final class UrnHttpRequestTest extends LimeTestCase {
     private static final String STATUS_503 = "HTTP/1.1 503 Service Unavailable";
 
     private static final String STATUS_404 = "HTTP/1.1 404 Not Found";
+    private static final String STATUS_400 = "HTTP/1.1 400 Bad Request";
 
     private FileManager fileManager;
 
@@ -58,20 +63,10 @@ public final class UrnHttpRequestTest extends LimeTestCase {
 
     @Override
     protected void setUp() throws Exception {
-        // create shared files with random content
-        Random random = new Random();
-        for (int i = 0; i < 5; i++) {
-            byte[] data = new byte[random.nextInt(255) + 1];
-            random.nextBytes(data);
-            FileUtils.writeObject(getSharedDirectory() + File.separator
-                    + "file" + i + ".tmp", data);
-        }
-
-        SharingSettings.EXTENSIONS_TO_SHARE.setValue("tmp");
         ConnectionSettings.LOCAL_IS_PRIVATE.setValue(false);
 
         // initialize services
-        Injector injector = LimeTestUtils.createInjector();
+        Injector injector = LimeTestUtils.createInjector(Stage.PRODUCTION);
 
         uploadManager = (HTTPUploadManager) injector.getInstance(UploadManager.class);
         
@@ -83,9 +78,20 @@ public final class UrnHttpRequestTest extends LimeTestCase {
         
         // make sure the FileDesc objects in file manager are up-to-date
         fileManager = injector.getInstance(FileManager.class);
-        fileManager.loadSettingsAndWait(2000);
+        FileManagerTestUtils.waitForLoad(fileManager,2000);
+
+        // create shared files with random content
+        Random random = new Random();
+        for (int i = 0; i < 5; i++) {
+            byte[] data = new byte[random.nextInt(255) + 1];
+            random.nextBytes(data);
+            File file = new File(_scratchDir, "file" + i + ".tmp");
+            FileUtils.writeObject(file, data);
+            file.deleteOnExit();
+            assertNotNull(fileManager.getGnutellaFileList().add(file).get(1, TimeUnit.SECONDS));
+        }
         
-        assertGreaterThanOrEquals("FileManager should have loaded files", 5, fileManager.getNumFiles());
+        assertGreaterThanOrEquals("FileManager should have loaded files", 5, fileManager.getGnutellaFileList().size());
     }
 
     @Override
@@ -102,9 +108,8 @@ public final class UrnHttpRequestTest extends LimeTestCase {
         UploadSettings.HARD_MAX_UPLOADS.setValue(0);
 
         try {
-            for (int i = 0; i < fileManager.getNumFiles(); i++) {
-                FileDesc fd = fileManager.get(i);
-                String uri = "/get/" + fd.getIndex() + "/" + fd.getFileName();
+            for (FileDesc fd: fileManager.getGnutellaFileList()) {
+                String uri = LimeTestUtils.getRelativeRequest(fd.getSHA1Urn());
 
                 BasicHttpRequest request = new BasicHttpRequest("GET", uri,
                         HttpVersion.HTTP_1_1);
@@ -125,8 +130,7 @@ public final class UrnHttpRequestTest extends LimeTestCase {
      * Test requests by URN.
      */
     public void testHttpUrnRequest() throws Exception {
-        for (int i = 0; i < fileManager.getNumFiles(); i++) {
-            FileDesc fd = fileManager.get(i);
+        for (FileDesc fd : fileManager.getGnutellaFileList()) {
             String uri = "/uri-res/N2R?" + fd.getSHA1Urn().httpStringValue();
 
             BasicHttpRequest request = new BasicHttpRequest("GET", uri,
@@ -143,17 +147,16 @@ public final class UrnHttpRequestTest extends LimeTestCase {
      * /get/0//uri-res/N2R?urn:sha1:AZUCWY54D63______PHN7VSVTKZA3YYT HTTP/1.1
      */
     public void testMalformedHttpUrnRequest() throws Exception {
-        for (int i = 0; i < fileManager.getNumFiles(); i++) {
-            FileDesc fd = fileManager.get(i);
+        for (FileDesc fd : fileManager.getGnutellaFileList()) {
             String uri = "/get/0//uri-res/N2R?"
                     + fd.getSHA1Urn().httpStringValue();
 
             BasicHttpRequest request = new BasicHttpRequest("GET", uri,
                     HttpVersion.HTTP_1_1);
-            sendRequestThatShouldFail(request, STATUS_404);
+            sendRequestThatShouldFail(request, STATUS_400);
 
             request = new BasicHttpRequest("HEAD", uri, HttpVersion.HTTP_1_1);
-            sendRequestThatShouldFail(request, STATUS_404);
+            sendRequestThatShouldFail(request, STATUS_400);
         }
     }
 
@@ -162,9 +165,8 @@ public final class UrnHttpRequestTest extends LimeTestCase {
      * the X-Gnutella-Content-URN header is always returned.
      */
     public void testTraditionalGetForReturnedUrn() throws Exception {
-        for (int i = 0; i < fileManager.getNumFiles(); i++) {
-            FileDesc fd = fileManager.get(i);
-            String uri = "/get/" + fd.getIndex() + "/" + fd.getFileName();
+        for (FileDesc fd : fileManager.getGnutellaFileList()) {
+            String uri = LimeTestUtils.getRelativeRequest(fd.getSHA1Urn());
 
             BasicHttpRequest request = new BasicHttpRequest("GET", uri,
                     HttpVersion.HTTP_1_1);
@@ -186,9 +188,8 @@ public final class UrnHttpRequestTest extends LimeTestCase {
      * expected.
      */
     public void testTraditionalGetWithContentUrn() throws Exception {
-        for (int i = 0; i < fileManager.getNumFiles(); i++) {
-            FileDesc fd = fileManager.get(i);
-            String uri = "/get/" + fd.getIndex() + "/" + fd.getFileName();
+        for (FileDesc fd : fileManager.getGnutellaFileList()) {
+            String uri = LimeTestUtils.getRelativeRequest(fd.getSHA1Urn());
 
             BasicHttpRequest request = new BasicHttpRequest("GET", uri,
                     HttpVersion.HTTP_1_1);
@@ -205,9 +206,8 @@ public final class UrnHttpRequestTest extends LimeTestCase {
      * error code 404.
      */
     public void testTraditionalGetWithInvalidContentUrn() throws Exception {
-        for (int i = 0; i < fileManager.getNumFiles(); i++) {
-            FileDesc fd = fileManager.get(i);
-            String uri = "/get/" + fd.getIndex() + "/" + fd.getFileName();
+        for (FileDesc fd : fileManager.getGnutellaFileList()) {
+            String uri = LimeTestUtils.getRelativeRequest(fd.getSHA1Urn());
 
             BasicHttpRequest request = new BasicHttpRequest("GET", uri,
                     HttpVersion.HTTP_1_1);
@@ -227,11 +227,10 @@ public final class UrnHttpRequestTest extends LimeTestCase {
      * matching X-Gnutella-Content-URN header values also fail with 404.
      */
     public void testInvalidTraditionalGetWithValidContentUrn() throws Exception {
-        for (int i = 0; i < fileManager.getNumFiles(); i++) {
-            FileDesc fd = fileManager.get(i);
-            String uri = "/get/" + fd.getIndex() + "/" + fd.getFileName()
-                    + "invalid";
-
+        for (FileDesc fd : fileManager.getGnutellaFileList()) {
+            String uri = LimeTestUtils.getRelativeRequest(fd.getSHA1Urn());
+            uri = uri.substring(0, uri.length() - 2)+ "xx";
+            
             BasicHttpRequest request = new BasicHttpRequest("GET", uri,
                     HttpVersion.HTTP_1_1);
             sendRequestThatShouldFail(request, STATUS_404);

@@ -5,8 +5,8 @@ import java.io.File;
 import javax.swing.Icon;
 
 import org.limewire.setting.FileSetting;
+import org.limewire.util.MediaType;
 
-import com.limegroup.gnutella.MediaType;
 import com.limegroup.gnutella.gui.search.NamedMediaType;
 
 public class MediaTypeSavedFilesDirectoryHolder extends SavedFilesDirectoryHolder {

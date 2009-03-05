@@ -13,11 +13,11 @@ import javax.swing.JFrame;
 import javax.swing.UIManager;
 import javax.swing.filechooser.FileFilter;
 
+import org.limewire.core.settings.ApplicationSettings;
 import org.limewire.i18n.I18nMarker;
 import org.limewire.util.CommonUtils;
 import org.limewire.util.OSUtils;
 
-import com.limegroup.gnutella.settings.ApplicationSettings;
 
 /**
  * This is a utility class that displays a file chooser dialog to the user,

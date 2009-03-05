@@ -7,9 +7,10 @@ import java.util.Set;
 
 import javax.swing.JPopupMenu;
 
+import org.limewire.core.settings.SharingSettings;
 import org.limewire.io.ConnectableImpl;
+import org.limewire.io.GUID;
 
-import com.limegroup.gnutella.GUID;
 import com.limegroup.gnutella.PushEndpoint;
 import com.limegroup.gnutella.Uploader;
 import com.limegroup.gnutella.gui.GUIMediator;
@@ -24,7 +25,6 @@ import com.limegroup.gnutella.gui.tables.ProgressBarHolder;
 import com.limegroup.gnutella.gui.tables.ProgressBarRenderer;
 import com.limegroup.gnutella.gui.tables.TableSettings;
 import com.limegroup.gnutella.gui.themes.ThemeMediator;
-import com.limegroup.gnutella.settings.SharingSettings;
 import com.limegroup.gnutella.uploader.HTTPUploader;
 
 
@@ -296,9 +296,9 @@ public final class UploadMediator extends AbstractTableMediator<UploadModel, Upl
 		for (int i =0; i<sel.length; i++) {
             Uploader uploader = DATA_MODEL.get(sel[i]).getInitializeObject();
 			if (uploader.isChatEnabled() ) {
-			    String host = uploader.getHost();
-				int port = uploader.getGnutellaPort();
-				GUIMediator.createChat(host, port);
+//			    String host = uploader.getHost();
+//				int port = uploader.getGnutellaPort();
+//				GUIMediator.createChat(host, port);
 			}
 		}
 	}

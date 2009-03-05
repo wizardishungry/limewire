@@ -12,11 +12,12 @@ import javax.swing.JPanel;
 import javax.swing.JTextField;
 import javax.swing.SpringLayout;
 
+import org.limewire.core.settings.SharingSettings;
+
 import com.limegroup.gnutella.gui.I18n;
 import com.limegroup.gnutella.gui.SizedTextField;
 import com.limegroup.gnutella.gui.GUIUtils.SizePolicy;
 import com.limegroup.gnutella.gui.layout.SpringUtilities;
-import com.limegroup.gnutella.settings.SharingSettings;
 import com.limegroup.gnutella.templates.StoreTemplateProcessor;
 
 /**

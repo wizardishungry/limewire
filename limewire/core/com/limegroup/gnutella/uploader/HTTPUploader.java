@@ -6,12 +6,12 @@ import java.net.InetAddress;
 import org.apache.http.HttpResponse;
 import org.limewire.collection.Range;
 
-import com.limegroup.gnutella.FileDesc;
-import com.limegroup.gnutella.IncompleteFileDesc;
 import com.limegroup.gnutella.PushEndpoint;
 import com.limegroup.gnutella.URN;
 import com.limegroup.gnutella.Uploader;
 import com.limegroup.gnutella.http.AltLocTracker;
+import com.limegroup.gnutella.library.FileDesc;
+import com.limegroup.gnutella.library.IncompleteFileDesc;
 import com.limegroup.gnutella.statistics.TcpBandwidthStatistics;
 
 /**
@@ -249,5 +249,21 @@ public class HTTPUploader extends AbstractUploader implements Uploader {
 
     public PushEndpoint getPushEndpoint() {
         return pushEndpoint;
+    }
+
+    @Override
+    public File getFile() {
+        FileDesc fileDesc = getFileDesc();
+        return fileDesc != null ? fileDesc.getFile() : null;
+    }
+    
+    @Override
+    public URN getUrn() {
+     return getFileDesc().getSHA1Urn();
+    }
+
+    @Override
+    public int getNumUploadConnections() {
+        return 1;
     }
 }

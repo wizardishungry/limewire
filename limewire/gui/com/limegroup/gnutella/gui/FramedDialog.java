@@ -45,6 +45,10 @@ public class FramedDialog extends LimeJFrame {
     public JDialog getDialog() {
         return dialog;
     }
+
+    public void disposeDialog() {
+        dialog.dispose();
+    }
     
     
 }

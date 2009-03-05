@@ -3,11 +3,11 @@ package com.limegroup.bittorrent.gui;
 import java.io.File;
 import java.io.IOException;
 
+import org.limewire.core.api.download.SaveLocationException;
 import org.limewire.util.FileUtils;
 
 import com.limegroup.bittorrent.BTMetaInfo;
 import com.limegroup.gnutella.Downloader;
-import com.limegroup.gnutella.SaveLocationException;
 import com.limegroup.gnutella.URN;
 import com.limegroup.gnutella.gui.GuiCoreMediator;
 import com.limegroup.gnutella.gui.download.GuiDownloaderFactory;

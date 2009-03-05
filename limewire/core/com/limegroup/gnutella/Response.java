@@ -1,15 +1,16 @@
 package com.limegroup.gnutella;
 
-import java.io.IOException;
-import java.io.OutputStream;
-import java.util.Set;
-
+import com.limegroup.gnutella.downloader.RemoteFileDescFactory;
+import com.limegroup.gnutella.messages.QueryReply;
+import com.limegroup.gnutella.xml.LimeXMLDocument;
 import org.limewire.collection.IntervalSet;
+import org.limewire.io.Address;
 import org.limewire.io.IpPort;
 
-import com.limegroup.gnutella.downloader.RemoteFileDescFactory;
-import com.limegroup.gnutella.search.HostData;
-import com.limegroup.gnutella.xml.LimeXMLDocument;
+import java.io.IOException;
+import java.io.OutputStream;
+import java.net.UnknownHostException;
+import java.util.Set;
 
 
 /**
@@ -64,7 +65,8 @@ public interface Response {
     public String getName();
 
     /**
-     * Returns this' metadata.
+     * Returns this' metadata or <code>null</code> if there is no meta
+     * data for this response.
      */
     public LimeXMLDocument getDocument();
 
@@ -103,7 +105,10 @@ public interface Response {
     
     /**
      * Returns this Response as a RemoteFileDesc.
+     * 
+     * @param address can be null, if not will be used for creating {@link RemoteFileDesc}
+     * otherwise address will be constructed from <code>queryReply</code> 
      */
-    public RemoteFileDesc toRemoteFileDesc(HostData data, RemoteFileDescFactory remoteFileDescFactory);
+    public RemoteFileDesc toRemoteFileDesc(QueryReply queryReply, Address address, RemoteFileDescFactory remoteFileDescFactory, PushEndpointFactory pushEndpointFactory) throws UnknownHostException;
 }
 

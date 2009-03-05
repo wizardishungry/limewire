@@ -15,10 +15,9 @@ import javax.swing.JDialog;
 import javax.swing.JPanel;
 import javax.swing.WindowConstants;
 
+import org.limewire.util.MediaType;
 import org.limewire.util.OSUtils;
 
-import com.limegroup.gnutella.FileDesc;
-import com.limegroup.gnutella.MediaType;
 import com.limegroup.gnutella.gui.GUIUtils;
 import com.limegroup.gnutella.gui.I18n;
 import com.limegroup.gnutella.gui.xml.editor.application.ApplicationTabbedPane;
@@ -26,6 +25,7 @@ import com.limegroup.gnutella.gui.xml.editor.audio.AudioTabbedPane;
 import com.limegroup.gnutella.gui.xml.editor.document.DocumentTabbedPane;
 import com.limegroup.gnutella.gui.xml.editor.image.ImageTabbedPane;
 import com.limegroup.gnutella.gui.xml.editor.video.VideoTabbedPane;
+import com.limegroup.gnutella.library.FileDesc;
 
 
 /**

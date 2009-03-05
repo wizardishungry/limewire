@@ -6,6 +6,7 @@ import java.io.IOException;
 import java.net.URISyntaxException;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Date;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
@@ -24,9 +25,19 @@ import org.apache.http.params.BasicHttpParams;
 import org.apache.http.params.DefaultedHttpParams;
 import org.apache.http.params.HttpConnectionParams;
 import org.apache.http.params.HttpParams;
+import org.limewire.core.api.download.SaveLocationException;
+import org.limewire.core.api.updates.UpdateStyle;
+import org.limewire.core.settings.ApplicationSettings;
+import org.limewire.core.settings.UpdateSettings;
+import org.limewire.i18n.I18nMarker;
 import org.limewire.io.Connectable;
+import org.limewire.io.ConnectableImpl;
 import org.limewire.io.IOUtils;
-import org.limewire.io.IpPort;
+import org.limewire.lifecycle.Service;
+import org.limewire.lifecycle.ServiceRegistry;
+import org.limewire.listener.EventListener;
+import org.limewire.listener.EventListenerList;
+import org.limewire.listener.ListenerSupport;
 import org.limewire.util.Base32;
 import org.limewire.util.Clock;
 import org.limewire.util.CommonUtils;
@@ -40,21 +51,17 @@ import com.google.inject.Inject;
 import com.google.inject.Provider;
 import com.google.inject.Singleton;
 import com.google.inject.name.Named;
-import com.limegroup.gnutella.ActivityCallback;
 import com.limegroup.gnutella.ApplicationServices;
 import com.limegroup.gnutella.ConnectionManager;
 import com.limegroup.gnutella.ConnectionServices;
 import com.limegroup.gnutella.DownloadManager;
 import com.limegroup.gnutella.Downloader;
-import com.limegroup.gnutella.FileDesc;
-import com.limegroup.gnutella.FileManager;
 import com.limegroup.gnutella.NetworkUpdateSanityChecker;
-import com.limegroup.gnutella.NetworkUpdateSanityChecker.RequestType;
 import com.limegroup.gnutella.RemoteFileDesc;
 import com.limegroup.gnutella.ReplyHandler;
-import com.limegroup.gnutella.SaveLocationException;
 import com.limegroup.gnutella.URN;
 import com.limegroup.gnutella.UrnSet;
+import com.limegroup.gnutella.NetworkUpdateSanityChecker.RequestType;
 import com.limegroup.gnutella.connection.RoutedConnection;
 import com.limegroup.gnutella.downloader.InNetworkDownloader;
 import com.limegroup.gnutella.downloader.ManagedDownloader;
@@ -62,10 +69,12 @@ import com.limegroup.gnutella.downloader.RemoteFileDescFactory;
 import com.limegroup.gnutella.http.HTTPHeaderName;
 import com.limegroup.gnutella.http.HttpClientListener;
 import com.limegroup.gnutella.http.HttpExecutor;
-import com.limegroup.gnutella.library.SharingUtils;
+import com.limegroup.gnutella.library.FileDesc;
+import com.limegroup.gnutella.library.FileManager;
+import com.limegroup.gnutella.library.IncompleteFileDesc;
+import com.limegroup.gnutella.library.LibraryUtils;
+import com.limegroup.gnutella.library.ManagedListStatusEvent;
 import com.limegroup.gnutella.messages.vendor.CapabilitiesVMFactory;
-import com.limegroup.gnutella.settings.ApplicationSettings;
-import com.limegroup.gnutella.settings.UpdateSettings;
 import com.limegroup.gnutella.util.LimeWireUtils;
 
 /**
@@ -75,7 +84,7 @@ import com.limegroup.gnutella.util.LimeWireUtils;
  * version is stored in memory & on disk.
  */
 @Singleton
-public class UpdateHandlerImpl implements UpdateHandler {
+public class UpdateHandlerImpl implements UpdateHandler, EventListener<ManagedListStatusEvent>, Service {
     
     private static final Log LOG = LogFactory.getLog(UpdateHandlerImpl.class);
     
@@ -143,7 +152,6 @@ public class UpdateHandlerImpl implements UpdateHandler {
     private final HttpRequestControl httpRequestControl = new HttpRequestControl();
     
     private final ScheduledExecutorService backgroundExecutor;
-    private final Provider<ActivityCallback> activityCallback;
     private final ConnectionServices connectionServices;
     private final Provider<HttpExecutor> httpExecutor;
     private final Provider<HttpParams> defaultParams;
@@ -156,6 +164,7 @@ public class UpdateHandlerImpl implements UpdateHandler {
     private final UpdateCollectionFactory updateCollectionFactory;
     private final UpdateMessageVerifier updateMessageVerifier;
     private final RemoteFileDescFactory remoteFileDescFactory;
+    private final EventListenerList<UpdateEvent> listeners;
     
     private volatile String timeoutUpdateLocation = "http://update0.limewire.com/v2/update.def";
     private volatile List<String> maxedUpdateList = Arrays.asList("http://update1.limewire.com/v2/update.def",
@@ -172,9 +181,10 @@ public class UpdateHandlerImpl implements UpdateHandler {
     private volatile int maxMaxHttpRequestDelay = 1000 * 60 * 30;
     private volatile int silentPeriodForMaxHttpRequest = 1000 * 60 * 5;
     
+    private volatile UpdateCollection updateCollection;
+    
     @Inject
     UpdateHandlerImpl(@Named("backgroundExecutor") ScheduledExecutorService backgroundExecutor,
-            Provider<ActivityCallback> activityCallback,
             ConnectionServices connectionServices,
             Provider<HttpExecutor> httpExecutor,
             @Named("defaults") Provider<HttpParams> defaultParams,
@@ -189,7 +199,6 @@ public class UpdateHandlerImpl implements UpdateHandler {
             UpdateMessageVerifier updateMessageVerifier, 
             RemoteFileDescFactory remoteFileDescFactory) {
         this.backgroundExecutor = backgroundExecutor;
-        this.activityCallback = activityCallback;
         this.connectionServices = connectionServices;
         this.httpExecutor = httpExecutor;
         this.defaultParams = defaultParams;
@@ -203,6 +212,13 @@ public class UpdateHandlerImpl implements UpdateHandler {
         this.clock = clock;
         this.updateMessageVerifier = updateMessageVerifier;
         this.remoteFileDescFactory = remoteFileDescFactory;
+        
+        this.listeners = new EventListenerList<UpdateEvent>();
+    }
+    
+    @Inject
+    void register(ListenerSupport<ManagedListStatusEvent> listener) {
+        listener.addListener(this);
     }
         
     String getTimeoutUrl() {
@@ -248,7 +264,7 @@ public class UpdateHandlerImpl implements UpdateHandler {
     /**
      * Initializes data as read from disk.
      */
-    public void initialize() {
+    public void start() {
         LOG.trace("Initializing UpdateHandler");
         backgroundExecutor.execute(new Runnable() {
             public void run() {
@@ -262,18 +278,18 @@ public class UpdateHandlerImpl implements UpdateHandler {
     }
     
     /**
-     * Sparks off an attempt to download any pending updates.
+     * Sparks off an attempt to down load any pending updates.
      */
-    public void tryToDownloadUpdates() {
+    private void tryToDownloadUpdates() {
         backgroundExecutor.execute(new Runnable() {
             public void run() {
                 UpdateInformation updateInfo = _updateInfo;
                 
                 if (updateInfo != null && 
                 		updateInfo.getUpdateURN() != null &&
-                		isMyUpdateDownloaded(updateInfo))
-                    activityCallback.get().updateAvailable(updateInfo);
-                
+                		isMyUpdateDownloaded(updateInfo)) {
+                    fireUpdate(updateInfo);
+                }
                 downloadUpdates(_updatesToDownload, null);
             }
         });
@@ -352,6 +368,7 @@ public class UpdateHandlerImpl implements UpdateHandler {
             networkUpdateSanityChecker.get().handleValidResponse(handler, RequestType.VERSION);
 
         UpdateCollection uc = updateCollectionFactory.createUpdateCollection(xml);
+        updateCollection = uc;
         if (LOG.isDebugEnabled())
             LOG.debug("Got a collection with id: " + uc.getId() + ", from " + updateType + ".  Current id is: " + _lastId);
 
@@ -365,7 +382,7 @@ public class UpdateHandlerImpl implements UpdateHandler {
                 if (_lastId != IGNORE_ID)
                     doHttpMaxFailover(uc);
             } else if (uc.getId() <= _lastId) {
-                checkForStaleUpdateAndMaybeDoHttpFailover(uc);
+                checkForStaleUpdateAndMaybeDoHttpFailover();
                 addSourceIfIdMatches(handler, uc.getId());
             } else {// is greater
                 storeAndUpdate(data, uc, updateType);
@@ -375,7 +392,7 @@ public class UpdateHandlerImpl implements UpdateHandler {
             // on first load:
             // a) always check for stale
             // b) update if we didn't get an update before this ran.
-            checkForStaleUpdateAndMaybeDoHttpFailover(uc);
+            checkForStaleUpdateAndMaybeDoHttpFailover();
             if (uc.getId() > _lastId)
                 storeAndUpdate(data, uc, updateType);
             break;
@@ -444,7 +461,7 @@ public class UpdateHandlerImpl implements UpdateHandler {
         }
         
         // don't allow someone to set the style to be above major.
-        int style = Math.min(UpdateInformation.STYLE_MAJOR,
+        int style = Math.min(UpdateStyle.STYLE_MAJOR,
                              UpdateSettings.UPDATE_STYLE.getValue());
         
         UpdateData updateInfo = uc.getUpdateDataFor(limeV, 
@@ -468,7 +485,6 @@ public class UpdateHandlerImpl implements UpdateHandler {
         _updatesToDownload = updatesToDownload;
         
         downloadUpdates(updatesToDownload, null);
-        
         if(updateInfo == null) {
             LOG.warn("No relevant update info to notify about.");
             return;
@@ -484,7 +500,7 @@ public class UpdateHandlerImpl implements UpdateHandler {
                     TimeUnit.MILLISECONDS);
         } else if (isMyUpdateDownloaded(updateInfo)) {
             LOG.debug("there is an update for me, but I happen to have it on disk");
-            activityCallback.get().updateAvailable(updateInfo);
+            fireUpdate(updateInfo);
         } else
             LOG.debug("we have an update, it needs a download.  Rely on callbacks");
     }
@@ -492,7 +508,7 @@ public class UpdateHandlerImpl implements UpdateHandler {
     /**
      * begins an http failover.
      */
-    private void checkForStaleUpdateAndMaybeDoHttpFailover(UpdateCollection uc) {
+    private void checkForStaleUpdateAndMaybeDoHttpFailover() {
         LOG.debug("checking for timeout http failover");
         long monthAgo = clock.now() - ONE_MONTH;
         if (UpdateSettings.LAST_UPDATE_TIMESTAMP.getValue() < monthAgo && // more than a month ago
@@ -565,7 +581,7 @@ public class UpdateHandlerImpl implements UpdateHandler {
         if (info == null || info.getUpdateCommand() == null)
             return;
         
-        File path = SharingUtils.PREFERENCE_SHARE.getAbsoluteFile();
+        File path = LibraryUtils.PREFERENCE_SHARE.getAbsoluteFile();
         String name = info.getUpdateFileName();
         
         try {
@@ -610,18 +626,16 @@ public class UpdateHandlerImpl implements UpdateHandler {
             if (isHopeless(next))
                 continue; 
             
-            if(downloadManager.get().isSavedDownloadsLoaded() && fileManager.get().isLoadFinished()) {
+            if(downloadManager.get().isSavedDownloadsLoaded() && fileManager.get().getManagedFileList().isLoadFinished()) {
                 
-                FileDesc shared = fileManager.get().getFileDescForUrn(next.getUpdateURN());
                 //TODO: remove the cast
                 ManagedDownloader md = (ManagedDownloader)downloadManager.get().getDownloaderForURN(next.getUpdateURN());
-                if(LOG.isDebugEnabled())
-                    LOG.debug("Looking for: " + next + ", got: " + shared);
                 
-                if(shared != null && shared.getClass() == FileDesc.class) {
-                    // if it's already shared, stop any existing download.
-                    if(md != null)
-                        md.stop();
+                // Skip to the next one since we already have a complete file.
+                if(hasCompleteFile(next.getUpdateURN())) {
+                    if(md != null) {
+                        md.stop(false);
+                    }
                     continue;
                 }
                 
@@ -653,7 +667,7 @@ public class UpdateHandlerImpl implements UpdateHandler {
      * Deletes any files in the folder that are not listed in the update message.
      */
     private void killObsoleteUpdates(List<? extends DownloadInformation> toDownload) {
-    	if (!downloadManager.get().isSavedDownloadsLoaded() || !fileManager.get().isLoadFinished())
+    	if (!downloadManager.get().isSavedDownloadsLoaded() || !fileManager.get().getManagedFileList().isLoadFinished())
     		return;
     	
         if (_killingObsoleteNecessary) {
@@ -664,10 +678,10 @@ public class UpdateHandlerImpl implements UpdateHandler {
             for(DownloadInformation data : toDownload)
                 urns.add(data.getUpdateURN());
             
-            List<FileDesc> shared = fileManager.get().getSharedFilesInDirectory(SharingUtils.PREFERENCE_SHARE);
+            List<FileDesc> shared = fileManager.get().getGnutellaFileList().getFilesInDirectory(LibraryUtils.PREFERENCE_SHARE);
             for (FileDesc fd : shared) {
                 if (fd.getSHA1Urn() != null && !urns.contains(fd.getSHA1Urn())) {
-                    fileManager.get().removeFileIfSharedOrStore(fd.getFile());
+                    fileManager.get().getManagedFileList().remove(fd.getFile());
                     fd.getFile().delete();
                 }
             }
@@ -692,10 +706,10 @@ public class UpdateHandlerImpl implements UpdateHandler {
      */
     private RemoteFileDesc rfd(ReplyHandler rh, DownloadInformation info) {
         Set<URN> urns = new UrnSet(info.getUpdateURN());
-        return remoteFileDescFactory.createRemoteFileDesc(rh.getAddress(), rh.getPort(), Integer.MAX_VALUE,
-                info.getUpdateFileName(), (int)info.getSize(), rh.getClientGUID(), 0, false, 2, false, null, urns, false,
-                false, "LIME", IpPort.EMPTY_SET, 0, 0, rh instanceof Connectable ? 
-                      ((Connectable)rh).isTLSCapable() : false);  // tls capability
+        return remoteFileDescFactory.createRemoteFileDesc(new ConnectableImpl(rh.getInetSocketAddress(), rh instanceof Connectable ? ((Connectable)rh).isTLSCapable() : false), Integer.MAX_VALUE,
+                info.getUpdateFileName(), info.getSize(), rh.getClientGUID(), 0, false, 2, false, null, urns,
+                false, "LIME", -1);
+                        
     }
     
     /**
@@ -720,8 +734,7 @@ public class UpdateHandlerImpl implements UpdateHandler {
         
         UpdateInformation update = _updateInfo;
         assert(update != null);
-        
-        activityCallback.get().updateAvailable(update);
+        fireUpdate(update);
     }
     
     /**
@@ -738,12 +751,12 @@ public class UpdateHandlerImpl implements UpdateHandler {
         
         if(LOG.isInfoEnabled()) {
             LOG.info("Delaying Update." +
-                     "\nNow    : " + now + 
-                     "\nStamp  : " + timestamp +
-                     "\nDelay  : " + delay + 
-                     "\nRandom : " + random + 
-                     "\nThen   : " + then +
-                     "\nDiff   : " + (then-now));
+                     "\nNow    : " + now + " (" + new Date(now) + ")" + 
+                     "\nStamp  : " + timestamp + " (" + new Date(timestamp) + ")" +  
+                     "\nDelay  : " + delay + " (" + CommonUtils.seconds2time(delay/1000) + ")" + 
+                     "\nRandom : " + random + " (" + CommonUtils.seconds2time(random/1000) + ")" +  
+                     "\nThen   : " + then + " (" + new Date(then) + ")" + 
+                     "\nDiff   : " + (then-now) + " (" + CommonUtils.seconds2time((then-now)/1000) + ")"); 
         }
 
         return Math.max(0,then - now);
@@ -774,7 +787,7 @@ public class UpdateHandlerImpl implements UpdateHandler {
                         long delay = delay(clock.now(),_lastTimestamp);
                         backgroundExecutor.schedule(new NotificationFailover(_lastId),delay,TimeUnit.MILLISECONDS);
                     } else {
-                        activityCallback.get().updateAvailable(updateInfo);
+                        fireUpdate(updateInfo);
                         connectionManager.get().sendUpdatedCapabilities();
                     }
                 }
@@ -800,7 +813,7 @@ public class UpdateHandlerImpl implements UpdateHandler {
             if (downloader != null && downloader instanceof InNetworkDownloader) {
                 InNetworkDownloader iDownloader = (InNetworkDownloader)downloader;
                 if (isHopeless(iDownloader, now))  
-                    iDownloader.stop();
+                    iDownloader.stop(false);
             }
         }
     }
@@ -826,18 +839,25 @@ public class UpdateHandlerImpl implements UpdateHandler {
      * there was nothing to download
      */
     private boolean isMyUpdateDownloaded(UpdateInformation myInfo) {
-        if (!fileManager.get().isLoadFinished())
+        if (!fileManager.get().getManagedFileList().isLoadFinished())
             return false;
         
         URN myUrn = myInfo.getUpdateURN();
         if (myUrn == null)
             return true;
         
-        FileDesc desc = fileManager.get().getFileDescForUrn(myUrn);
+        return hasCompleteFile(myUrn);
+    }
+    
+    private boolean hasCompleteFile(URN urn) {
+        List<FileDesc> fds = fileManager.get().getManagedFileList().getFileDescsMatching(urn);
+        for(FileDesc fd : fds) {
+            if(!(fd instanceof IncompleteFileDesc)) {
+                return true;
+            }
+        }
         
-        if (desc == null)
-            return false;
-        return desc.getClass() == FileDesc.class;
+        return false;
     }
     
     /**
@@ -927,6 +947,7 @@ public class UpdateHandlerImpl implements UpdateHandler {
             return false;
         }
 
+        @Override
         public boolean allowRequest(HttpUriRequest request) {
             return true;
         }
@@ -980,4 +1001,46 @@ public class UpdateHandlerImpl implements UpdateHandler {
         return Base32.decode("I5AVOQKFIZCE4Q2RKFATKVBWKBKVEWSOJRFU6WS2JVIUCR2QGRJESNBVIE3UESKDINIUCSSWIZKE2WCHGZKFMMS2GJAVSTKCGQ2TINSLIRFEQWCRG5KEITL4PQ6HK4DEMF2GKIDJMQ6SEMRRGQ3TIOBTGY2DOIRAORUW2ZLTORQW24B5EIYSEPQKEAQCAPDNONTSAZTSN5WT2IRXGYXDONZOG42SEIDGN5ZD2IRYGYXDQOBOHA2SEIDUN46SEOBWFY4DSLRYGURCA5LSNQ6SE2DUORYDULZPO53XOLTMNFWWK53JOJSS4Y3PNUXXK4DEMF2GKIRAON2HS3DFHURDAIRAN5ZT2ISXNFXGI33XOMRCA5LSNY6SE5LSNY5GE2LUOBZGS3TUHJIEYUCSKRIEET2BKJBE6U2BJNIECTKHKZJTEU2MGU3VGM2HIRGFCLRXIZIEGR2NG43VGSCPKFGVAUSQJU2UGNKMJ5NEKT2EG43EGRK2IQ2E2USBIVGESIRAOVRW63LNMFXGIPJHEISCKIRAF5JSOIDVNZQW2ZJ5EJGGS3LFK5UXEZKXNFXDILRRGYXDMLTFPBSSEIDTNF5GKPJCGQ2TANRSGU3CEPQKEAQCAIBAEA6GYYLOM4QGSZB5E5SW4JZ6BIQCAIBAEAQCAIB4EFNUGRCBKRAVWNBOGE3C4NRAKVJE4XK5HYFCAIBAEAQCAPBPNRQW4ZZ6BIQCAIB4F5WXGZZ6BIQCAIBAEAQDY3LTM4QGM4TPNU6SENBOHAXDCIRAMZXXEPJCGQXDCNROGYRCA5LSNQ6SE2DUORYDULZPO53XOLTMNFWWK53JOJSS4Y3PNUXXK4DEMF2GKIRAMZZGKZJ5EJ2HE5LFEIQG64Z5EJLWS3TEN53XGIRAON2HS3DFHURDIIRAOVZG4PJCOVZG4OTCNF2HA4TJNZ2DUUCMKBJFIUCCJ5AVEQSPKNAUWUCBJVDVMUZSKNGDKN2TGNDUITCRFY3UMUCDI5GTON2TJBHVCTKQKJIE2NKDGVGE6WSFJ5CDONSDIVNEINCNKJAUKTCJEIQHKY3PNVWWC3TEHUTSEJBFEIQC6UZHEB2W4YLNMU6SETDJNVSVO2LSMVLWS3RUFYYTMLRWFZSXQZJCEBZWS6TFHURDINJQGYZDKNRCHYFCAIBAEAQCAPDMMFXGOIDJMQ6SOZLOE47AUIBAEAQCAIB4EFNUGRCBKRAVWCRAEAQCAIBAHR2GCYTMMUQGC3DJM5XD2Y3FNZ2GK4RAOZQWY2LHNY6WGZLOORSXEPR4ORZD4PDUMQ7AUPDDMVXHIZLSHY6GEPSVOJTWK3TUEBGGS3LFK5UXEZJAKNSWG5LSNF2HSICVOBSGC5DFEBAXMYLJNRQWE3DFFY6GE4R6BJIGYZLBONSSAVLQMRQXIZJAJFWW2ZLENFQXIZLMPEXDYYTSHY6GE4R6HQXWEPQKJFTCA5DIMUQHK4DEMF2GKIDEN5SXGIDON52CA53POJVSYIDWNFZWS5B4MJZD4CTIOR2HAORPF53XO5ZONRUW2ZLXNFZGKLTDN5WS6ZDPO5XGY33BMQ6GE4R6EBTG64RAORUGKIDMMF2GK43UEB3GK4TTNFXW4IDPMYQEY2LNMVLWS4TFFY6C6YR6HQXWGZLOORSXEPR4F52GIPR4F52HEPR4F52GCYTMMU7AUIBAEAQCAIC5LU7AUIBAEAQCAIB4F5WGC3THHYFCAIBAEAQCAPBPNVZWOPQKEAQCAIBAEAFCAIBAEAQCAPDNONTSAZTSN5WT2IRUFY4C4MJCEBTG64R5EI2C4MJWFY3CEIDVOJWD2ITIOR2HAORPF53XO5ZONRUW2ZLXNFZGKLTDN5WS65LQMRQXIZJCEBZXI6LMMU6SENBCHYFCAIBAEAQCAPDMMFXGOIDJMQ6SOZLOE47AUIBAEAQCAIB4EFNUGRCBKRAVWCRAEAQCAIBAHR2GCYTMMUQGC3DJM5XD2Y3FNZ2GK4RAOZQWY2LHNY6WGZLOORSXEPR4ORZD4PDUMQ7AUPDDMVXHIZLSHY6GEPSVOJTWK3TUEBGGS3LFK5UXEZJAKNSWG5LSNF2HSICVOBSGC5DFEBAXMYLJNRQWE3DFFY6GE4R6BJIGYZLBONSSAVLQMRQXIZJAJFWW2ZLENFQXIZLMPEXDYYTSHY6GE4R6HQXWEPQKJFTCA5DIMUQHK4DEMF2GKIDEN5SXGIDON52CA53POJVSYIDWNFZWS5B4MJZD4CTIOR2HAORPF53XO5ZONRUW2ZLXNFZGKLTDN5WS6ZDPO5XGY33BMQ6GE4R6EBTG64RAORUGKIDMMF2GK43UEB3GK4TTNFXW4IDPMYQEY2LNMVLWS4TFFY6C6YR6HQXWGZLOORSXEPR4F52GIPR4F52HEPR4F52GCYTMMU7AUIBAEAQCAIC5LU7AUIBAEAQCAIB4F5WGC3THHYFCAIBAEAQCAPBPNVZWOPQKHQXXK4DEMF2GKPQK");
     }
     
+    public String getServiceName() {
+        return I18nMarker.marktr("Update Checks");
+    }
+    
+    public void initialize() {
+    }
+    
+    public void stop() {
+    }
+    
+    @Inject
+    void register(ServiceRegistry registry) {
+        registry.register(this);
+    }
+
+    /**
+     * Listens for events from FileManager
+     */
+    public void handleEvent(ManagedListStatusEvent evt) {
+        if(evt.getType() == ManagedListStatusEvent.Type.LOAD_COMPLETE) {
+            tryToDownloadUpdates();
+        }
+    }
+
+    @Override
+    public UpdateCollection getUpdateCollection() {
+        return updateCollection;
+    }
+    
+    private void fireUpdate(UpdateInformation update) {
+        listeners.broadcast(new UpdateEvent(update, UpdateEvent.Type.UPDATE));
+    }
+    
+    @Override
+    public void addListener(EventListener<UpdateEvent> listener) {
+        listeners.addListener(listener);
+    }
+
+    @Override
+    public boolean removeListener(EventListener<UpdateEvent> listener) {
+        return listeners.removeListener(listener);
+    }
 }

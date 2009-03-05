@@ -13,6 +13,10 @@ import junit.framework.Test;
 import org.jmock.Expectations;
 import org.jmock.Mockery;
 import org.limewire.concurrent.ThreadExecutor;
+import org.limewire.core.settings.ConnectionSettings;
+import org.limewire.core.settings.FilterSettings;
+import org.limewire.core.settings.MessageSettings;
+import org.limewire.io.GUID;
 import org.limewire.io.IOUtils;
 import org.limewire.nio.NIOServerSocket;
 import org.limewire.nio.observer.AcceptObserver;
@@ -20,7 +24,6 @@ import org.limewire.service.ErrorService;
 
 import com.limegroup.gnutella.BlockingConnectionUtils;
 import com.limegroup.gnutella.ConnectionManager;
-import com.limegroup.gnutella.GUID;
 import com.limegroup.gnutella.ServerSideTestCase;
 import com.limegroup.gnutella.StubGnetConnectObserver;
 import com.limegroup.gnutella.URN;
@@ -35,9 +38,6 @@ import com.limegroup.gnutella.messages.PingRequestFactory;
 import com.limegroup.gnutella.messages.QueryRequest;
 import com.limegroup.gnutella.messages.QueryRequestFactory;
 import com.limegroup.gnutella.messages.vendor.CapabilitiesVM;
-import com.limegroup.gnutella.settings.ConnectionSettings;
-import com.limegroup.gnutella.settings.FilterSettings;
-import com.limegroup.gnutella.settings.MessageSettings;
 
 
 /**
@@ -309,21 +309,16 @@ public class RoutedConnectionTest extends ServerSideTestCase {
         
         RoutedConnection out = cm.getConnections().get(0);
         
-        PingRequest pr=null;
-        long start=0;
-        long elapsed=0;
-
         // Record initial msgs.
         int initialNumSent = out.getConnectionMessageStatistics().getNumMessagesSent();
         //long initialBytesSent = out.getUncompressedBytesSent();
         long initialBytesRecv = in.getConnectionBandwidthStatistics().getUncompressedBytesReceived();
         
-        pr=pingRequestFactory.createPingRequest((byte)3);
-        out.send(pr);
+        out.send(pingRequestFactory.createPingRequest((byte)3));
         
-        start=System.currentTimeMillis();        
-        pr=(PingRequest)in.receive();
-        elapsed=System.currentTimeMillis()-start;
+        long start = System.currentTimeMillis();        
+        PingRequest pr = (PingRequest)in.receive();
+        long elapsed = System.currentTimeMillis() - start;
         assertEquals("unexpected number of sent messages", initialNumSent + 1, out.getConnectionMessageStatistics().getNumMessagesSent());
         assertEquals( initialBytesRecv + pr.getTotalLength(), in.getConnectionBandwidthStatistics().getUncompressedBytesReceived() );
         // due to delay in updating, this stat is off always.

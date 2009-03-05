@@ -18,6 +18,7 @@ import org.limewire.collection.Periodic;
 import org.limewire.io.IOUtils;
 import org.limewire.io.IpPort;
 import org.limewire.net.SocketsManager;
+import org.limewire.net.address.StrictIpPortSet;
 import org.limewire.nio.AbstractNBSocket;
 import org.limewire.nio.observer.ConnectObserver;
 import org.limewire.nio.observer.Shutdownable;
@@ -28,8 +29,11 @@ import com.limegroup.bittorrent.ManagedTorrent;
 import com.limegroup.bittorrent.TorrentLocation;
 import com.limegroup.gnutella.ApplicationServices;
 import com.limegroup.gnutella.Constants;
-import com.limegroup.gnutella.util.StrictIpPortSet;
 
+/**
+ * Reacts to the start and completion of a BitTorrent connection handshake.
+ * Additionally, <code>BTConnectionFetcher</code> returns an outgoing handshake.
+ */
 public class BTConnectionFetcher implements BTHandshakeObserver, Runnable, Shutdownable  {
 	
 	private static final Log LOG = LogFactory.getLog(BTConnectionFetcher.class);
@@ -46,7 +50,7 @@ public class BTConnectionFetcher implements BTHandshakeObserver, Runnable, Shutd
 	static {
 		try {
 			BITTORRENT_PROTOCOL_BYTES = BITTORRENT_PROTOCOL
-					.getBytes(org.limewire.http.Constants.ASCII_ENCODING);
+					.getBytes(org.limewire.util.Constants.ASCII_ENCODING);
 		} catch (UnsupportedEncodingException e) {
 			ErrorService.error(e);
 		}

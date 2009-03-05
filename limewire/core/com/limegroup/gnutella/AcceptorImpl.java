@@ -16,13 +16,21 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.limewire.concurrent.ThreadExecutor;
+import org.limewire.core.api.connection.FirewallStatus;
+import org.limewire.core.api.connection.FirewallStatusEvent;
+import org.limewire.core.settings.ConnectionSettings;
+import org.limewire.core.settings.NetworkSettings;
 import org.limewire.i18n.I18nMarker;
 import org.limewire.inspection.InspectablePrimitive;
 import org.limewire.io.IOUtils;
 import org.limewire.io.NetworkUtils;
+import org.limewire.lifecycle.Asynchronous;
+import org.limewire.lifecycle.Service;
+import org.limewire.lifecycle.ServiceRegistry;
+import org.limewire.listener.EventBroadcaster;
+import org.limewire.logging.Log;
+import org.limewire.logging.LogFactory;
 import org.limewire.net.AsyncConnectionDispatcher;
 import org.limewire.net.BlockingConnectionDispatcher;
 import org.limewire.net.ConnectionAcceptor;
@@ -38,8 +46,6 @@ import com.google.inject.Provider;
 import com.google.inject.Singleton;
 import com.google.inject.name.Named;
 import com.limegroup.gnutella.filters.IPFilter;
-import com.limegroup.gnutella.settings.ConnectionSettings;
-import com.limegroup.gnutella.settings.NetworkSettings;
 
 /**
  * Listens on ports, accepts incoming connections, and dispatches threads to
@@ -50,7 +56,7 @@ import com.limegroup.gnutella.settings.NetworkSettings;
  * info.
  */
 @Singleton
-public class AcceptorImpl implements ConnectionAcceptor, SocketProcessor, Acceptor {
+public class AcceptorImpl implements ConnectionAcceptor, SocketProcessor, Acceptor, Service {
 
     private static final Log LOG = LogFactory.getLog(AcceptorImpl.class);
 
@@ -127,12 +133,14 @@ public class AcceptorImpl implements ConnectionAcceptor, SocketProcessor, Accept
      */
     private volatile boolean _started;
     
+    private final Object ADDRESS_LOCK = new Object();
+    
     private final NetworkManager networkManager;
     private final Provider<UDPService> udpService;
     private final Provider<MulticastService> multicastService;
     private final Provider<ConnectionDispatcher> connectionDispatcher;
     private final ScheduledExecutorService backgroundExecutor;
-    private final Provider<ActivityCallback> activityCallback;
+    private final EventBroadcaster<FirewallStatusEvent> firewallBroadcaster;
     private final Provider<ConnectionManager> connectionManager;
     private final Provider<IPFilter> ipFilter;
     private final ConnectionServices connectionServices;
@@ -147,7 +155,7 @@ public class AcceptorImpl implements ConnectionAcceptor, SocketProcessor, Accept
             Provider<MulticastService> multicastService,
             @Named("global") Provider<ConnectionDispatcher> connectionDispatcher,
             @Named("backgroundExecutor") ScheduledExecutorService backgroundExecutor,
-            Provider<ActivityCallback> activityCallback,
+            EventBroadcaster<FirewallStatusEvent> firewallBroadcaster,
             Provider<ConnectionManager> connectionManager,
             Provider<IPFilter> ipFilter, 
             ConnectionServices connectionServices,
@@ -157,7 +165,7 @@ public class AcceptorImpl implements ConnectionAcceptor, SocketProcessor, Accept
         this.multicastService = multicastService;
         this.connectionDispatcher = connectionDispatcher;
         this.backgroundExecutor = backgroundExecutor;
-        this.activityCallback = activityCallback;
+        this.firewallBroadcaster = firewallBroadcaster;
         this.connectionManager = connectionManager;
         this.ipFilter = ipFilter;
         this.connectionServices = connectionServices;
@@ -187,7 +195,7 @@ public class AcceptorImpl implements ConnectionAcceptor, SocketProcessor, Accept
         }
 
         boolean addrChanged = false;
-		synchronized(AcceptorImpl.class) {
+		synchronized(ADDRESS_LOCK) {
 		    if( !Arrays.equals(_address, byteAddr) ) {
 			    _address = byteAddr;
 			    addrChanged = true;
@@ -209,15 +217,22 @@ public class AcceptorImpl implements ConnectionAcceptor, SocketProcessor, Accept
             return;
         }
 
-		synchronized(AcceptorImpl.class) {
-		    _externalAddress = byteAddr;
+        boolean addrChanged = false;
+        synchronized(ADDRESS_LOCK) {
+            if( !Arrays.equals(_externalAddress, byteAddr) ) {
+                LOG.debugf("setting external address {0}", address);
+			    _externalAddress = byteAddr;
+			    addrChanged = true;
+			}
 		}
+        if(addrChanged) 
+            networkManager.externalAddressChanged();
     }
 
 	/* (non-Javadoc)
      * @see com.limegroup.gnutella.Acceptor#init()
      */
-	public void init() {
+	public void bindAndStartUpnp() {
         int tempPort;
         // try a random port if we have not received an incoming connection  
         // and have been running on the default port (6346) 
@@ -238,10 +253,15 @@ public class AcceptorImpl implements ConnectionAcceptor, SocketProcessor, Accept
         //   block under certain conditions.
         //   See the notes for _address.
         try {
-            if(isUPnPEnabled())
+            if(isUPnPEnabled()) {
+                if (LOG.isDebugEnabled())
+                    LOG.debug("setting address to local address: " + NetworkUtils.getLocalAddress());
                 setAddress(NetworkUtils.getLocalAddress());
-            else
+            } else {
+                if (LOG.isDebugEnabled())
+                    LOG.debug("setting address to localhost: " + InetAddress.getLocalHost());
                 setAddress(InetAddress.getLocalHost());
+            }
         } catch (UnknownHostException e) {
         } catch (SecurityException e) {
         }
@@ -288,7 +308,7 @@ public class AcceptorImpl implements ConnectionAcceptor, SocketProcessor, Accept
         if (_port != oldPort || tryingRandom) {
             NetworkSettings.PORT.setValue(_port);
             SettingsGroupManager.instance().save();
-            networkManager.addressChanged();
+            networkManager.portChanged();
         }
        
         // Make sure UPnP gets setup.
@@ -316,14 +336,12 @@ public class AcceptorImpl implements ConnectionAcceptor, SocketProcessor, Accept
         	    LOG.debug("Natted: " + natted + ", validPort: " + validPort + ", forcedIP: " + forcedIP);
         	
         	if(natted && validPort && !forcedIP) {
-        		int mappedPort = upnpManager.get().mapPort(_port);
+        		int mappedPort = upnpManager.get().mapPort(_port, getAddress(false));
         		if(LOG.isDebugEnabled())
         		    LOG.debug("UPNP port mapped: " + mappedPort);
         		
 			    //if we created a mapping successfully, update the forced port
-			    if (mappedPort != 0 ) {
-			        upnpManager.get().clearMappingsOnShutdown();
-			        
+			    if (mappedPort != 0 ) {			        
 			        //  mark UPNP as being on so that if LimeWire shuts
 			        //  down prematurely, we know the FORCE_IP was from UPnP
 			        //  and that we can continue trying to use UPnP
@@ -331,7 +349,7 @@ public class AcceptorImpl implements ConnectionAcceptor, SocketProcessor, Accept
         	        ConnectionSettings.FORCED_PORT.setValue(mappedPort);
         	        ConnectionSettings.UPNP_IN_USE.setValue(true);
         	        if (mappedPort != _port)
-        	            networkManager.addressChanged();
+        	            networkManager.portChanged();
         		
         		    // we could get our external address from the NAT but its too slow
         		    // so we clear the last connect back times and re-validate cause our
@@ -344,6 +362,28 @@ public class AcceptorImpl implements ConnectionAcceptor, SocketProcessor, Accept
         	}
         }
 	}
+	
+	@Inject
+    void register(ServiceRegistry registry) {
+        registry.register(this);
+        registry.register(new Service() {
+            public String getServiceName() {
+                return "UPnP";
+            }
+            
+            public void initialize() {
+            }
+            
+            public void start() {
+                bindAndStartUpnp();
+            }
+            
+            @Asynchronous (timeout = 30, daemon = true)
+            public void stop() {
+                upnpManager.get().clearMappings();
+            }
+        }).in("EarlyBackground");
+    }
 	
     /* (non-Javadoc)
      * @see com.limegroup.gnutella.Acceptor#start()
@@ -358,13 +398,28 @@ public class AcceptorImpl implements ConnectionAcceptor, SocketProcessor, Accept
         _started = true;
     }
 	
+	public String getServiceName() {
+	    return org.limewire.i18n.I18nMarker.marktr("Connection Listener");
+	}
+	
+	public void initialize() {
+        firewallBroadcaster.broadcast(new FirewallStatusEvent(FirewallStatus.FIREWALLED));
+	}
+	
+	public void stop() {
+	    try {
+	        setListeningPort(0);
+	    } catch(IOException ignored) {}
+	    shutdown();
+	}
+	
 	/* (non-Javadoc)
      * @see com.limegroup.gnutella.Acceptor#isAddressExternal()
      */
 	public boolean isAddressExternal() {
         if (!ConnectionSettings.LOCAL_IS_PRIVATE.getValue())
             return true;
-	    synchronized(AcceptorImpl.class) {
+	    synchronized(ADDRESS_LOCK) {
 	        return Arrays.equals(getAddress(true), _externalAddress);
 	    }
 	}
@@ -380,7 +435,7 @@ public class AcceptorImpl implements ConnectionAcceptor, SocketProcessor, Accept
      * @see com.limegroup.gnutella.Acceptor#getExternalAddress()
      */
 	public byte[] getExternalAddress() {
-	    synchronized(AcceptorImpl.class) {
+	    synchronized(ADDRESS_LOCK) {
 	        return _externalAddress;
         }
 	}
@@ -388,23 +443,35 @@ public class AcceptorImpl implements ConnectionAcceptor, SocketProcessor, Accept
     /* (non-Javadoc)
      * @see com.limegroup.gnutella.Acceptor#getAddress(boolean)
      */
-    public byte[] getAddress(boolean checkForce) {        
-		if(checkForce && ConnectionSettings.FORCE_IP_ADDRESS.getValue()) {
-            String address = 
-                ConnectionSettings.FORCED_IP_ADDRESS_STRING.getValue();
-            try {
-                InetAddress ia = InetAddress.getByName(address);
-                byte[] addr = ia.getAddress();
-                if(addr != null)
-                    return addr;
-            } catch (UnknownHostException err) {
-                // ignore and return _address
-            }
-        }
-        
-        synchronized (AcceptorImpl.class) {
-            return _address;
-        }
+    public byte[] getAddress(boolean preferForcedAddress) {        
+		if(preferForcedAddress) {
+		    if (ConnectionSettings.FORCE_IP_ADDRESS.getValue()) {
+		        String address = 
+		            ConnectionSettings.FORCED_IP_ADDRESS_STRING.getValue();
+		        try {
+		            InetAddress ia = InetAddress.getByName(address);
+		            byte[] addr = ia.getAddress();
+		            return addr;
+		        } catch (UnknownHostException err) {
+		            // ignore and return _address
+		        }
+		    } else if (_acceptedIncoming) {
+		        // return valid external address as forced address if we
+		        // can accept incoming connections, to advertise the right
+		        // address to peers as a non-firewalled peer
+		        // this can happen when the firewall does port forwarding,
+		        // but the client is not explicitly configured to do it
+		        synchronized (ADDRESS_LOCK) {
+		            if (NetworkUtils.isValidAddress(_externalAddress)) {
+		                return _externalAddress;
+		            }
+                }
+		    }
+		}
+		    
+		synchronized (ADDRESS_LOCK) {
+		    return _address;
+		}
     }
 
     /* (non-Javadoc)
@@ -417,8 +484,8 @@ public class AcceptorImpl implements ConnectionAcceptor, SocketProcessor, Accept
     /* (non-Javadoc)
      * @see com.limegroup.gnutella.Acceptor#getPort(boolean)
      */
-    public int getPort(boolean checkForce) {
-        if(checkForce && ConnectionSettings.FORCE_IP_ADDRESS.getValue())
+    public int getPort(boolean preferForcedPort) {
+        if(preferForcedPort && ConnectionSettings.FORCE_IP_ADDRESS.getValue())
 			return ConnectionSettings.FORCED_PORT.getValue();
         return _port;
     }
@@ -518,6 +585,7 @@ public class AcceptorImpl implements ConnectionAcceptor, SocketProcessor, Accept
 
             if(LOG.isDebugEnabled())
                 LOG.debug("listening UDP/TCP on " + _port);
+            networkManager.portChanged();
         }
     }
 
@@ -541,15 +609,26 @@ public class AcceptorImpl implements ConnectionAcceptor, SocketProcessor, Accept
 	 * Returns whether or not the status changed.
 	 */
 	boolean setIncoming(boolean canReceiveIncoming) {
-        if (canReceiveIncoming) 
-            incomingValidator.cancelReset();
+	    synchronized(ADDRESS_LOCK) {
+            if (canReceiveIncoming) 
+                incomingValidator.cancelReset();
+    	    
+    	    if (_acceptedIncoming == canReceiveIncoming)
+                return false;
+            
+    	    _acceptedIncoming = canReceiveIncoming;
+            if(canReceiveIncoming) {
+                firewallBroadcaster.broadcast(new FirewallStatusEvent(FirewallStatus.NOT_FIREWALLED));
+            } else {
+                firewallBroadcaster.broadcast(new FirewallStatusEvent(FirewallStatus.FIREWALLED)); 
+            }
+	    }
 	    
-	    if (_acceptedIncoming == canReceiveIncoming)
-            return false;
-        
-	    _acceptedIncoming = canReceiveIncoming;
-		activityCallback.get().acceptedIncomingChanged(canReceiveIncoming);
-	    return true;
+        if(canReceiveIncoming) {
+            ConnectionSettings.EVER_ACCEPTED_INCOMING.setValue(true);
+        }
+    
+        return true;
 	}
 	
 	/* (non-Javadoc)
@@ -563,17 +642,14 @@ public class AcceptorImpl implements ConnectionAcceptor, SocketProcessor, Accept
 	/* (non-Javadoc)
      * @see com.limegroup.gnutella.Acceptor#checkFirewall(java.net.InetAddress)
      */
-	public void checkFirewall(InetAddress address) {
+	void checkFirewall(InetAddress address) {
 		// we have accepted an incoming socket -- only record
         // that we've accepted incoming if it's definitely
         // not from our local subnet and we aren't connected to
         // the host already.
         boolean changed = false;
         if(isOutsideConnection(address)) {
-            synchronized (AcceptorImpl.class) {
-                changed = setIncoming(true);
-                ConnectionSettings.EVER_ACCEPTED_INCOMING.setValue(true);
-            }
+            changed = setIncoming(true);
         }
         if(changed)
             networkManager.incomingStatusChanged();
@@ -708,22 +784,23 @@ public class AcceptorImpl implements ConnectionAcceptor, SocketProcessor, Accept
         private AtomicReference<Future<?>> futureRef = new AtomicReference<Future<?>>();
         
         public void run() {
-            if (validating.getAndSet(true))
+            if (validating.getAndSet(true)) {
+                LOG.debug("Attempt to validate while already validating, aborting check");
                 return;
+            }
             
             // clear and revalidate if we haven't done so in a while
             final long currTime = System.currentTimeMillis();
-            if (currTime - _lastConnectBackTime > incomingExpireTime){
+            if (currTime - _lastConnectBackTime > incomingExpireTime) {
+                LOG.debug("Time elapsed -- triggering TCP connectbacks");
                 // send a connectback request to a few peers and clear
                 // _acceptedIncoming IF some requests were sent.
                 if(connectionManager.get().sendTCPConnectBackRequests())  {
+                    LOG.debug("Sent TCP connectbacks, scheduling unset of accept-incoming");
                     _lastConnectBackTime = currTime;
                     Runnable resetter = new Runnable() {
                         public void run() {
-                            boolean changed = false;
-                            synchronized (AcceptorImpl.class) {
-                                changed = setIncoming(false);
-                            }
+                            boolean changed = setIncoming(false);
                             if(changed)
                                 networkManager.incomingStatusChanged();
                         }

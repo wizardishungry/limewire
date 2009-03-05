@@ -8,6 +8,7 @@ import java.io.Flushable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.net.DatagramSocket;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.EnumMap;
@@ -251,6 +252,13 @@ public class IOUtils {
         FileUtils.flush(flushable);
     }
     
+    /** Closes the socket if it is not null. */
+    public static void close(DatagramSocket s) {
+        if(s != null) {
+            s.close();
+        }
+    }
+    
     /**
      * A utility method to close Sockets
      */
@@ -354,6 +362,27 @@ public class IOUtils {
         } finally {
             close(bos);
             close(in);
+        }
+    }
+
+    /**
+     * Reads a byte from input stream and throws {@link EOFException} if
+     * the end of the stream was reached. 
+     */
+    public static int readByte(InputStream is) throws IOException{
+        int ret = is.read();
+        if (ret == -1)
+            throw new EOFException();
+        return ret;
+    }
+
+    /**
+     * Fills array with bytes from input stream and throws {@link EOFException}
+     * if it couldn't be fully read. 
+     */
+    public static void readFully(InputStream in, byte[] array) throws IOException {
+        if (in.read(array) != array.length) {
+            throw new EOFException();
         }
     }
 }

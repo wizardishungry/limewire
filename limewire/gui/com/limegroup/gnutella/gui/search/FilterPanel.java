@@ -11,9 +11,9 @@ import javax.swing.event.ListDataListener;
 import javax.swing.event.ListSelectionEvent;
 import javax.swing.event.ListSelectionListener;
 
+import org.limewire.util.MediaType;
 import org.xml.sax.SAXException;
 
-import com.limegroup.gnutella.MediaType;
 import com.limegroup.gnutella.gui.BoxPanel;
 import com.limegroup.gnutella.gui.GuiCoreMediator;
 import com.limegroup.gnutella.gui.xml.XMLValue;
@@ -71,7 +71,7 @@ class FilterPanel extends BoxPanel {
     public FilterPanel(final ResultPanel results) {
         super(BoxLayout.Y_AXIS);
         
-        String searchType = results.getMediaType().getMimeType();
+        String searchType = results.getMediaType().getSchema();
         Selector one = SelectorsHandler.getSelector(searchType, 0);
         Selector two = SelectorsHandler.getSelector(searchType, 1);
         Selector three = SelectorsHandler.getSelector(searchType, 2);
@@ -273,7 +273,7 @@ class FilterPanel extends BoxPanel {
          * TODO: Update only the depth that changed.
          */
         public void stateChanged(ChangeEvent event) {
-            String type = RESULTS.getMediaType().getMimeType();
+            String type = RESULTS.getMediaType().getSchema();
             SelectorsHandler.setSelector(type, 0, BOX_1.getSelector());
             SelectorsHandler.setSelector(type, 1, BOX_2.getSelector());
             SelectorsHandler.setSelector(type, 2, BOX_3.getSelector());

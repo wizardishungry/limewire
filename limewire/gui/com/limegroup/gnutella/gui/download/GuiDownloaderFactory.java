@@ -2,8 +2,9 @@ package com.limegroup.gnutella.gui.download;
 
 import java.io.File;
 
+import org.limewire.core.api.download.SaveLocationException;
+
 import com.limegroup.gnutella.Downloader;
-import com.limegroup.gnutella.SaveLocationException;
 import com.limegroup.gnutella.URN;
 
 /**

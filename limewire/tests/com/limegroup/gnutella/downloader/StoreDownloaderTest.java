@@ -7,6 +7,8 @@ import java.util.List;
 
 import junit.framework.Test;
 
+import org.limewire.core.api.download.SaveLocationException;
+import org.limewire.io.Connectable;
 import org.limewire.io.LocalSocketAddressProvider;
 
 import com.google.inject.AbstractModule;
@@ -15,16 +17,15 @@ import com.google.inject.Module;
 import com.limegroup.gnutella.ConnectionManager;
 import com.limegroup.gnutella.DownloadManager;
 import com.limegroup.gnutella.DownloadManagerImpl;
-import com.limegroup.gnutella.FileManager;
 import com.limegroup.gnutella.LimeTestUtils;
 import com.limegroup.gnutella.MessageRouter;
 import com.limegroup.gnutella.NetworkManager;
 import com.limegroup.gnutella.RemoteFileDesc;
-import com.limegroup.gnutella.SaveLocationException;
 import com.limegroup.gnutella.URN;
 import com.limegroup.gnutella.helpers.UrnHelper;
+import com.limegroup.gnutella.library.FileManager;
+import com.limegroup.gnutella.library.FileManagerStub;
 import com.limegroup.gnutella.stubs.ConnectionManagerStub;
-import com.limegroup.gnutella.stubs.FileManagerStub;
 import com.limegroup.gnutella.stubs.LocalSocketAddressProviderStub;
 import com.limegroup.gnutella.stubs.MessageRouterStub;
 import com.limegroup.gnutella.stubs.NetworkManagerStub;
@@ -77,7 +78,7 @@ public class StoreDownloaderTest extends LimeTestCase{
         connectionManager.setConnected(true);
         
         downloadManager = (DownloadManagerImpl)injector.getInstance(DownloadManager.class);       
-        downloadManager.initialize();
+        downloadManager.start();
         RequeryManager.NO_DELAY = false;
     }
     
@@ -127,11 +128,16 @@ public class StoreDownloaderTest extends LimeTestCase{
         
         assertTrue(rfd.getUrns().contains(urn));
         
-        assertEquals( url, rfd.getUrl());
+        assertEquals("", rfd.getUrlPath());
+        
+        Connectable connectable = (Connectable) rfd.getAddress();
+        assertEquals("test.com", connectable.getAddress());
+        assertEquals(80, connectable.getPort());
+        assertFalse(connectable.isTLSCapable());
         
         assertEquals( "test.txt", rfd.getFileName());
         
-        assertEquals( 10L, rfd.getFileSize() );
+        assertEquals( 10L, rfd.getSize() );
         
         
     }

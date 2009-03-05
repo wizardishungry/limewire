@@ -9,6 +9,7 @@ import java.net.SocketException;
 import java.net.UnknownHostException;
 import java.nio.ByteOrder;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Enumeration;
 import java.util.Iterator;
@@ -797,5 +798,44 @@ public class NetworkUtilsTest extends BaseTestCase {
         int ineffectiveMask = 0xFFFFFFFF;
         byte[] address = new byte[] { (byte)191, 45, 33, (byte)0xFF, };
         assertEquals(address, NetworkUtils.toByteAddress(NetworkUtils.getMaskedIP(InetAddress.getByAddress(address), ineffectiveMask)));
+    }
+    
+    public void testAreInSameSiteLocalNetwork() throws Exception {
+        assertTrue(NetworkUtils.areInSameSiteLocalNetwork(InetAddress.getByName("10.0.25.5"), InetAddress.getByName("10.0.22.0")));
+        assertTrue(NetworkUtils.areInSameSiteLocalNetwork(InetAddress.getByName("192.168.25.5"), InetAddress.getByName("192.168.2.0")));
+        assertTrue(NetworkUtils.areInSameSiteLocalNetwork(InetAddress.getByName("172.16.25.5"), InetAddress.getByName("172.16.0.0")));
+        
+        assertFalse(NetworkUtils.areInSameSiteLocalNetwork(InetAddress.getByName("11.0.25.5"), InetAddress.getByName("10.0.22.0")));
+        assertFalse(NetworkUtils.areInSameSiteLocalNetwork(InetAddress.getByName("192.161.25.5"), InetAddress.getByName("192.168.2.0")));
+        assertFalse(NetworkUtils.areInSameSiteLocalNetwork(InetAddress.getByName("172.10.25.5"), InetAddress.getByName("172.16.0.0")));
+        assertFalse(NetworkUtils.areInSameSiteLocalNetwork(InetAddress.getByName("10.0.25.5"), InetAddress.getByName("192.168.22.0")));
+        assertFalse(NetworkUtils.areInSameSiteLocalNetwork(InetAddress.getByName("172.16.25.5"), InetAddress.getByName("192.168.22.0")));
+        
+        // ipv6
+        byte[] address1 = new byte[16];
+        Arrays.fill(address1, (byte)5);
+        byte[] address2 = new byte[16];
+        Arrays.fill(address2, (byte)9);
+        address1[0] = (byte)0xfe;
+        address2[0] = (byte)0xfe;
+        address1[1] = (byte)0xc0;
+        address2[1] = (byte)0xc0;
+        assertTrue(NetworkUtils.areInSameSiteLocalNetwork(address1, address2));
+        address2[1] = 9;
+        assertFalse(NetworkUtils.areInSameSiteLocalNetwork(address1, address2));
+    }
+    
+    /**
+     * Ensures that the respective methods in {@link NetworkUtils} match the
+     * definition of {@link ConnectableImpl#INVALID_CONNECTABLE}.
+     */
+    public void testInvalidConnectableIsInvalid() {
+        assertFalse(NetworkUtils.isValidAddress(ConnectableImpl.INVALID_CONNECTABLE.getAddress()));
+        assertTrue(NetworkUtils.isValidPort(ConnectableImpl.INVALID_CONNECTABLE.getPort()));
+        assertFalse(NetworkUtils.isValidIpPort(ConnectableImpl.INVALID_CONNECTABLE));
+    }
+    
+    public void testInvalidAddressValiPort() throws Exception {
+        assertFalse(NetworkUtils.isValidIpPort(new ConnectableImpl("0.0.0.0", 20144, true)));
     }
 }

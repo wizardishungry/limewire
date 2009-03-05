@@ -7,7 +7,16 @@ import java.util.concurrent.TimeUnit;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.limewire.core.settings.ApplicationSettings;
+import org.limewire.core.settings.ConnectionSettings;
+import org.limewire.core.settings.DHTSettings;
+import org.limewire.core.settings.DownloadSettings;
+import org.limewire.core.settings.SpeedConstants;
+import org.limewire.core.settings.UltrapeerSettings;
+import org.limewire.core.settings.UploadSettings;
 import org.limewire.io.NetworkInstanceUtils;
+import org.limewire.io.NetworkUtils;
+import org.limewire.lifecycle.Service;
 import org.limewire.util.OSUtils;
 
 import com.google.inject.Inject;
@@ -16,12 +25,6 @@ import com.google.inject.Singleton;
 import com.google.inject.name.Named;
 import com.limegroup.gnutella.dht.DHTManager;
 import com.limegroup.gnutella.dht.DHTManager.DHTMode;
-import com.limegroup.gnutella.settings.ApplicationSettings;
-import com.limegroup.gnutella.settings.ConnectionSettings;
-import com.limegroup.gnutella.settings.DHTSettings;
-import com.limegroup.gnutella.settings.DownloadSettings;
-import com.limegroup.gnutella.settings.UltrapeerSettings;
-import com.limegroup.gnutella.settings.UploadSettings;
 import com.limegroup.gnutella.statistics.TcpBandwidthStatistics;
 
 
@@ -36,7 +39,7 @@ import com.limegroup.gnutella.statistics.TcpBandwidthStatistics;
  */
 // TODO starts DHTManager, should also stop it
 @Singleton
-class NodeAssignerImpl implements NodeAssigner {
+class NodeAssignerImpl implements NodeAssigner, Service {
     
     private static final Log LOG = LogFactory.getLog(NodeAssignerImpl.class);
     
@@ -179,6 +182,18 @@ class NodeAssignerImpl implements NodeAssigner {
         }
     }
     
+    public String getServiceName() {
+        return org.limewire.i18n.I18nMarker.marktr("Ultrapeer/DHT Management");
+    }
+    
+    public void initialize() {
+    }
+    
+    @Inject
+    void register(org.limewire.lifecycle.ServiceRegistry registry) {
+        registry.register(this);
+    }
+    
     /**
      * Collects data on the bandwidth that has been used for file uploads
      * and downloads.
@@ -238,6 +253,27 @@ class NodeAssignerImpl implements NodeAssigner {
         
         if(LOG.isDebugEnabled()) {
             LOG.debug("Hardcore capable: "+_isHardcoreCapable);
+        }
+        
+        if (!_isHardcoreCapable && LOG.isTraceEnabled()) {
+            if (_maxUpstreamBytesPerSec < UltrapeerSettings.MIN_UPSTREAM_REQUIRED.getValue()) {
+                LOG.trace("not enough upstream: " + _maxUpstreamBytesPerSec);
+            }
+            if (_maxDownstreamBytesPerSec < UltrapeerSettings.MIN_DOWNSTREAM_REQUIRED.getValue()) {
+                LOG.trace("not enough downstream: " + _maxDownstreamBytesPerSec);
+            }
+            if (ConnectionSettings.CONNECTION_SPEED.getValue() <= SpeedConstants.MODEM_SPEED_INT) {
+                LOG.trace("Not enoug speed: " + ConnectionSettings.CONNECTION_SPEED.getValue());
+            }
+            if (!ConnectionSettings.EVER_ACCEPTED_INCOMING.getValue()) {
+                LOG.trace("not accepted incoming ever");
+            }
+            if (!ULTRAPEER_OS) {
+                LOG.trace("not an ultrapeer os");
+            }
+            if (networkInstanceUtils.isPrivate()) {
+                LOG.trace("private address: " + NetworkUtils.ip2string(networkManager.getAddress()));
+            }
         }
     }
     
@@ -519,10 +555,27 @@ class NodeAssignerImpl implements NodeAssigner {
     private boolean isActiveDHTCapable() {
         long averageTime = getAverageTime();
         
-        return _isHardcoreCapable
-                && (averageTime >= DHTSettings.MIN_ACTIVE_DHT_AVERAGE_UPTIME.getValue()
-                && _currentUptime >= (DHTSettings.MIN_ACTIVE_DHT_INITIAL_UPTIME.getValue()/1000L))
-                && networkManager.isGUESSCapable();
+        if (!_isHardcoreCapable) {
+            LOG.trace("not hardcore capable");
+            return false;
+        }
+        if (averageTime < DHTSettings.MIN_ACTIVE_DHT_AVERAGE_UPTIME.getValue()) {
+            if (LOG.isTraceEnabled()) {
+                LOG.trace("not long enough average uptime: " + averageTime);
+            }
+            return false;
+        }
+        if (_currentUptime < (DHTSettings.MIN_ACTIVE_DHT_INITIAL_UPTIME.getValue()/1000L)) {
+            if (LOG.isTraceEnabled()) {
+                LOG.trace("not long enough current uptime: " + _currentUptime);
+            }
+            return false;
+        }
+        if (!networkManager.isGUESSCapable()) {
+            LOG.trace("not guess capable: can't receive both unsolicted and solicted udp");
+            return false;
+        }
+        return true;
     }
     
     private long getAverageTime() {

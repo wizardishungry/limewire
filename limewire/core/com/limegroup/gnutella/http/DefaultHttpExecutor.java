@@ -3,7 +3,6 @@ package com.limegroup.gnutella.http;
 import java.io.IOException;
 import java.util.concurrent.ExecutorService;
 
-import org.apache.http.HttpException;
 import org.apache.http.HttpResponse;
 import org.apache.http.client.methods.AbortableHttpRequest;
 import org.apache.http.client.methods.HttpUriRequest;
@@ -12,6 +11,8 @@ import org.limewire.collection.Cancellable;
 import org.limewire.concurrent.ExecutorsHelper;
 import org.limewire.http.httpclient.HttpClientUtils;
 import org.limewire.http.httpclient.LimeHttpClient;
+import org.limewire.logging.Log;
+import org.limewire.logging.LogFactory;
 import org.limewire.nio.observer.Shutdownable;
 
 import com.google.inject.Inject;
@@ -24,6 +25,8 @@ import com.google.inject.Singleton;
  */
 @Singleton
 public class DefaultHttpExecutor implements HttpExecutor {
+    
+    private static final Log LOG = LogFactory.getLog(DefaultHttpExecutor.class);
 
 	private static final ExecutorService POOL = 
         ExecutorsHelper.newThreadPool("HttpClient pool");
@@ -87,6 +90,7 @@ public class DefaultHttpExecutor implements HttpExecutor {
      * false if another request should be processed.
      */
 	private boolean performRequest(HttpUriRequest method, HttpParams params, HttpClientListener listener) {
+	    LOG.debugf("performing request, method: {0}, params: {1}", method, params); 
 	    // If we aren't allowed to do this request, skip to the next.
 	    if(!listener.allowRequest(method)) {
 	        return false;
@@ -101,19 +105,12 @@ public class DefaultHttpExecutor implements HttpExecutor {
         try {
 			response = client.execute(method);
 		} catch (IOException failed) {
+		    LOG.debug("iox", failed);
 			return !listener.requestFailed(method, null, failed);
-		} catch (HttpException e) {
-            IOException ioe = new IOException();
-            ioe.initCause(e);
-            return !listener.requestFailed(method, null, ioe);
-        }
-		catch (IllegalStateException ise) {
-		    // bug in httpclient lib, LWC-1637, do not forward port
-		    IOException ioe = new IOException();
-            ioe.initCause(ise);
-            return !listener.requestFailed(method, null, ioe);
+		} catch (Throwable t) {
+		    LOG.debug("throwable", t);
+		    return !listener.requestFailed(method, null, new IOException(t));
 		}
-
         return !listener.requestComplete(method, response);
 	}
 	
@@ -137,12 +134,16 @@ public class DefaultHttpExecutor implements HttpExecutor {
 		public void run() {
 			for (HttpUriRequest m : methods) {
 				synchronized(this) {
-					if (shutdown)
+					if (shutdown) {
+					    LOG.debug("shut down in run");
 						return;
+					}
 					currentMethod = m;
 				}
-				if (canceller.isCancelled())
+				if (canceller.isCancelled()) {
+				    LOG.debug("cancelled");
 					return;
+				}
 				if (performRequest(m, params, listener))
 					return;
 			}
@@ -150,6 +151,7 @@ public class DefaultHttpExecutor implements HttpExecutor {
 		
 		public void shutdown() {
 			HttpUriRequest m;
+			LOG.debug("shutting down");
 			synchronized (this) {
 				shutdown = true;
 				m = currentMethod;

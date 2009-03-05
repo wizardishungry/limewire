@@ -9,8 +9,8 @@ import java.util.StringTokenizer;
 
 import org.limewire.io.IpPort;
 import org.limewire.io.IpPortImpl;
+import org.limewire.util.MediaType;
 
-import com.limegroup.gnutella.MediaType;
 import com.limegroup.gnutella.gui.I18n;
 
 /**

@@ -6,6 +6,9 @@ import java.nio.channels.Pipe;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.spi.SelectorProvider;
 
+import org.limewire.listener.EventBroadcaster;
+import org.limewire.rudp.messages.SynMessage.Role;
+
 import com.google.inject.Inject;
 import com.google.inject.Singleton;
 
@@ -16,15 +19,14 @@ import com.google.inject.Singleton;
 @Singleton
 public class UDPSelectorProvider extends SelectorProvider {    
     private final RUDPContext context;
-    
-    public UDPSelectorProvider() {
-        this(new DefaultRUDPContext());
-    }
-    
+    private final EventBroadcaster<UDPSocketChannelConnectionEvent> connectionStateEventBroadcaster;
+
     @Inject
-    public UDPSelectorProvider(RUDPContext context) {
+    public UDPSelectorProvider(RUDPContext context,
+                               EventBroadcaster<UDPSocketChannelConnectionEvent> connectionStateEventBroadcaster) {
 		this.context = context;
-	}
+        this.connectionStateEventBroadcaster = connectionStateEventBroadcaster;
+    }
 
     @Override
     public DatagramChannel openDatagramChannel() throws IOException {
@@ -42,14 +44,17 @@ public class UDPSelectorProvider extends SelectorProvider {
         return plexor;
     }
 
-    @Override
-    public ServerSocketChannel openServerSocketChannel() throws IOException {
-        throw new IOException("not supported");
+    /**
+     * Opens an acceptor socket channel after a request has been received
+     * that another party is trying to connect to this instance. 
+     */
+    public AbstractNBSocketChannel openAcceptorSocketChannel() {
+        return new UDPSocketChannel(this, context, Role.ACCEPTOR, connectionStateEventBroadcaster);
     }
 
     @Override
     public AbstractNBSocketChannel openSocketChannel() {
-        return new UDPSocketChannel(this, context);
+        return new UDPSocketChannel(this, context, Role.REQUESTOR, connectionStateEventBroadcaster);
     }
     
     public Class<UDPSocketChannel> getUDPSocketChannelClass() {
@@ -58,5 +63,13 @@ public class UDPSelectorProvider extends SelectorProvider {
     
     public RUDPContext getContext() {
         return context;
+    }
+
+    @Override
+    public ServerSocketChannel openServerSocketChannel() throws IOException {
+        if (true) {
+            throw new UnsupportedOperationException("not implemented");
+        }
+        return null;
     }
 }

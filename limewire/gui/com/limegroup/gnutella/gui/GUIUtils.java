@@ -44,10 +44,10 @@ import javax.swing.event.HyperlinkListener;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.limewire.core.settings.SpeedConstants;
 import org.limewire.util.FileUtils;
 import org.limewire.util.OSUtils;
 
-import com.limegroup.gnutella.SpeedConstants;
 import com.limegroup.gnutella.gui.mp3.PlayListItem;
 import com.limegroup.gnutella.gui.playlist.PlaylistMediator;
 import com.limegroup.gnutella.gui.themes.ThemeSettings;
@@ -86,6 +86,8 @@ public final class GUIUtils {
     /**
      * Localizable constants
      */
+    
+    public static String GENERAL_UNIT_BYTES;
     public static String GENERAL_UNIT_KILOBYTES;
     public static String GENERAL_UNIT_MEGABYTES;
     public static String GENERAL_UNIT_GIGABYTES;
@@ -131,6 +133,8 @@ public final class GUIUtils {
         FULL_DATETIME_FORMAT = 
             new SimpleDateFormat("EEE, MMM. d, yyyy h:mm a", GUIMediator.getLocale());
         
+        GENERAL_UNIT_BYTES =
+            I18n.tr("B");
         GENERAL_UNIT_KILOBYTES =
             I18n.tr("KB");
         GENERAL_UNIT_MEGABYTES =
@@ -181,13 +185,14 @@ public final class GUIUtils {
     /**
      * Converts the passed in number of bytes into a byte-size string.
      * Group digits with locale-dependant thousand separator if needed, but
-     * with "KB", or "MB" or "GB" or "TB" locale-dependant unit at the end,
-     * and a limited precision of 4 significant digits.
+     * with "B", or "KB", or "MB" or "GB" or "TB" locale-dependant unit at the end,
+     * and a limited precision of 4 significant digits. 
+     * 
      *
      * @param bytes the number of bytes to convert to a size String.
      * @return a String representing the number of kilobytes that the
      *         <code>bytes</code> argument evaluates to, with
-     *         "KB"/"MB"/"GB"/TB" appended at the end. If the input value is
+     *         "B"/"KB"/"MB"/"GB"/TB" appended at the end. If the input value is
      *         negative, the string returned will be "? KB".
      */
     public static String toUnitbytes(long bytes) {
@@ -196,7 +201,11 @@ public final class GUIUtils {
         }
         long   unitValue; // the multiple associated with the unit
         String unitName;  // one of localizable units
-        if (bytes < 0xA00000) {                // below 10MB, use KB
+        
+        if (bytes < 100) {
+            unitName = GENERAL_UNIT_BYTES;
+            unitValue = 1;
+        } else if (bytes < 0xA00000) {                // below 10MB, use KB
             unitValue = 0x400;
             unitName = GENERAL_UNIT_KILOBYTES;
         } else if (bytes < 0x280000000L) {     // below 10GB, use MB
@@ -210,12 +219,19 @@ public final class GUIUtils {
             unitName = GENERAL_UNIT_TERABYTES;
         }
         NumberFormat numberFormat; // one of localizable formats
-        if ((double)bytes * 100 / unitValue < 99995)
+        
+        if(bytes < 100) {
+            numberFormat = NUMBER_FORMAT0;
+        }
+        else if ((double)bytes * 100 / unitValue < 99995) {
             // return a minimum "100.0xB", and maximum "999.9xB"
             numberFormat = NUMBER_FORMAT1; // localized "#,##0.0"
-        else
+        }
+        else {
             // return a minimum "1,000xB"
             numberFormat = NUMBER_FORMAT0; // localized "#,##0"
+        }
+        
         try {
             return numberFormat.format((double)bytes / unitValue) + " " + unitName;
         } catch(ArithmeticException ae) {
@@ -757,7 +773,7 @@ public final class GUIUtils {
     	// parse out mnemonic key
     	int index = getAmpersandPosition(text);
     	if (index >= 0) {
-    		return GUIUtils.getCodeForCharKey(text.substring(index + 1, index + 2));
+    		return getCodeForCharKey(text.substring(index + 1, index + 2));
     	}
     	return -1;
     }

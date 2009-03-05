@@ -5,7 +5,6 @@ import java.io.File;
 import javax.swing.Icon;
 
 import com.limegroup.gnutella.gui.GUIMediator;
-import com.limegroup.gnutella.gui.GuiCoreMediator;
 import com.limegroup.gnutella.gui.I18n;
 
 public class SpeciallySharedFilesDirectoryHolder extends AbstractDirectoryHolder {
@@ -28,17 +27,17 @@ public class SpeciallySharedFilesDirectoryHolder extends AbstractDirectoryHolder
 	
 	@Override
     public boolean isEmpty() {
-	    return !GuiCoreMediator.getFileManager().hasIndividualFiles();
+	    return false;
 	}
 	
 	@Override
     public File[] getFiles() {
-	    return GuiCoreMediator.getFileManager().getIndividualFiles();
+	    return new File[0];
 	}
 	
 	@Override
     public boolean accept(File file) {
-		return GuiCoreMediator.getFileManager().isIndividualShare(file); 
+	    return false; 
 	}
 	
 	@Override

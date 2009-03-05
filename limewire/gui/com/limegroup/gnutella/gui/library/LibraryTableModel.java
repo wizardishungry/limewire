@@ -5,10 +5,10 @@ import java.io.File;
 import javax.swing.JTable;
 import javax.swing.ListSelectionModel;
 
-import com.limegroup.gnutella.FileDesc;
 import com.limegroup.gnutella.gui.tables.ColoredCellImpl;
 import com.limegroup.gnutella.gui.tables.HashBasedDataLineModel;
 import com.limegroup.gnutella.gui.tables.SizeHolder;
+import com.limegroup.gnutella.library.FileDesc;
 
 /**
  * Library specific DataLineModel.

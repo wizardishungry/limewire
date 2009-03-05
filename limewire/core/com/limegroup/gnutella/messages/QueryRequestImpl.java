@@ -13,8 +13,11 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 
+import org.limewire.core.settings.MessageSettings;
+import org.limewire.core.settings.SearchSettings;
 import org.limewire.io.BadGGEPPropertyException;
 import org.limewire.io.GGEP;
+import org.limewire.io.GUID;
 import org.limewire.security.AddressSecurityToken;
 import org.limewire.security.MACCalculatorRepositoryManager;
 import org.limewire.service.ErrorService;
@@ -23,13 +26,10 @@ import org.limewire.util.I18NConvert;
 import org.limewire.util.StringUtils;
 import org.xml.sax.SAXException;
 
-import com.limegroup.gnutella.FileManager;
-import com.limegroup.gnutella.GUID;
 import com.limegroup.gnutella.URN;
 import com.limegroup.gnutella.UrnSet;
+import com.limegroup.gnutella.util.QueryUtils;
 import com.limegroup.gnutella.messages.HUGEExtension.GGEPBlock;
-import com.limegroup.gnutella.settings.MessageSettings;
-import com.limegroup.gnutella.settings.SearchSettings;
 import com.limegroup.gnutella.xml.LimeXMLDocument;
 import com.limegroup.gnutella.xml.LimeXMLDocumentFactory;
 import com.limegroup.gnutella.xml.SchemaNotFoundException;
@@ -135,6 +135,10 @@ public class QueryRequestImpl extends AbstractMessage implements QueryRequest {
     private static final int MAX_XML_QUERY_LENGTH =
         SearchSettings.MAX_XML_QUERY_LENGTH.getValue();
 
+    /**
+     * Cache the max length for query string message field
+     */
+    private static final int OLD_LW_MAX_QUERY_FIELD_LEN = 30;
  
     
     /** Constructs a query. */
@@ -185,7 +189,7 @@ public class QueryRequestImpl extends AbstractMessage implements QueryRequest {
             throw new IllegalArgumentException("Bad Meta Flag = " +
                                                metaFlagMask);
         if (metaFlagMask > 0)
-            _metaMask = new Integer(metaFlagMask);
+            _metaMask = metaFlagMask;
 
         // only set the minspeed if none was input...x
         if (minSpeed == 0) {
@@ -244,7 +248,7 @@ public class QueryRequestImpl extends AbstractMessage implements QueryRequest {
 		ByteArrayOutputStream baos = new ByteArrayOutputStream();
         try {
             ByteUtils.short2leb((short)MIN_SPEED,baos); // write minspeed
-            baos.write(QUERY.getBytes("UTF-8"));              // write query
+            baos.write(getQueryFieldValue().getBytes("UTF-8"));              // write query
             baos.write(0);                             // null
 
 			
@@ -309,6 +313,10 @@ public class QueryRequestImpl extends AbstractMessage implements QueryRequest {
                 _partialResultsDesired = true;
                 ggepBlock.put(GGEPKeys.GGEP_HEADER_PARTIAL_RESULT_PREFIX);
             }
+
+            if (QUERY.length() > OLD_LW_MAX_QUERY_FIELD_LEN) {
+                ggepBlock.put(GGEPKeys.GGEP_HEADER_EXTENDED_QUERY, QUERY);
+            }
             
             // if there are GGEP headers, write them out...
             if (!ggepBlock.isEmpty()) {
@@ -342,6 +350,28 @@ public class QueryRequestImpl extends AbstractMessage implements QueryRequest {
 		this.QUERY_URNS = Collections.unmodifiableSet(tempQueryUrns);
     }
 
+    /**
+     * Generate query string field based on query string ({@link #QUERY} value
+     *
+     * Assumptions:
+     * 1. {@link #QUERY} is already set prior to this method getting called
+     *
+     * @return String representing the query field in the message
+     */
+    private String getQueryFieldValue() {
+        
+        // extract keywords from query
+        Set<String> keywords = QueryUtils.extractKeywords(QUERY, true);
+
+        // conditions for which the query field will be identical to the query string
+        if ((QUERY.length() <= OLD_LW_MAX_QUERY_FIELD_LEN) || (keywords.isEmpty())) {
+            return QUERY;
+        }
+
+        // adding keywords that fit when appended to query string field, skipping keywords that do not fit.
+        return QueryUtils.constructQueryStringFromKeywords(OLD_LW_MAX_QUERY_FIELD_LEN, keywords);
+    }
+
 
     /**
      * Build a new query with data snatched from network
@@ -360,7 +390,7 @@ public class QueryRequestImpl extends AbstractMessage implements QueryRequest {
 		PAYLOAD=payload;
 		
         QueryRequestPayloadParser parser = new QueryRequestPayloadParser(payload, manager);
-        
+
 		QUERY = parser.query;
 
 	    LimeXMLDocument tempDoc = null;
@@ -597,7 +627,7 @@ public class QueryRequestImpl extends AbstractMessage implements QueryRequest {
      * @return whether this is a browse host query
      */
     public boolean isBrowseHostQuery() {
-        return FileManager.INDEXING_QUERY.equals(getQuery());
+        return INDEXING_QUERY.equals(getQuery());
     }
 
     /**
@@ -690,7 +720,7 @@ public class QueryRequestImpl extends AbstractMessage implements QueryRequest {
      */
     public boolean desiresAudio() {
         if (_metaMask != null) 
-            return ((_metaMask.intValue() & AUDIO_MASK) > 0);
+            return ((_metaMask & AUDIO_MASK) > 0);
         return true;
     }
     
@@ -698,7 +728,7 @@ public class QueryRequestImpl extends AbstractMessage implements QueryRequest {
      */
     public boolean desiresVideo() {
         if (_metaMask != null) 
-            return ((_metaMask.intValue() & VIDEO_MASK) > 0);
+            return ((_metaMask & VIDEO_MASK) > 0);
         return true;
     }
     
@@ -706,7 +736,7 @@ public class QueryRequestImpl extends AbstractMessage implements QueryRequest {
      */
     public boolean desiresDocuments() {
         if (_metaMask != null) 
-            return ((_metaMask.intValue() & DOC_MASK) > 0);
+            return ((_metaMask & DOC_MASK) > 0);
         return true;
     }
     
@@ -714,7 +744,7 @@ public class QueryRequestImpl extends AbstractMessage implements QueryRequest {
      */
     public boolean desiresImages() {
         if (_metaMask != null) 
-            return ((_metaMask.intValue() & IMAGE_MASK) > 0);
+            return ((_metaMask & IMAGE_MASK) > 0);
         return true;
     }
     
@@ -723,7 +753,7 @@ public class QueryRequestImpl extends AbstractMessage implements QueryRequest {
      */
     public boolean desiresWindowsPrograms() {
         if (_metaMask != null) 
-            return ((_metaMask.intValue() & WIN_PROG_MASK) > 0);
+            return ((_metaMask & WIN_PROG_MASK) > 0);
         return true;
     }
     
@@ -732,7 +762,7 @@ public class QueryRequestImpl extends AbstractMessage implements QueryRequest {
      */
     public boolean desiresLinuxOSXPrograms() {
         if (_metaMask != null) 
-            return ((_metaMask.intValue() & LIN_PROG_MASK) > 0);
+            return ((_metaMask & LIN_PROG_MASK) > 0);
         return true;
     }
     
@@ -741,7 +771,7 @@ public class QueryRequestImpl extends AbstractMessage implements QueryRequest {
      */
     public int getMetaMask() {
         if (_metaMask != null)
-            return _metaMask.intValue();
+            return _metaMask;
         return 0;
     }
     
@@ -753,6 +783,10 @@ public class QueryRequestImpl extends AbstractMessage implements QueryRequest {
     /** Determines if this is an originated query */
     public boolean isOriginated() {
         return originated;
+    }
+    
+    public boolean shouldIncludeXMLInResponse() {
+        return desiresXMLResponses() || desiresOutOfBandReplies();
     }
     
     @Override
@@ -998,9 +1032,9 @@ public class QueryRequestImpl extends AbstractMessage implements QueryRequest {
                             doNotProxy = true;
                         }
                         if (ggep.hasKey(GGEPKeys.GGEP_HEADER_META)) {
-                            metaMask = new Integer(ggep.getInt(GGEPKeys.GGEP_HEADER_META));
+                            metaMask = ggep.getInt(GGEPKeys.GGEP_HEADER_META);
                             // if the value is something we can't handle, don't even set it
-                            if ((metaMask.intValue() < 4) || (metaMask.intValue() > 248))
+                            if ((metaMask < 4) || (metaMask > 248))
                                 metaMask = null;
                         }
                         if (ggep.hasKey(GGEPKeys.GGEP_HEADER_SECURE_OOB)) {
@@ -1009,6 +1043,10 @@ public class QueryRequestImpl extends AbstractMessage implements QueryRequest {
                         
                         if (ggep.hasKey(GGEPKeys.GGEP_HEADER_PARTIAL_RESULT_PREFIX))
                             partialResultsDesired = true;
+
+                        if (ggep.hasKey(GGEPKeys.GGEP_HEADER_EXTENDED_QUERY)) {
+                            this.query = ggep.getString(GGEPKeys.GGEP_HEADER_EXTENDED_QUERY);
+                        }
                         
                     } catch (BadGGEPPropertyException ignored) {}
                 }

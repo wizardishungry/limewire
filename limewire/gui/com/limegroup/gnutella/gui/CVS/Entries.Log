@@ -51,7 +51,7 @@ R D/xmpp////
 R D/websearch////
 R D/tray////
 R D/transfer////
-R D/swingbrowser////
+R D/swtbrowser////
 R D/statistics////
 R D/resources////
 R D/privategroups////
@@ -61,6 +61,7 @@ R D/feedreader////
 R D/dht////
 R D/daap////
 R D/config////
+R D/chat////
 R D/callback////
 R D/caas////
 R D/browser////

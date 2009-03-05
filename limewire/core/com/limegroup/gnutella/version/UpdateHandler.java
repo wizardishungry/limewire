@@ -1,5 +1,7 @@
 package com.limegroup.gnutella.version;
 
+import org.limewire.listener.EventListener;
+
 import com.limegroup.gnutella.ReplyHandler;
 import com.limegroup.gnutella.URN;
 
@@ -9,11 +11,6 @@ public interface UpdateHandler {
      * Initializes data as read from disk.
      */
     public void initialize();
-
-    /**
-     * Sparks off an attempt to download any pending updates.
-     */
-    public void tryToDownloadUpdates();
 
     /**
      * Notification that a ReplyHandler has received a VM containing an update.
@@ -51,4 +48,14 @@ public interface UpdateHandler {
      */
     public byte[] getOldUpdateResponse();
 
+    /**
+     * Returns the currently known update collection.
+     * @return null if there is none
+     */
+    public UpdateCollection getUpdateCollection();
+    
+    
+    public void addListener(EventListener<UpdateEvent> listener);
+
+    public boolean removeListener(EventListener<UpdateEvent> listener);
 }

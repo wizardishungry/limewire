@@ -8,22 +8,23 @@ import java.util.concurrent.TimeUnit;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.limewire.core.settings.DHTSettings;
+import org.limewire.io.GUID;
 import org.limewire.io.IpPortSet;
 import org.limewire.mojito.KUID;
 import org.limewire.mojito.concurrent.DHTFuture;
 import org.limewire.mojito.concurrent.DHTFutureListener;
 import org.limewire.mojito.result.StoreResult;
+import org.limewire.mojito.settings.DatabaseSettings;
 
 import com.google.inject.Inject;
 import com.google.inject.Singleton;
 import com.google.inject.name.Named;
-import com.limegroup.gnutella.GUID;
 import com.limegroup.gnutella.dht.DHTEvent;
 import com.limegroup.gnutella.dht.DHTEventListener;
 import com.limegroup.gnutella.dht.DHTManager;
 import com.limegroup.gnutella.dht.DHTEvent.Type;
 import com.limegroup.gnutella.dht.util.KUIDUtils;
-import com.limegroup.gnutella.settings.DHTSettings;
 
 /**
  * The PushProxiesPublisher publishes Push Proxy information for 
@@ -45,6 +46,8 @@ public class PushProxiesPublisher implements DHTEventListener {
     private volatile PushProxiesValue lastSeenValue;
     
     private volatile PushProxiesValue lastPublishedValue;
+    
+    private volatile long lastPublishTime;
     
     private final PushProxiesValueFactory pushProxiesValueFactory;
 
@@ -116,13 +119,18 @@ public class PushProxiesPublisher implements DHTEventListener {
      */
     PushProxiesValue getValueToPublish() {
         // order is important to compare newest last seen value with last published value
-        if (pushProxiesAreStable() && valueToPublishChangedSignificantly()) {
+        if (pushProxiesAreStable() && (valueToPublishChangedSignificantly() || needsToBeRepublished())) {
             lastPublishedValue = lastSeenValue;
+            lastPublishTime = System.currentTimeMillis();
             return lastPublishedValue;
         }
         return null;
     }
     
+    private boolean needsToBeRepublished() {
+        return System.currentTimeMillis() - lastPublishTime >= DatabaseSettings.VALUE_REPUBLISH_INTERVAL.getValue();
+    }
+
     /**
      * Returns true if there is a valid last seen value and it differs from
      * the last published value significantly in the set of push proxies.
@@ -174,6 +182,7 @@ public class PushProxiesPublisher implements DHTEventListener {
     public synchronized void handleDHTEvent(DHTEvent event) {
         if (event.getType() == Type.CONNECTED) {
             LOG.debug("starting push proxy publishing");
+            // order of events is not reliable, be defensive and cancel existing task
             if (publishingFuture != null) {
                 publishingFuture.cancel(false);
             }

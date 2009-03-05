@@ -11,6 +11,7 @@ import java.net.SocketAddress;
 import java.net.SocketException;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Enumeration;
@@ -57,7 +58,10 @@ public final class NetworkUtils {
         return isValidAddress(addr) && isValidPort(port);
     }
     
-    /** Determines if the given IpPort is valid. */
+    /** 
+     * Determines if the given IpPort is valid. Does resolve address again
+     * by name to do so.
+     */
     public static boolean isValidIpPort(IpPort ipport) {
         return isValidAddress(ipport.getAddress()) && isValidPort(ipport.getPort());
     }
@@ -207,11 +211,28 @@ public final class NetworkUtils {
             return true;
         }
         
+        // Note: The ideal way of doing this would be to return:
+        //      NetworkInterface.getByInetAddress(addr) != null;
+        // However, that call crashes the JVM on a lot of machines.
+        // So, we have a crappy & long-winded workaround...
+        
         try {
-            return NetworkInterface.getByInetAddress(addr) != null;
-        } catch (SocketException err) {
+            Enumeration<NetworkInterface> interfaces = NetworkInterface.getNetworkInterfaces();
+            while(interfaces.hasMoreElements()) {
+                NetworkInterface ni = interfaces.nextElement();
+                Enumeration<InetAddress> addresses = ni.getInetAddresses();
+                while(addresses.hasMoreElements()) {
+                    InetAddress address = addresses.nextElement();
+                    if(Arrays.equals(addr.getAddress(), address.getAddress())) {
+                        return true;
+                    }
+                }
+            }
+        } catch(SocketException err) {
             return false;
         }
+        
+        return false;
     }
     
     /**
@@ -282,7 +303,9 @@ public final class NetworkUtils {
      * address is private taking an InetAddress object as argument
      * like the isLocalAddress(InetAddress) method. 
      *
-     * This method is IPv6 compliant
+     * This method is IPv6 compliant.
+     * 
+     * Don't make this method public please.
      *
      * @return <tt>true</tt> if the specified address is private,
      *  otherwise <tt>false</tt>
@@ -303,13 +326,54 @@ public final class NetworkUtils {
     }
     
     /**
+     * Returns true if both addresses belong to the same site local network.
+     * This method is IPV6 safe.
+     */
+    public static boolean areInSameSiteLocalNetwork(InetAddress address1, InetAddress address2) {
+        return areInSameSiteLocalNetwork(address1.getAddress(), address2.getAddress());
+    }
+    
+    /**
+     * Returns true if both addresses belong to the same site local network.
+     * This method is IPV6 safe.
+     */
+    public static boolean areInSameSiteLocalNetwork(byte[] address1, byte[] address2) {
+        if (address1.length != address2.length) {
+            return false;
+        }
+        if (address1.length == 4) {
+            if (address1[0] == 10) {
+                return address2[0] == 10;
+            } else if (address1[0] == (byte)172 && address1[1] == 16) {
+                return address2[0] == (byte)172 && address2[1] == 16;
+            } else if (address1[0] == (byte)192 && address1[1] == (byte)168) {
+                return address2[0] == (byte)192 && address2[1] == (byte)168;
+            } else {
+                return false;
+            }
+        } else if (address1.length == 16) {
+            try {
+                InetAddress a1 = InetAddress.getByAddress(address1);
+                InetAddress a2 = InetAddress.getByAddress(address2);
+                // it looks like ipv6 only has one type of site local address, so
+                // just check if both addresses are site local
+                return a1.isSiteLocalAddress() && a2.isSiteLocalAddress();
+            } catch (UnknownHostException e) {
+                // impossible since addresses are of correct length
+                throw new RuntimeException(e);
+            }
+        }
+        throw new IllegalArgumentException("addresses of illegal length: " + address1.length);
+    }
+    
+    /**
      * Checks if the given address is a private address.
      * 
      * This method is IPv6 compliant
      * 
      * @param address the address to check
      */
-    static boolean isPrivateAddress(byte[] address) {
+    public static boolean isPrivateAddress(byte[] address) {
         if (isAnyLocalAddress(address) 
                 || isInvalidAddress(address)
                 || isLoopbackAddress(address) 
@@ -567,7 +631,7 @@ public final class NetworkUtils {
             ByteUtils.short2leb((short)port, dst, dst.length-2);
         return dst;
     }
-
+    
     /**
      * Creates an IpPort out of network data. The ByteOrder is used to determine
      * the order of the port. Throws <code>InvalidDataException</code> if the

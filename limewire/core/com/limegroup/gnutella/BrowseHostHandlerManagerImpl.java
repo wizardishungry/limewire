@@ -13,64 +13,74 @@ import java.util.concurrent.TimeUnit;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.http.HttpException;
+import org.apache.http.params.HttpParams;
 import org.limewire.concurrent.ThreadExecutor;
+import org.limewire.core.api.friend.FriendPresence;
+import org.limewire.io.GUID;
+import org.limewire.lifecycle.Service;
 import org.limewire.net.SocketsManager;
 import org.limewire.service.ErrorService;
-import org.limewire.http.httpclient.SocketWrappingHttpClient;
-import org.limewire.io.NetworkInstanceUtils;
 
 import com.google.inject.Inject;
 import com.google.inject.Provider;
 import com.google.inject.Singleton;
 import com.google.inject.name.Named;
-import com.limegroup.gnutella.BrowseHostHandler.PushRequestDetails;
-import com.limegroup.gnutella.downloader.PushDownloadManager;
 import com.limegroup.gnutella.downloader.PushedSocketHandlerRegistry;
-import com.limegroup.gnutella.downloader.RemoteFileDescFactory;
 import com.limegroup.gnutella.messages.MessageFactory;
 
 @Singleton
-public class BrowseHostHandlerManagerImpl implements BrowseHostHandlerManager {
+class BrowseHostHandlerManagerImpl implements BrowseHostHandlerManager, Service {
 
     private static final Log LOG = LogFactory.getLog(BrowseHostHandlerManagerImpl.class);
 
     /** Map from serventID to BrowseHostHandler instance. */
     private final Map<GUID, BrowseHostHandler.PushRequestDetails> _pushedHosts = new HashMap<GUID, BrowseHostHandler.PushRequestDetails>();
 
-    private final Provider<ActivityCallback> activityCallback;
     private final SocketsManager socketsManager;
-    private final Provider<PushDownloadManager> pushDownloadManager;
-    private final Provider<ReplyHandler> forMeReplyHandler;
+    private final Provider<ForMeReplyHandler> forMeReplyHandler;
     private final ScheduledExecutorService backgroundExecutor;
-    private final RemoteFileDescFactory remoteFileDescFactory;
 
     private final MessageFactory messageFactory;
-    private Provider<SocketWrappingHttpClient> clientProvider;
-    private final NetworkInstanceUtils networkInstanceUtils;
+
+    private final NetworkManager networkManager;
+
+    private final PushEndpointFactory pushEndpointFactory;
+    private final Provider<HttpParams> httpParams;
 
     @Inject
     public BrowseHostHandlerManagerImpl(@Named("backgroundExecutor")
-                                        ScheduledExecutorService backgroundExecutor,
-                                        Provider<ActivityCallback> activityCallback,
+    ScheduledExecutorService backgroundExecutor,
                                         SocketsManager socketsManager,
-                                        Provider<PushDownloadManager> pushDownloadManager,
-                                        @Named("forMeReplyHandler")Provider<ReplyHandler> forMeReplyHandler,
+                                        Provider<ForMeReplyHandler> forMeReplyHandler,
                                         MessageFactory messageFactory,
-                                        RemoteFileDescFactory remoteFileDescFactory,
-                                        Provider<SocketWrappingHttpClient> clientProvider,
-                                        NetworkInstanceUtils networkInstanceUtils) {
-        this.activityCallback = activityCallback;
+                                        NetworkManager networkManager,
+                                        PushEndpointFactory pushEndpointFactory, 
+                                        @Named("defaults")Provider<HttpParams> httpParams) {
         this.socketsManager = socketsManager;
-        this.pushDownloadManager = pushDownloadManager;
         this.forMeReplyHandler = forMeReplyHandler;
         this.messageFactory = messageFactory;
         this.backgroundExecutor = backgroundExecutor;
-        this.remoteFileDescFactory = remoteFileDescFactory;
-        this.clientProvider = clientProvider;
-        this.networkInstanceUtils = networkInstanceUtils;
+        this.networkManager = networkManager;
+        this.pushEndpointFactory = pushEndpointFactory;
+        this.httpParams = httpParams;
+    }
+    
+    @Inject
+    void register(org.limewire.lifecycle.ServiceRegistry registry) {
+        registry.register(this);
+    }
+    
+    public String getServiceName() {
+        return org.limewire.i18n.I18nMarker.marktr("Browse Host Handler");
     }
     
     public void initialize() {
+    }
+    
+    public void stop() {
+    }
+    
+    public void start() {
         backgroundExecutor.scheduleWithFixedDelay(new Expirer(), 0, 5000, TimeUnit.MILLISECONDS);    
     }
 
@@ -86,18 +96,9 @@ public class BrowseHostHandlerManagerImpl implements BrowseHostHandlerManager {
      *      com.limegroup.gnutella.GUID, com.limegroup.gnutella.GUID)
      */
     public BrowseHostHandler createBrowseHostHandler(GUID guid, GUID serventID) {
-        return new BrowseHostHandler(guid, serventID, 
-                    new BrowseHostCallback() {
-                        public void putInfo(GUID serventId, PushRequestDetails details) {
-                            synchronized(_pushedHosts) {
-                                // TODO this can only handle one push request at a time?
-                                // TODO second request overwrites first?
-                                _pushedHosts.put(serventId, details);
-                            }                
-                        }
-                    },
-                activityCallback.get(), socketsManager, pushDownloadManager,
-                forMeReplyHandler, messageFactory, remoteFileDescFactory, clientProvider, networkInstanceUtils);
+        return new BrowseHostHandler(guid, socketsManager,
+                forMeReplyHandler, messageFactory, httpParams, 
+                networkManager, pushEndpointFactory);
     }
 
     /** @return true if the Push was handled by me. */
@@ -113,23 +114,24 @@ public class BrowseHostHandlerManagerImpl implements BrowseHostHandlerManager {
             prd = _pushedHosts.remove(serventID);
         }
         if (prd != null) {
-            final BrowseHostHandler.PushRequestDetails finalPRD = prd;
+            final BrowseHostHandler browseHostHandler = prd.getBrowseHostHandler();
+            final FriendPresence friendPresence = prd.getFriendPresence();
             ThreadExecutor.startThread(new Runnable() {
                 public void run() {
                     try {
-                        finalPRD.getBrowseHostHandler().browseHost(socket);
+                        browseHostHandler.browseHost(socket, friendPresence);
                     } catch (IOException e) {
                         LOG.debug("error while push transfer", e);
-                        finalPRD.getBrowseHostHandler().failed();
+                        browseHostHandler.failed();
                     } catch (HttpException e) {
                         LOG.debug("error while push transfer", e);
-                        finalPRD.getBrowseHostHandler().failed();
+                        browseHostHandler.failed();
                     } catch (URISyntaxException e) {
                         LOG.debug("error while push transfer", e);
-                        finalPRD.getBrowseHostHandler().failed();
+                        browseHostHandler.failed();
                     } catch (InterruptedException e) {
                         LOG.debug("error while push transfer", e);
-                        finalPRD.getBrowseHostHandler().failed();
+                        browseHostHandler.failed();
                     }
                 }
             }, "BrowseHost");
@@ -163,6 +165,13 @@ public class BrowseHostHandlerManagerImpl implements BrowseHostHandlerManager {
                 ErrorService.error(t);
             }
         }
+    }
+
+    @Override
+    public BrowseHostHandler createBrowseHostHandler(GUID browseGuid) {
+        return new BrowseHostHandler(browseGuid, socketsManager,
+                forMeReplyHandler, messageFactory, httpParams,
+                networkManager, pushEndpointFactory);
     }
 
 }

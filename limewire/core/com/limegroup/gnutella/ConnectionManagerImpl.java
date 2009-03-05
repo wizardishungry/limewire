@@ -20,19 +20,26 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
+import org.limewire.core.api.connection.ConnectionLifecycleEventType;
+import org.limewire.core.settings.ApplicationSettings;
+import org.limewire.core.settings.ConnectionSettings;
+import org.limewire.core.settings.UltrapeerSettings;
 import org.limewire.inspection.Inspectable;
 import org.limewire.inspection.InspectableForSize;
 import org.limewire.inspection.InspectablePrimitive;
 import org.limewire.inspection.InspectionPoint;
 import org.limewire.io.Connectable;
+import org.limewire.io.GUID;
 import org.limewire.io.IpPort;
 import org.limewire.io.NetworkInstanceUtils;
 import org.limewire.io.NetworkUtils;
+import org.limewire.lifecycle.Service;
+import org.limewire.logging.Log;
+import org.limewire.logging.LogFactory;
 import org.limewire.net.ConnectionDispatcher;
 import org.limewire.net.SocketsManager;
 import org.limewire.net.SocketsManager.ConnectType;
+import org.limewire.net.address.StrictIpPortSet;
 import org.limewire.util.SystemUtils;
 import org.limewire.util.Version;
 import org.limewire.util.VersionFormatException;
@@ -46,9 +53,9 @@ import com.limegroup.gnutella.connection.ConnectionCheckerManager;
 import com.limegroup.gnutella.connection.ConnectionLifecycleEvent;
 import com.limegroup.gnutella.connection.ConnectionLifecycleListener;
 import com.limegroup.gnutella.connection.GnetConnectObserver;
+import com.limegroup.gnutella.connection.GnutellaConnectionEvent;
 import com.limegroup.gnutella.connection.RoutedConnection;
 import com.limegroup.gnutella.connection.RoutedConnectionFactory;
-import com.limegroup.gnutella.connection.ConnectionLifecycleEvent.EventType;
 import com.limegroup.gnutella.filters.IPFilter;
 import com.limegroup.gnutella.handshaking.HandshakeResponse;
 import com.limegroup.gnutella.handshaking.HandshakeStatus;
@@ -61,13 +68,8 @@ import com.limegroup.gnutella.messages.vendor.CapabilitiesVMFactory;
 import com.limegroup.gnutella.messages.vendor.QueryStatusResponse;
 import com.limegroup.gnutella.messages.vendor.TCPConnectBackVendorMessage;
 import com.limegroup.gnutella.messages.vendor.UDPConnectBackVendorMessage;
-import com.limegroup.gnutella.settings.ApplicationSettings;
-import com.limegroup.gnutella.settings.ConnectionSettings;
-import com.limegroup.gnutella.settings.SSLSettings;
-import com.limegroup.gnutella.settings.UltrapeerSettings;
 import com.limegroup.gnutella.simpp.SimppListener;
 import com.limegroup.gnutella.simpp.SimppManager;
-import com.limegroup.gnutella.util.StrictIpPortSet;
 
 /**
  * The list of all RoutedConnection's.  Provides a factory method for creating
@@ -85,8 +87,8 @@ import com.limegroup.gnutella.util.StrictIpPortSet;
  * of good is constantly changing.  For a current view of 'good', review
  * HandshakeResponse.isGoodUltrapeer().  LimeWire leaves will NOT deny
  * a connection to an ultrapeer even if they've reached their maximum
- * desired number of connections (currently 4).  This means that if 5
- * connections resolve simultaneously, the leaf will remain connected to all 5.
+ * desired number of connections (currently 3).  This means that if 4
+ * connections resolve simultaneously, the leaf will remain connected to all 4.
  * <br>
  * As an Ultrapeer, LimeWire will seek outgoing connections for 5 less than
  * the number of it's desired peer slots.  This is done so that newcomers
@@ -96,15 +98,15 @@ import com.limegroup.gnutella.util.StrictIpPortSet;
  * reserves 3 slots for non-LimeWire peers.  LimeWire ultrapeers will allow
  * ANY leaf to connect, so long as there are atleast 15 slots open.  Beyond
  * that number, LimeWire will only allow 'good' leaves.  To see what consitutes
- * a good leave, view HandshakeResponse.isGoodLeaf().  To ensure that the
- * network does not remain too LimeWire-centric, it reserves 3 slots for
+ * a good leaf, view HandshakeResponse.isGoodLeaf().  To ensure that the
+ * network does not remain too LimeWire-centric, it reserves 2 slots for
  * non-LimeWire leaves.<p>
  *
  * ConnectionManager has methods to get up and downstream bandwidth, but it
  * doesn't quite fit the BandwidthTracker interface.
  */
 @Singleton
-public class ConnectionManagerImpl implements ConnectionManager {
+public class ConnectionManagerImpl implements ConnectionManager, Service {
     
     private static final Log LOG = LogFactory.getLog(ConnectionManagerImpl.class);
 
@@ -305,7 +307,6 @@ public class ConnectionManagerImpl implements ConnectionManager {
             Provider<SimppManager> simppManager,
             CapabilitiesVMFactory capabilitiesVMFactory,
             RoutedConnectionFactory managedConnectionFactory,
-            Provider<MessageRouter> messageRouter,
             Provider<QueryUnicaster> queryUnicaster,
             SocketsManager socketsManager,
             ConnectionServices connectionServices,
@@ -336,13 +337,18 @@ public class ConnectionManagerImpl implements ConnectionManager {
         } catch (VersionFormatException impossible){};
         lastGoodVersion = v;
     }
+    
+    @Inject
+    void register(org.limewire.lifecycle.ServiceRegistry registry) {
+        registry.register(this);
+    }
 
 
     /**
      * Links the ConnectionManager up with the other back end pieces and
      * launches the ConnectionWatchdog and the initial ConnectionFetchers.
      */
-    public void initialize() {
+    public void start() {
         connectionDispatcher.get().
         addConnectionAcceptor(this,
                 false,
@@ -384,6 +390,14 @@ public class ConnectionManagerImpl implements ConnectionManager {
                 }
             }
         });
+    }
+    
+    public String getServiceName() {
+        return org.limewire.i18n.I18nMarker.marktr("Connection Management");
+    }
+    public void initialize() {}
+    public void stop() {
+        disconnect(false);
     }
 
     /**
@@ -602,6 +616,13 @@ public class ConnectionManagerImpl implements ConnectionManager {
             return false;
         l.add(host);
         return true;
+    }
+    
+    @Override
+    public int getNumFetchingConnections() {
+        synchronized(this) {
+            return _initializingFetchedConnections.size();
+        }
     }
     
     /**
@@ -831,7 +852,6 @@ public class ConnectionManagerImpl implements ConnectionManager {
      */
     public boolean allowAnyConnection() {
         //Stricter than necessary.
-        //See allowAnyConnection(boolean,String,String).
         if (isShieldedLeaf())
             return false;
 
@@ -1202,6 +1222,8 @@ public class ConnectionManagerImpl implements ConnectionManager {
      * Accessor for the <tt>Set</tt> of push proxies for this node.  If
      * there are no push proxies available, or if this node is an Ultrapeer,
      * this will return an empty <tt>Set</tt>.
+     * 
+     * Callers can take ownership of the returned set; the set might be immutable.
      *
      * @return a <tt>Set</tt> of push proxies with a maximum size of 4
      *
@@ -1217,8 +1239,11 @@ public class ConnectionManagerImpl implements ConnectionManager {
             for(RoutedConnection currMC : getInitializedConnections()) {
                 if(proxies.size() >= 4)
                     break;
-                if (currMC.isMyPushProxy())
+                if (currMC.isMyPushProxy()) {
+                    if (LOG.isDebugEnabled())
+                        LOG.debug(currMC.getAddress() + " has version: " + currMC.getConnectionCapabilities().getUserAgent());
                     proxies.add(currMC);
+                }
             }
             return proxies;
         } else {
@@ -1523,7 +1548,7 @@ public class ConnectionManagerImpl implements ConnectionManager {
         
         if(!willTryToReconnect) {
             dispatchEvent(new ConnectionLifecycleEvent(ConnectionManagerImpl.this,
-                    ConnectionLifecycleEvent.EventType.DISCONNECTED, null));
+                    ConnectionLifecycleEventType.DISCONNECTED, null));
         }
     }
     
@@ -1675,7 +1700,7 @@ public class ConnectionManagerImpl implements ConnectionManager {
 
         // 4) Notify the listener
         dispatchEvent(new ConnectionLifecycleEvent(ConnectionManagerImpl.this, 
-                EventType.CONNECTION_CLOSED,
+                ConnectionLifecycleEventType.CONNECTION_CLOSED,
                 c));
 
         // 5) Clean up Unicaster
@@ -1805,7 +1830,7 @@ public class ConnectionManagerImpl implements ConnectionManager {
             }
             _fetchers.addAll(fetchers);
             dispatchEvent(new ConnectionLifecycleEvent(ConnectionManagerImpl.this,
-                    EventType.CONNECTING, null));
+                    ConnectionLifecycleEventType.CONNECTING, null));
         } 
 
         // Stop ConnectionFetchers as necessary, but it's possible there
@@ -1897,7 +1922,7 @@ public class ConnectionManagerImpl implements ConnectionManager {
             // with a Connection.
         }
         dispatchEvent(new ConnectionLifecycleEvent(ConnectionManagerImpl.this,
-                EventType.CONNECTION_INITIALIZING,
+                ConnectionLifecycleEventType.CONNECTION_INITIALIZING,
                 mc));
      
         try {
@@ -2067,7 +2092,7 @@ public class ConnectionManagerImpl implements ConnectionManager {
                 adjustConnectionFetchers();
             }
             dispatchEvent(new ConnectionLifecycleEvent(ConnectionManagerImpl.this,
-                    EventType.CONNECTION_INITIALIZING,
+                    ConnectionLifecycleEventType.CONNECTION_INITIALIZING,
                     c));
         }
 
@@ -2116,7 +2141,7 @@ public class ConnectionManagerImpl implements ConnectionManager {
                 adjustConnectionFetchers();
             }
             dispatchEvent(new ConnectionLifecycleEvent(ConnectionManagerImpl.this,
-                    EventType.CONNECTION_INITIALIZING,
+                    ConnectionLifecycleEventType.CONNECTION_INITIALIZING,
                     c));
         }
 
@@ -2144,13 +2169,13 @@ public class ConnectionManagerImpl implements ConnectionManager {
             boolean connectionOpen = connectionInitialized(mc);
             if(connectionOpen) {
                 dispatchEvent(new ConnectionLifecycleEvent(ConnectionManagerImpl.this,
-                        EventType.CONNECTION_INITIALIZED,
+                        ConnectionLifecycleEventType.CONNECTION_INITIALIZED,
                         mc));
                 setPreferredConnections();
                 if (_initializedConnections.size() >= getPreferredConnectionCount()) {
                     _lastFullConnectTime = System.currentTimeMillis();
                     dispatchEvent(new ConnectionLifecycleEvent(ConnectionManagerImpl.this,
-                            EventType.CONNECTED,
+                            ConnectionLifecycleEventType.CONNECTED,
                             mc));
                 }
                     
@@ -2341,8 +2366,9 @@ public class ConnectionManagerImpl implements ConnectionManager {
                 LOG.debug("Starting fetch for connectable host: " + incoming);
 
             this.endpoint = incoming;
-            ConnectType type = endpoint.isTLSCapable() && SSLSettings.isOutgoingTLSEnabled() ? 
+            ConnectType type = endpoint.isTLSCapable() && networkManager.isOutgoingTLSEnabled() ? 
                                         ConnectType.TLS : ConnectType.PLAIN;
+            LOG.debugf("connecting to {0}, with connect type {1}", incoming, type);
             connection = managedConnectionFactory.createRoutedConnection(endpoint.getAddress(),
                     endpoint.getPort(), type);
             connection.setLocalePreferencing(_pref);
@@ -2423,7 +2449,7 @@ public class ConnectionManagerImpl implements ConnectionManager {
         // Notify the user that they have no internet connection and that
         // we will automatically retry
         dispatchEvent(new ConnectionLifecycleEvent(ConnectionManagerImpl.this,
-                EventType.NO_INTERNET));
+                ConnectionLifecycleEventType.NO_INTERNET));
 
         if(_automaticallyConnecting) {
             // We've already notified the user about their connection and we're
@@ -2434,8 +2460,7 @@ public class ConnectionManagerImpl implements ConnectionManager {
         // Kill all of the ConnectionFetchers.
         disconnect(false);
         
-        // Try to reconnect in 10 seconds, and then every minute after
-        // that.
+        // Try to reconnect periodically.
         backgroundExecutor.scheduleWithFixedDelay(new Runnable() {
             public void run() {
                 // If the last time the user disconnected is more recent
@@ -2453,7 +2478,7 @@ public class ConnectionManagerImpl implements ConnectionManager {
                     connect();
                 }
             }
-        }, 10*1000, 2*60*1000, TimeUnit.MILLISECONDS);
+        }, 10*1000, 30*1000, TimeUnit.MILLISECONDS);
         _automaticConnectTime = System.currentTimeMillis();
         _automaticallyConnecting = true;
         
@@ -2589,6 +2614,13 @@ public class ConnectionManagerImpl implements ConnectionManager {
                 ret.put(mc.getAddress()+":"+mc.getPort(), ((Inspectable)mc).inspect());
             }
             return ret;
+        }
+    }
+    
+    public void handleEvent(final GnutellaConnectionEvent event) {
+        Set<Connectable> pushProxies = getPushProxies();
+        if (!pushProxies.isEmpty()) {
+            networkManager.newPushProxies(pushProxies);
         }
     }
 }

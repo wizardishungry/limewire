@@ -11,6 +11,12 @@ import java.util.concurrent.TimeUnit;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.limewire.core.settings.ConnectionSettings;
+import org.limewire.core.settings.DownloadSettings;
+import org.limewire.core.settings.SharingSettings;
+import org.limewire.io.ConnectableImpl;
+import org.limewire.io.GUID;
+import org.limewire.io.IpPortImpl;
 import org.limewire.io.NetworkUtils;
 import org.limewire.net.SocketsManager;
 import org.limewire.util.FileUtils;
@@ -20,6 +26,7 @@ import org.limewire.util.TestUtils;
 import com.google.inject.AbstractModule;
 import com.google.inject.Injector;
 import com.google.inject.Key;
+import com.google.inject.Stage;
 import com.google.inject.name.Names;
 import com.limegroup.gnutella.Acceptor;
 import com.limegroup.gnutella.ActivityCallback;
@@ -27,27 +34,23 @@ import com.limegroup.gnutella.ConnectionManager;
 import com.limegroup.gnutella.DownloadManager;
 import com.limegroup.gnutella.DownloadServices;
 import com.limegroup.gnutella.Downloader;
-import com.limegroup.gnutella.FileManager;
-import com.limegroup.gnutella.GUID;
+import com.limegroup.gnutella.Downloader.DownloadStatus;
 import com.limegroup.gnutella.LifecycleManager;
 import com.limegroup.gnutella.LimeTestUtils;
 import com.limegroup.gnutella.NetworkManager;
+import com.limegroup.gnutella.PushEndpoint;
 import com.limegroup.gnutella.PushEndpointFactory;
 import com.limegroup.gnutella.RemoteFileDesc;
 import com.limegroup.gnutella.UDPService;
 import com.limegroup.gnutella.URN;
-import com.limegroup.gnutella.Downloader.DownloadStatus;
 import com.limegroup.gnutella.altlocs.AltLocManager;
 import com.limegroup.gnutella.altlocs.AlternateLocationFactory;
 import com.limegroup.gnutella.altlocs.PushAltLoc;
 import com.limegroup.gnutella.auth.ContentManager;
 import com.limegroup.gnutella.browser.MagnetOptions;
+import com.limegroup.gnutella.library.FileManager;
 import com.limegroup.gnutella.messages.MessageFactory;
 import com.limegroup.gnutella.messages.vendor.HeadPongFactory;
-import com.limegroup.gnutella.settings.ConnectionSettings;
-import com.limegroup.gnutella.settings.DownloadSettings;
-import com.limegroup.gnutella.settings.SSLSettings;
-import com.limegroup.gnutella.settings.SharingSettings;
 import com.limegroup.gnutella.stubs.ActivityCallbackStub;
 import com.limegroup.gnutella.stubs.ConnectionManagerStub;
 import com.limegroup.gnutella.stubs.LocalSocketAddressProviderStub;
@@ -58,8 +61,6 @@ import com.limegroup.gnutella.util.LimeTestCase;
 public abstract class DownloadTestCase extends LimeTestCase {
 
     protected final Log LOG = LogFactory.getLog(getClass());
-
-    protected final GUID guid = new GUID(GUID.makeGuid());
 
     protected static final String filePath = "com/limegroup/gnutella/downloader/DownloadTestData/";
 
@@ -76,7 +77,7 @@ public abstract class DownloadTestCase extends LimeTestCase {
 
     protected int[] PORTS = { 6321, 6322, 6323, 6324, 6325 };
 
-    protected Object COMPLETE_LOCK = new Object();
+    protected final Object COMPLETE_LOCK = new Object();
 
     protected boolean REMOVED = false;
 
@@ -146,11 +147,11 @@ public abstract class DownloadTestCase extends LimeTestCase {
         DownloadSettings.MAX_DOWNLOAD_BYTES_PER_SEC.setValue(10);
 
         activityCallback = new MyCallback();
-        injector = LimeTestUtils.createInjector(LocalSocketAddressProviderStub.STUB_MODULE, new AbstractModule() {
+        injector = LimeTestUtils.createInjector(Stage.PRODUCTION, LocalSocketAddressProviderStub.STUB_MODULE, NetworkManagerStub.MODULE, 
+                new AbstractModule() {
             @Override
             protected void configure() {
                 bind(ActivityCallback.class).toInstance(activityCallback);
-                bind(NetworkManager.class).to(NetworkManagerStub.class);
                 bind(ConnectionManager.class).to(ConnectionManagerStub.class);
             }
         });
@@ -160,13 +161,16 @@ public abstract class DownloadTestCase extends LimeTestCase {
         networkManager = (NetworkManagerStub) injector.getInstance(NetworkManager.class);
         networkManager.setAcceptedIncomingConnection(true);
         networkManager.setAddress(NetworkUtils.getLocalAddress().getAddress());
+        networkManager.setTls(true);
+        networkManager.setOutgoingTLSEnabled(false);
+        networkManager.setIncomingTLSEnabled(true);
 
         ConnectionManagerStub connectionManager = (ConnectionManagerStub) injector
                 .getInstance(ConnectionManager.class);
         connectionManager.setConnected(true);
 
         downloadManager = injector.getInstance(DownloadManager.class);
-        downloadManager.initialize();
+        downloadManager.start();
 
         Runnable click = new Runnable() {
             public void run() {
@@ -187,8 +191,6 @@ public abstract class DownloadTestCase extends LimeTestCase {
         managedDownloader = null;
 
         ConnectionSettings.LOCAL_IS_PRIVATE.setValue(false);
-        SSLSettings.TLS_OUTGOING.setValue(false);
-        SSLSettings.TLS_INCOMING.setValue(true);
 
         // Don't wait for network connections for testing
         RequeryManager.NO_DELAY = true;
@@ -285,7 +287,7 @@ public abstract class DownloadTestCase extends LimeTestCase {
      */
     protected void tGeneric(RemoteFileDesc[] rfds, RemoteFileDesc[] later,
             List<? extends RemoteFileDesc> alts) throws Exception {
-        Downloader download = null;
+        Downloader download;
         download = downloadServices.download(rfds, alts, null, false);
         tGeneric(download, later, rfds);
     }
@@ -327,7 +329,7 @@ public abstract class DownloadTestCase extends LimeTestCase {
      * Performs a generic download of the file specified in <tt>rfds</tt>.
      */
     protected void tGenericCorrupt(RemoteFileDesc[] rfds, RemoteFileDesc[] later) throws Exception {
-        Downloader download = null;
+        Downloader download;
 
         download = downloadServices.download(rfds, false, null);
         if (later != null) {
@@ -366,18 +368,36 @@ public abstract class DownloadTestCase extends LimeTestCase {
         VerifyingFile vf = ifm.getEntry(incFile);
         assertNull("verifying file should be null", vf);
     }
+    
+    protected RemoteFileDesc newRFDPush(GUID guid, int port, int suffix) throws Exception {
+        return newRFDPush(guid, port, suffix, 1);
+    }
+    
+    protected RemoteFileDesc newRFDPush(GUID guid, int port, int rfdSuffix, int proxySuffix) throws Exception {
+        PushAltLoc al = (PushAltLoc) alternateLocationFactory.create(guid.toHexString()
+                + ";127.0.0." + proxySuffix + ":" + port, TestFile.hash());
+        al.updateProxies(true);
 
-    protected RemoteFileDesc newRFD(int port, boolean useTLS) {
-        return remoteFileDescFactory.createRemoteFileDesc("127.0.0.1", port, 0, savedFile.getName(), TestFile.length(),
-                new byte[16], 100, false, 4, false, null, null, false, false, "", null, -1,
-                useTLS);
+        Set<URN> urns = new HashSet<URN>();
+        urns.add(TestFile.hash());
+        
+        PushEndpoint pe = al.getPushAddress();
+        PushEndpoint copyWithPublicAddress = pushEndpointFactory.createPushEndpoint(pe.getClientGUID(), pe.getProxies(), pe.getFeatures(), pe.getFWTVersion(), new IpPortImpl("127.0.0." + rfdSuffix, 6346));
+        
+        return remoteFileDescFactory.createRemoteFileDesc(copyWithPublicAddress, 0, savedFile.getName(),
+                TestFile.length(), pe.getClientGUID(), 100, false, 1, false, null, urns, false, "ALT", 0);
     }
 
-    protected RemoteFileDesc newRFDWithURN(int port, boolean useTLS) {
+    protected RemoteFileDesc newRFD(int port, boolean useTLS) throws Exception {
+        return remoteFileDescFactory.createRemoteFileDesc(new ConnectableImpl("127.0.0.1", port, useTLS), 0, savedFile.getName(), TestFile.length(),
+                GUID.makeGuid(), 100, false, 4, false, null, URN.NO_URN_SET, false, "", -1);
+    }
+
+    protected RemoteFileDesc newRFDWithURN(int port, boolean useTLS) throws Exception {
         return newRFDWithURN(port, null, useTLS);
     }
 
-    protected RemoteFileDesc newRFDWithURN(int port, String urn, boolean useTLS) {
+    protected RemoteFileDesc newRFDWithURN(int port, String urn, boolean useTLS) throws Exception {
         Set<URN> set = new HashSet<URN>();
         try {
             // for convenience, don't require that they pass the urn.
@@ -389,27 +409,8 @@ public abstract class DownloadTestCase extends LimeTestCase {
         } catch (Exception e) {
             fail("SHA1 not created for: " + savedFile, e);
         }
-        return remoteFileDescFactory.createRemoteFileDesc("127.0.0.1", port, 0, savedFile.getName(), TestFile.length(),
-                new byte[16], 100, false, 4, false, null, set, false, false, "", null, -1,
-                useTLS);
-    }
-
-    protected RemoteFileDesc newRFDPush(int port, int suffix) throws Exception {
-        return newRFDPush(port, suffix, 1);
-    }
-
-    protected RemoteFileDesc newRFDPush(int port, int rfdSuffix, int proxySuffix) throws Exception {
-        PushAltLoc al = (PushAltLoc) alternateLocationFactory.create(guid.toHexString()
-                + ";127.0.0." + proxySuffix + ":" + port, TestFile.hash());
-        al.updateProxies(true);
-
-        Set<URN> urns = new HashSet<URN>();
-        urns.add(TestFile.hash());
-
-        return remoteFileDescFactory.createRemoteFileDesc("127.0.0." + rfdSuffix, 6346, 0, savedFile.getName(),
-                TestFile
-                        .length(), 100, false, 1, false, null, urns, false, true, "ALT", 0, al
-                .getPushAddress());
+        return remoteFileDescFactory.createRemoteFileDesc(new ConnectableImpl("127.0.0.1", port, useTLS), 0, savedFile.getName(), TestFile.length(),
+                GUID.makeGuid(), 100, false, 4, false, null, set, false, "", -1);
     }
 
     /** Returns true if the complete file exists and is complete */
@@ -516,7 +517,6 @@ public abstract class DownloadTestCase extends LimeTestCase {
                 return;
             }
         }
-        return;
     }
 
     protected final class MyCallback extends ActivityCallbackStub {
@@ -528,7 +528,7 @@ public abstract class DownloadTestCase extends LimeTestCase {
 
         @SuppressWarnings("unchecked")
         @Override
-        public void removeDownload(Downloader d) {
+        public void downloadCompleted(Downloader d) {
             synchronized (COMPLETE_LOCK) {
                 REMOVED = true;
                 COMPLETE_LOCK.notify();

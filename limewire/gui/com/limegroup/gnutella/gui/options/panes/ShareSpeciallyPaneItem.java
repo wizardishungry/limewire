@@ -10,11 +10,11 @@ import javax.swing.JPanel;
 import javax.swing.event.ChangeEvent;
 import javax.swing.event.ChangeListener;
 
+import org.limewire.core.settings.SharingSettings;
 import org.limewire.i18n.I18nMarker;
 
 import com.limegroup.gnutella.gui.I18n;
 import com.limegroup.gnutella.gui.LabeledComponent;
-import com.limegroup.gnutella.settings.SharingSettings;
 
 public class ShareSpeciallyPaneItem extends AbstractPaneItem {
 
@@ -27,7 +27,7 @@ public class ShareSpeciallyPaneItem extends AbstractPaneItem {
 	 * check box that allows the user to connect automatically or not
 	 */
 	private final String CHECK_BOX_LABEL = 
-		I18nMarker.marktr("Share New Downloads Saved To Unshared Folders:");
+		I18nMarker.marktr("Share Downloads Saved To Unshared Folders:");
 	
 	/**
 	 * Explains what downloads are currently being shared.
@@ -63,7 +63,7 @@ public class ShareSpeciallyPaneItem extends AbstractPaneItem {
         if (CHECK_BOX.isSelected()) {
             explanationLabel.setText(I18n.tr("All downloads will be shared."));
         } else {
-            explanationLabel.setText(I18n.tr("Only new downloads saved in shared folders will be shared."));
+            explanationLabel.setText(I18n.tr("Only downloads saved in shared folders will be shared."));
         }
 	}
 

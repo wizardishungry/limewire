@@ -2,7 +2,6 @@ package com.limegroup.gnutella.lws.server;
 
 
 import java.io.IOException;
-import java.net.URISyntaxException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -17,6 +16,7 @@ import org.apache.http.nio.protocol.NHttpRequestHandler;
 import org.apache.http.params.BasicHttpParams;
 import org.apache.http.params.HttpConnectionParams;
 import org.apache.http.params.HttpParams;
+import org.limewire.core.settings.LWSSettings;
 import org.limewire.lws.server.AbstractReceivesCommandsFromDispatcher;
 import org.limewire.lws.server.LWSConnectionListener;
 import org.limewire.lws.server.LWSDispatcher;
@@ -32,7 +32,6 @@ import com.google.inject.Inject;
 import com.google.inject.Singleton;
 import com.limegroup.gnutella.http.HttpClientListener;
 import com.limegroup.gnutella.http.HttpExecutor;
-import com.limegroup.gnutella.settings.LWSSettings;
 import com.limegroup.gnutella.util.EncodingUtils;
 import com.limegroup.gnutella.util.LimeWireUtils;
 
@@ -171,15 +170,7 @@ public final class LWSManagerImpl implements LWSManager, LWSSenderOfMessagesToSe
         if (LOG.isDebugEnabled()) {
             LOG.debug("sending URL " + url);
         }
-        final HttpGet get;
-        try {
-            get = new HttpGet(url);
-        } catch (URISyntaxException e) {
-            LOG.error("Making HTTP Get", e);
-            IOException ioe = new IOException();
-            ioe.initCause(e);
-            throw ioe;
-        }
+        final HttpGet get = new HttpGet(url);
         
         if(get.getURI().getHost() == null) {
             LOG.error("null host!");
@@ -215,6 +206,7 @@ public final class LWSManagerImpl implements LWSManager, LWSSenderOfMessagesToSe
                 return false;
             }
 
+            @Override
             public boolean allowRequest(HttpUriRequest request) {
                 return true;
             }

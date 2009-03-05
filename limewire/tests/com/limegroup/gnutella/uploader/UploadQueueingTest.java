@@ -7,22 +7,22 @@ import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.net.Socket;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 import junit.framework.Test;
 
+import org.limewire.core.settings.ContentSettings;
+import org.limewire.core.settings.UploadSettings;
 import org.limewire.io.ByteReader;
+import org.limewire.io.ConnectableImpl;
 import org.limewire.nio.NIODispatcher;
 import org.limewire.nio.timeout.StalledUploadWatchdog;
 import org.limewire.util.PrivilegedAccessor;
 
 import com.google.inject.AbstractModule;
 import com.google.inject.Injector;
+import com.google.inject.Stage;
 import com.limegroup.gnutella.ActivityCallback;
-import com.limegroup.gnutella.FileDesc;
-import com.limegroup.gnutella.FileManager;
 import com.limegroup.gnutella.HTTPAcceptor;
 import com.limegroup.gnutella.HTTPUploadManager;
 import com.limegroup.gnutella.LifecycleManager;
@@ -37,17 +37,18 @@ import com.limegroup.gnutella.downloader.ConnectionStatus;
 import com.limegroup.gnutella.downloader.HTTPDownloader;
 import com.limegroup.gnutella.downloader.HTTPDownloaderFactory;
 import com.limegroup.gnutella.downloader.QueuedException;
+import com.limegroup.gnutella.downloader.RemoteFileDescContext;
 import com.limegroup.gnutella.downloader.RemoteFileDescFactory;
 import com.limegroup.gnutella.downloader.TryAgainLaterException;
 import com.limegroup.gnutella.downloader.UnknownCodeException;
 import com.limegroup.gnutella.downloader.VerifyingFile;
 import com.limegroup.gnutella.downloader.VerifyingFileFactory;
+import com.limegroup.gnutella.library.FileDesc;
+import com.limegroup.gnutella.library.FileDescStub;
+import com.limegroup.gnutella.library.FileManager;
+import com.limegroup.gnutella.library.FileManagerStub;
 import com.limegroup.gnutella.messages.vendor.ContentRequest;
-import com.limegroup.gnutella.settings.ContentSettings;
-import com.limegroup.gnutella.settings.UploadSettings;
 import com.limegroup.gnutella.stubs.ActivityCallbackStub;
-import com.limegroup.gnutella.stubs.FileDescStub;
-import com.limegroup.gnutella.stubs.FileManagerStub;
 import com.limegroup.gnutella.stubs.IOStateObserverStub;
 import com.limegroup.gnutella.tigertree.HashTree;
 import com.limegroup.gnutella.tigertree.HashTreeCache;
@@ -64,17 +65,11 @@ public class UploadQueueingTest extends LimeTestCase {
     private HTTPUploadManager uploadManager;
 
     private FileManagerStub fm;
+    
+    private String url1; //, url2, url3, url4, url5;
 
-    private RemoteFileDesc rfd1;
-
-    private RemoteFileDesc rfd2;
-
-    private RemoteFileDesc rfd3;
-
-    private RemoteFileDesc rfd4;
-
-    private RemoteFileDesc rfd5;
-
+    private RemoteFileDesc rfd1, rfd2, rfd3, rfd4, rfd5;
+    
     private URN urn1, urn2, urn3, urn4, urn5;
 
     private int savedNIOWatchdogDelay;
@@ -110,7 +105,7 @@ public class UploadQueueingTest extends LimeTestCase {
         savedNIOWatchdogDelay = (int) StalledUploadWatchdog.DELAY_TIME;
         StalledUploadWatchdog.DELAY_TIME = Integer.MAX_VALUE;
 
-        injector = LimeTestUtils.createInjector(MyActivitCallback.class,
+        injector = LimeTestUtils.createInjector(Stage.PRODUCTION, MyActivitCallback.class,
                 new AbstractModule() {
                     @Override
                     protected void configure() {
@@ -138,52 +133,41 @@ public class UploadQueueingTest extends LimeTestCase {
     }
 
     private void initializeFileManager() throws Exception {
-        Map<URN, FileDesc> urns = new HashMap<URN, FileDesc>();
-        List<FileDesc> descs = new ArrayList<FileDesc>();
         urn1 = URN.createSHA1Urn("urn:sha1:PLSTHIPQGSSZTS5FJUPAKUZWUGYQYPFG");
         urn2 = URN.createSHA1Urn("urn:sha1:PLSTHIPQGSSZTS5FJUPAKUZWUGYQYPFF");
         urn3 = URN.createSHA1Urn("urn:sha1:PLSTHIPQGSSZTS5FJUPAKUZWUGYQYPFE");
         urn4 = URN.createSHA1Urn("urn:sha1:PLSTHIPQGSSZTS5FJUPAKUZWUGYQYPFD");
         urn5 = URN.createSHA1Urn("urn:sha1:PLSTHIPQGSSZTS5FJUPAKUZWUGYQYPFC");
-
+        
         FileDescStub descStub = new FileDescStub("abc1.txt", urn1, 0);
-        urns.put(urn1, descStub);
-        descs.add(descStub);
-        rfd1 = remoteFileDescFactory.createRemoteFileDesc("1.1.1.1", 1, 0, "abc1.txt", FileDescStub.DEFAULT_SIZE,
-                new byte[16], 56, false, 3, false, null, descStub.getUrns(), false, false, "", null, -1,
-                false);
+        rfd1 = remoteFileDescFactory.createRemoteFileDesc(new ConnectableImpl("1.1.1.1", 1, false), 0, "abc1.txt", FileDescStub.DEFAULT_SIZE,
+                new byte[16], 56, false, 3, false, null, descStub.getUrns(), false, "", -1);
+        url1 = LimeTestUtils.getRelativeRequest(urn1);
+        fm.getGnutellaFileList().add(descStub);
 
         descStub = new FileDescStub("abc2.txt", urn2, 1);
-        urns.put(urn2, descStub);
-        descs.add(descStub);
-        rfd2 = remoteFileDescFactory.createRemoteFileDesc("1.1.1.2", 1, 1, "abc2.txt", FileDescStub.DEFAULT_SIZE,
-                new byte[16], 56, false, 3, false, null, descStub.getUrns(), false, false, "", null, -1,
-                false);
-
+        rfd2 = remoteFileDescFactory.createRemoteFileDesc(new ConnectableImpl("1.1.1.2", 1, false), 1, "abc2.txt", FileDescStub.DEFAULT_SIZE,
+                new byte[16], 56, false, 3, false, null, descStub.getUrns(), false, "", -1);
+       // url2 = LimeTestUtils.getRelativeRequest(urn2);
+        fm.getGnutellaFileList().add(descStub);
+        
         descStub = new FileDescStub("abc3.txt", urn3, 2);
-        urns.put(urn3, descStub);
-        descs.add(descStub);
-        rfd3 = remoteFileDescFactory.createRemoteFileDesc("1.1.1.3", 1, 2, "abc3.txt", FileDescStub.DEFAULT_SIZE,
-                new byte[16], 56, false, 3, false, null, descStub.getUrns(), false, false, "", null, -1,
-                false);
+        rfd3 = remoteFileDescFactory.createRemoteFileDesc(new ConnectableImpl("1.1.1.3", 1, false), 2, "abc3.txt", FileDescStub.DEFAULT_SIZE,
+                new byte[16], 56, false, 3, false, null, descStub.getUrns(), false, "", -1);
+       // url3 = LimeTestUtils.getRelativeRequest(urn3);
+        fm.getGnutellaFileList().add(descStub);
 
         descStub = new FileDescStub("abc4.txt", urn4, 3);
-        urns.put(urn4, descStub);
-        descs.add(descStub);
-        rfd4 = remoteFileDescFactory.createRemoteFileDesc("1.1.1.4", 1, 3, "abc4.txt", FileDescStub.DEFAULT_SIZE,
-                new byte[16], 56, false, 3, false, null, descStub.getUrns(), false, false, "", null, -1,
-                false);
+        rfd4 = remoteFileDescFactory.createRemoteFileDesc(new ConnectableImpl("1.1.1.4", 1, false), 3, "abc4.txt", FileDescStub.DEFAULT_SIZE,
+                new byte[16], 56, false, 3, false, null, descStub.getUrns(), false, "", -1);
+        //url4 = LimeTestUtils.getRelativeRequest(urn4);
+        fm.getGnutellaFileList().add(descStub);
 
         descStub = new FileDescStub("abc5.txt", urn5, 4);
-        urns.put(urn5, descStub);
-        descs.add(descStub);
-        rfd5 = remoteFileDescFactory.createRemoteFileDesc("1.1.1.5", 1, 4, "abc5.txt", FileDescStub.DEFAULT_SIZE,
-                new byte[16], 56, false, 3, false, null, descStub.getUrns(), false, false, "", null, -1,
-                false);
-
-        fm.setUrns(urns);
-        fm.setDescs(descs);
-        fm.get(0);
+        rfd5 = remoteFileDescFactory.createRemoteFileDesc(new ConnectableImpl("1.1.1.5", 1, false), 4, "abc5.txt", FileDescStub.DEFAULT_SIZE,
+                new byte[16], 56, false, 3, false, null, descStub.getUrns(), false, "", -1);
+       // url5 = LimeTestUtils.getRelativeRequest(urn5);
+        fm.getGnutellaFileList().add(descStub);
     }
 
     @Override
@@ -406,7 +390,7 @@ public class UploadQueueingTest extends LimeTestCase {
         HashTreeCacheImpl tigerTreeCache = (HashTreeCacheImpl) injector
                 .getInstance(HashTreeCache.class);
         for (int i = 0; i < 5; i++) {
-            tigerTreeCache.getHashTreeAndWait(fm.get(i), 1000);
+            tigerTreeCache.getHashTreeAndWait(fm.getGnutellaFileList().getFileDescForIndex(i), 1000);
         }
 
         // first two uploads to get slots
@@ -514,7 +498,7 @@ public class UploadQueueingTest extends LimeTestCase {
             Socket sb = psf.getSocketB();
             OutputStream os = sb.getOutputStream();
             out = new BufferedWriter(new OutputStreamWriter(os));
-            out.write("GET /get/0/abc1.txt HTTP/1.1\r\n");
+            out.write("GET " + url1 + " HTTP/1.1\r\n");
             out.write("User-Agent: " + LimeWireUtils.getHttpServer() + "\r\n");
             out.write("X-Queue: 0.1\r\n");// we support remote queueing
             out.write("Range: bytes=0-12000 \r\n");
@@ -549,7 +533,7 @@ public class UploadQueueingTest extends LimeTestCase {
                 if (d > 11999)
                     break;
             }
-            out.write("GET /get/0/abc1.txt HTTP/1.1\r\n");
+            out.write("GET " + url1 + " HTTP/1.1\r\n");
             out.write("User-Agent: " + LimeWireUtils.getHttpServer() + "\r\n");
             out.write("X-Queue: 0.1\r\n");// we support remote queueing
             out.write("Range: bytes=1200-2400 \r\n");
@@ -579,8 +563,6 @@ public class UploadQueueingTest extends LimeTestCase {
         UploadSettings.SOFT_MAX_UPLOADS.setValue(9999);
         UploadSettings.UPLOADS_PER_PERSON.setValue(2);
         UploadSettings.UPLOAD_QUEUE_SIZE.setValue(10);
-        PrivilegedAccessor.setValue(RequestCache.class, "WAIT_TIME", new Long(
-                20 * 1000));
         PrivilegedAccessor.setValue(RequestCache.class, "FIRST_CHECK_TIME",
                 new Long(10 * 1000));
 
@@ -1163,7 +1145,7 @@ public class UploadQueueingTest extends LimeTestCase {
         File tmp = File.createTempFile("UploadManager_Test", "dat");
         VerifyingFile vf = verifyingFileFactory.createVerifyingFile(0);
         vf.open(tmp);
-        HTTPDownloader downloader = httpDownloaderFactory.create(sb, rfd, vf,
+        HTTPDownloader downloader = httpDownloaderFactory.create(sb, new RemoteFileDescContext(rfd), vf,
                 true);
         tmp.delete();
         return downloader;
@@ -1187,7 +1169,7 @@ public class UploadQueueingTest extends LimeTestCase {
     private void addThexHeader(HTTPDownloader dl) throws Exception {
         HashTreeCache tigerTreeCache = injector
                 .getInstance(HashTreeCache.class);
-        FileDesc fd = fm.get((int) dl.getIndex());
+        FileDesc fd = fm.getGnutellaFileList().getFileDescForIndex((int) dl.getIndex());
         PrivilegedAccessor.invokeMethod(dl, "parseTHEXHeader", tigerTreeCache
                 .getHashTree(fd).httpStringValue());
     }

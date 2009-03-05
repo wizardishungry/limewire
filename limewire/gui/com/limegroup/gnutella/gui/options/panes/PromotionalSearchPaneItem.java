@@ -8,7 +8,6 @@ import org.limewire.i18n.I18nMarker;
 
 import com.limegroup.gnutella.gui.I18n;
 import com.limegroup.gnutella.gui.LabeledComponent;
-import com.limegroup.gnutella.settings.SearchSettings;
 
 public class PromotionalSearchPaneItem extends AbstractPaneItem {
  
@@ -41,16 +40,17 @@ public class PromotionalSearchPaneItem extends AbstractPaneItem {
      */
     @Override
     public void initOptions() {
-        disableResultsCheckBox.setSelected(SearchSettings.DISABLE_PROMOTIONAL_RESULTS.getValue());
+//        disableResultsCheckBox.setSelected(SearchSettings.DISABLE_PROMOTIONAL_RESULTS.getValue());
     }
 
     @Override
     public boolean applyOptions() throws IOException {
-        SearchSettings.DISABLE_PROMOTIONAL_RESULTS.setValue(disableResultsCheckBox.isSelected());
+//        SearchSettings.DISABLE_PROMOTIONAL_RESULTS.setValue(disableResultsCheckBox.isSelected());
         return false;
     }
     
     public boolean isDirty() {
-        return SearchSettings.DISABLE_PROMOTIONAL_RESULTS.getValue() != disableResultsCheckBox.isSelected();
+        return false;
+//        return SearchSettings.DISABLE_PROMOTIONAL_RESULTS.getValue() != disableResultsCheckBox.isSelected();
     }
 }

@@ -29,8 +29,17 @@ public class SimpleBandwidthTracker implements BandwidthTracker {
 		_interval = interval;
 	}
 
-	public synchronized void count(int added) {
-		startCounting(-1);
+	/**
+	 * Adds the given amount to the tracked bandwidth usage since the last time 
+	 * measureBandwidth was called.
+	 * @param added non negative value to count twoards bandwidth
+	 * @throws IllegalArgumentException if value supplied is < 0
+	 */
+	public synchronized void count(long added) {
+		if( added < 0) {
+		    throw new IllegalArgumentException("Count values must be positive: " + added);
+		}
+	    startCounting(-1);
 		_amount += added;
 	}
 

@@ -20,7 +20,8 @@ import javax.swing.JScrollPane;
 import javax.swing.JSplitPane;
 import javax.swing.SwingUtilities;
 
-import com.limegroup.gnutella.FileManagerEvent;
+import org.limewire.core.settings.UISettings;
+
 import com.limegroup.gnutella.gui.ButtonRow;
 import com.limegroup.gnutella.gui.FileChooserHandler;
 import com.limegroup.gnutella.gui.GUIConstants;
@@ -37,7 +38,7 @@ import com.limegroup.gnutella.gui.themes.ThemeMediator;
 import com.limegroup.gnutella.gui.themes.ThemeObserver;
 import com.limegroup.gnutella.gui.util.BackgroundExecutorService;
 import com.limegroup.gnutella.gui.util.DividerLocationSettingUpdater;
-import com.limegroup.gnutella.settings.UISettings;
+import com.limegroup.gnutella.library.ManagedListStatusEvent;
 
 
 /**
@@ -183,14 +184,15 @@ public final class LibraryMediator implements ThemeObserver {
 	/**
 	 * Removes the gui elements of the library tree and table.
 	 */
-	public void clearLibrary() {
-        LIBRARY_TABLE.clearTable();
-        LIBRARY_TREE.clear();
-        quickRefresh();
-	}
+//	private void clearLibrary() {
+//        LIBRARY_TABLE.clearTable();
+//        LIBRARY_TREE.clear();
+//        quickRefresh();
+//	}
     
     /**
-     * Returns the directory that's currently visible from the table.
+     * @return Returns the directory that's currently visible from the table.
+     *
      */
     public File getVisibleDirectory() {
         return LIBRARY_TREE.getSelectedDirectory();
@@ -220,11 +222,12 @@ public final class LibraryMediator implements ThemeObserver {
 	/**
 	 * Handles events created by the FileManager.  Passes these events on to
 	 * the LibraryTableMediator or LibraryTree as necessary.
-	 */
-    public void handleFileManagerEvent(final FileManagerEvent evt) {
-		LIBRARY_TREE.handleFileManagerEvent(evt);
-		LIBRARY_TABLE.handleFileManagerEvent(evt, LIBRARY_TREE.getSelectedDirectoryHolder());		
-    }
+     * @param evt event created by the FileManager
+     */
+//    private void handleFileManagerEvent(final FileManagerEvent evt) {
+//		LIBRARY_TREE.handleFileManagerEvent(evt);
+//		LIBRARY_TABLE.handleFileManagerEvent(evt, LIBRARY_TREE.getSelectedDirectoryHolder());		
+//    }
 		
     /** 
 	 * Displays a file chooser for selecting a new folder to share and 
@@ -243,7 +246,7 @@ public final class LibraryMediator implements ThemeObserver {
     		if (dialog.showChooseDialog(MessageService.getParentComponent()) == State.OK) {
     			BackgroundExecutorService.schedule(new Runnable() {
     			    public void run() {
-    			        GuiCoreMediator.getFileManager().addSharedFolders(dialog.getRootsToShare(), dialog.getFoldersToExclude());
+//    			        GuiCoreMediator.getFileManager().addSharedFolders(dialog.getRootsToShare(), dialog.getFoldersToExclude());
     	            }
     	        });	
     		}
@@ -251,7 +254,7 @@ public final class LibraryMediator implements ThemeObserver {
 	}
 	
 	/**
-	 * Update the this file's statistic
+	 * Update the file's statistic
 	 */
 	public void updateSharedFile(final File file) {
 	    // if the library table is visible, and
@@ -285,6 +288,7 @@ public final class LibraryMediator implements ThemeObserver {
 
     /**
      * Adds a file to the playlist.
+     * @param toAdd File to add
      */
     void addFileToPlayList(File toAdd) {
         GUIMediator.getPlayList().addFileToPlaylist(toAdd);
@@ -292,6 +296,7 @@ public final class LibraryMediator implements ThemeObserver {
     
     /**
      * Adds a list of files to add to the playlist
+     * @param toAdd list of files
      */
     void addFilesToPlayList(List<File> toAdd) {
         GUIMediator.getPlayList().addFilesToPlaylist(toAdd.toArray( new File[toAdd.size()]));
@@ -301,7 +306,7 @@ public final class LibraryMediator implements ThemeObserver {
 	 * Obtains the shared files for the given directory and updates the 
 	 * table accordingly.
 	 *
-	 * @param selectedDir the currently selected directory in
+	 * @param dirHolder the currently selected directory in
 	 *        the library
 	 */
     static void updateTableFiles(DirectoryHolder dirHolder) {
@@ -309,8 +314,11 @@ public final class LibraryMediator implements ThemeObserver {
 		showView(TABLE_KEY);
     }
     
-	/** Returns true if this is showing the special incomplete directory,
-     *  false if showing normal files. */
+	/** 
+     * @return Returns true if this is showing the
+     * special incomplete directory, false if showing
+     * normal files
+     */
     public static boolean incompleteDirectoryIsSelected() {
         return LIBRARY_TREE.incompleteDirectoryIsSelected();        
     }
@@ -433,10 +441,32 @@ public final class LibraryMediator implements ThemeObserver {
 	}
 
 	/**
-	 * Updates the Library GUI based on whether the player is enabled. 
-	 */
+	 * Updates the Library GUI based on whether the player is enabled.
+     * @param value setter value (true for player enabled)
+     */
 	public void setPlayerEnabled(boolean value) {
 		LIBRARY_TABLE.setPlayerEnabled(value);
 		LIBRARY_TREE.setPlayerEnabled(value);
 	}
+
+	/**
+	 * Listen to events from the FileManager
+	 */
+    public void handleEvent(final ManagedListStatusEvent evt) {
+//        SwingUtilities.invokeLater(new Runnable(){
+//            public void run(){
+//                switch (evt.getType()) {
+//                    case LOAD_STARTED:
+//                        clearLibrary();
+//                        setAnnotateEnabled(false);
+//                        break;
+//                    case LOAD_COMPLETE:
+//                        setAnnotateEnabled(true);
+//                        break;
+//                    default:
+//                        //handleFileManagerEvent(evt);
+//                }
+//            }
+//        });
+    }
 }

@@ -10,13 +10,13 @@ import java.io.IOException;
 
 import javax.swing.JTextField;
 
+import org.limewire.core.settings.URLHandlerSettings;
 import org.limewire.i18n.I18nMarker;
 
 import com.limegroup.gnutella.gui.I18n;
 import com.limegroup.gnutella.gui.LabeledComponent;
 import com.limegroup.gnutella.gui.SizedTextField;
 import com.limegroup.gnutella.gui.GUIUtils.SizePolicy;
-import com.limegroup.gnutella.settings.URLHandlerSettings;
 
 /**
  * This class defines the panel in the options

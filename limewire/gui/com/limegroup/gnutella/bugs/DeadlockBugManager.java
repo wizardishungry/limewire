@@ -1,11 +1,11 @@
 package com.limegroup.gnutella.bugs;
 
+import org.limewire.core.settings.BugSettings;
 import org.limewire.util.Version;
 import org.limewire.util.VersionFormatException;
 
 import com.google.inject.Inject;
 import com.limegroup.gnutella.gui.LocalClientInfoFactory;
-import com.limegroup.gnutella.settings.BugSettings;
 import com.limegroup.gnutella.util.LimeWireUtils;
 
 public class DeadlockBugManager {

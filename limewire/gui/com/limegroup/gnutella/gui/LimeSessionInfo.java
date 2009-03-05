@@ -8,13 +8,13 @@ import com.google.inject.Inject;
 import com.google.inject.Singleton;
 import com.limegroup.gnutella.Acceptor;
 import com.limegroup.gnutella.ConnectionManager;
-import com.limegroup.gnutella.CreationTimeCache;
 import com.limegroup.gnutella.DownloadManager;
 import com.limegroup.gnutella.Statistics;
 import com.limegroup.gnutella.UDPService;
 import com.limegroup.gnutella.auth.ContentManager;
 import com.limegroup.gnutella.bugs.SessionInfo;
 import com.limegroup.gnutella.downloader.DiskController;
+import com.limegroup.gnutella.library.CreationTimeCache;
 
 /** An implementation of SessionInfo that gets it's statistics from various LimeWire components. */
 @Singleton

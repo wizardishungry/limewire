@@ -15,6 +15,13 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.limewire.collection.FixedsizeForgetfulHashMap;
+import org.limewire.core.settings.ApplicationSettings;
+import org.limewire.core.settings.SharingSettings;
+import org.limewire.core.settings.UploadSettings;
+import org.limewire.io.Address;
+import org.limewire.io.Connectable;
+import org.limewire.io.ConnectableImpl;
+import org.limewire.io.GUID;
 import org.limewire.io.NetworkUtils;
 import org.limewire.security.SecureMessage;
 import org.limewire.security.SecureMessageCallback;
@@ -34,9 +41,6 @@ import com.limegroup.gnutella.messages.PushRequest;
 import com.limegroup.gnutella.messages.QueryReply;
 import com.limegroup.gnutella.messages.vendor.SimppVM;
 import com.limegroup.gnutella.search.SearchResultHandler;
-import com.limegroup.gnutella.settings.ApplicationSettings;
-import com.limegroup.gnutella.settings.SharingSettings;
-import com.limegroup.gnutella.settings.UploadSettings;
 import com.limegroup.gnutella.xml.LimeXMLDocument;
 import com.limegroup.gnutella.xml.LimeXMLDocumentHelper;
 import com.limegroup.gnutella.xml.LimeXMLUtils;
@@ -46,7 +50,7 @@ import com.limegroup.gnutella.xml.LimeXMLUtils;
  * sent whose reply is for me.
  */
 @Singleton
-public final class ForMeReplyHandler implements ReplyHandler, SecureMessageCallback {
+public class ForMeReplyHandler implements ReplyHandler, SecureMessageCallback {
     
     private static final Log LOG = LogFactory.getLog(ForMeReplyHandler.class);
     
@@ -123,9 +127,19 @@ public final class ForMeReplyHandler implements ReplyHandler, SecureMessageCallb
 	}
 	
 	public void handleQueryReply(QueryReply reply, ReplyHandler handler) {
+	    handleQueryReply(reply, handler, null);
+	}
+	
+	/**
+	 * Handles a query reply locally.
+	 * 
+	 * @param address can be null, if not null overrides the address info in <code>reply</code>
+	 */
+	public void handleQueryReply(QueryReply reply, ReplyHandler handler, Address address) {
         // do not allow a faked multicast reply.
-        if(reply.isFakeMulticast())
+        if(reply.isFakeMulticast()) {
             return;
+        }
         
 		// Drop if it's a reply to mcast and conditions aren't met ...
         if( reply.isReplyToMulticastQuery() ) {
@@ -140,29 +154,32 @@ public final class ForMeReplyHandler implements ReplyHandler, SecureMessageCallb
         // will create the cachedRFD with the correct XML.
         boolean validResponses = addXMLToResponses(reply, limeXMLDocumentHelper);
         // responses invalid?  exit.
-        if(!validResponses)
+        if(!validResponses) {
             return;
+        }
 
         // check for unwanted results after xml has been constructed
-        if(handler != null && handler.isPersonalSpam(reply)) return;
+        if (handler != null && handler.isPersonalSpam(reply)) {
+            return;
+        }
         
         if(reply.hasSecureData() && ApplicationSettings.USE_SECURE_RESULTS.getValue()) {
             secureMessageVerifier.verify(reply, this);
         } else {
-            routeQueryReplyInternal(reply);
+            routeQueryReplyInternal(reply, address);
         }
     }
     
     /** Notification that a message is secure.  Currently only possible for a QueryReply. */
     public void handleSecureMessage(SecureMessage sm, boolean passed) {
         if (passed)
-            routeQueryReplyInternal((QueryReply) sm);
+            routeQueryReplyInternal((QueryReply) sm, null);
     }
     
     /** Passes the QueryReply off to where it should go. */
-    private void routeQueryReplyInternal(QueryReply reply) {
+    private void routeQueryReplyInternal(QueryReply reply, Address address) {
         searchResultHandler.get().handleQueryReply(reply);
-        downloadManager.get().handleQueryReply(reply);
+        downloadManager.get().handleQueryReply(reply, address);
     }
 	
 	/**
@@ -247,7 +264,7 @@ public final class ForMeReplyHandler implements ReplyHandler, SecureMessageCallb
         }
             
         byte[] ip = pushRequest.getIP();
-        String h = NetworkUtils.ip2string(ip);
+        String host = NetworkUtils.ip2string(ip);
 
         // check whether we serviced this push request already
     	GUID guid = new GUID(pushRequest.getGUID());
@@ -257,10 +274,10 @@ public final class ForMeReplyHandler implements ReplyHandler, SecureMessageCallb
     	}
 
        // make sure the guy isn't hammering us
-        AtomicInteger i = PUSH_REQUESTS.get(h);
+        AtomicInteger i = PUSH_REQUESTS.get(host);
         if(i == null) {
             i = new AtomicInteger(1);
-            PUSH_REQUESTS.put(h, i);
+            PUSH_REQUESTS.put(host, i);
         } else {
             i.addAndGet(1);
             // if we're over the max push requests for this host, exit.
@@ -278,18 +295,21 @@ public final class ForMeReplyHandler implements ReplyHandler, SecureMessageCallb
 
         int port = pushRequest.getPort();
         // if invalid port, exit
-        if (!NetworkUtils.isValidPort(port) ) {
-            LOG.debug("invalid port");
+        if (!NetworkUtils.isValidAddressAndPort(host, port) ) {
+            LOG.debug("invalid host or port");
             return;
         }
         
-        String req_guid_hexstring =
-            (new GUID(pushRequest.getClientGUID())).toString();
-
-        pushManager.get().acceptPushUpload(h, port, req_guid_hexstring,
-                             pushRequest.isMulticast(), // force accept
-                             pushRequest.isFirewallTransferPush(),
-                             pushRequest.isTLSCapable());
+        
+        try {
+            Connectable address = new ConnectableImpl(host, port, pushRequest.isTLSCapable());
+            pushManager.get().acceptPushUpload(address,
+                    new GUID(pushRequest.getClientGUID()),
+                    pushRequest.isMulticast(), // force accept
+                    pushRequest.isFirewallTransferPush());
+        } catch (UnknownHostException e) {
+            throw new RuntimeException(e);
+        }
 	}
 	
 	public boolean isOpen() {

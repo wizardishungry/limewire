@@ -25,11 +25,12 @@ import javax.swing.event.ChangeEvent;
 import javax.swing.event.ChangeListener;
 import javax.swing.plaf.TabbedPaneUI;
 
+import org.limewire.core.settings.QuestionsHandler;
+import org.limewire.core.settings.SearchSettings;
 import org.limewire.inspection.InspectablePrimitive;
+import org.limewire.io.GUID;
 import org.limewire.util.DebugRunnable;
 
-import com.limegroup.gnutella.FileManager;
-import com.limegroup.gnutella.GUID;
 import com.limegroup.gnutella.gui.BoxPanel;
 import com.limegroup.gnutella.gui.GUIMediator;
 import com.limegroup.gnutella.gui.GuiCoreMediator;
@@ -39,8 +40,7 @@ import com.limegroup.gnutella.gui.RefreshListener;
 import com.limegroup.gnutella.gui.themes.ThemeMediator;
 import com.limegroup.gnutella.gui.themes.ThemeObserver;
 import com.limegroup.gnutella.gui.util.BackgroundExecutorService;
-import com.limegroup.gnutella.settings.QuestionsHandler;
-import com.limegroup.gnutella.settings.SearchSettings;
+import com.limegroup.gnutella.library.FileManager;
 
 /**
  * This class handles the display of search results.

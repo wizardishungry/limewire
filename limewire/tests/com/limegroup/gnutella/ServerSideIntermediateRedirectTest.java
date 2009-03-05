@@ -6,9 +6,12 @@ import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.ServerSocket;
 
+import org.limewire.io.GUID;
+
 import junit.framework.Test;
 
 import com.google.inject.Injector;
+import com.google.inject.Stage;
 import com.limegroup.gnutella.connection.BlockingConnection;
 import com.limegroup.gnutella.messages.Message;
 import com.limegroup.gnutella.messages.MessageFactory;
@@ -32,7 +35,7 @@ import com.limegroup.gnutella.util.EmptyResponder;
  *  This test only covers Ultrapeer behavior - leaves don't participate in
  *  server side connect back stuff.
  */
-@SuppressWarnings( { "unchecked", "cast" } )
+@SuppressWarnings( { "cast" } )
 public final class ServerSideIntermediateRedirectTest 
     extends ServerSideTestCase {
 
@@ -81,7 +84,7 @@ public final class ServerSideIntermediateRedirectTest
 	
 	@Override
 	protected void setUp() throws Exception {
-	    Injector injector = LimeTestUtils.createInjector();
+	    Injector injector = LimeTestUtils.createInjector(Stage.PRODUCTION);
 	    super.setUp(injector);
 	    messageFactory = injector.getInstance(MessageFactory.class);
 	    messagesSupportedVendorMessage = injector.getInstance(MessagesSupportedVendorMessage.class);

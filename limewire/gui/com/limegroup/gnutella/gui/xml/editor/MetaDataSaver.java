@@ -5,12 +5,12 @@ import java.util.concurrent.TimeUnit;
 
 import org.xml.sax.SAXException;
 
-import com.limegroup.gnutella.FileDesc;
 import com.limegroup.gnutella.gui.GUIMediator;
 import com.limegroup.gnutella.gui.GuiCoreMediator;
 import com.limegroup.gnutella.gui.I18n;
 import com.limegroup.gnutella.gui.library.LibraryMediator;
 import com.limegroup.gnutella.gui.util.BackgroundExecutorService;
+import com.limegroup.gnutella.library.FileDesc;
 import com.limegroup.gnutella.xml.LimeXMLDocument;
 import com.limegroup.gnutella.xml.LimeXMLNames;
 import com.limegroup.gnutella.xml.LimeXMLReplyCollection;
@@ -39,7 +39,7 @@ public class MetaDataSaver {
     
     public void saveMetaData(final MetaDataEventListener listener) {
     	if (listener != null) {
-            GuiCoreMediator.getFileManager().addFileEventListener(listener);
+//            GuiCoreMediator.getFileManager().addFileEventListener(listener);
         }
         BackgroundExecutorService.schedule(new Runnable() {
             public void run() {
@@ -59,7 +59,7 @@ public class MetaDataSaver {
             		if (listener != null) {
             			Runnable runner = new Runnable() {
             				public void run() {
-            					GuiCoreMediator.getFileManager().removeFileEventListener(listener);
+//            					GuiCoreMediator.getFileManager().removeFileEventListener(listener);
             				}
             			};
             			// FIXME crude work around to improve changes that the listener was actually notified before being removed
@@ -102,19 +102,7 @@ public class MetaDataSaver {
         assert collection != null :
                 "Cant add doc to nonexistent collection";
 
-        for(int i = 0; i < fds.length; i++) {
-            String fileName = null;
-            try {
-                fileName = fds[i].getFile().getCanonicalPath();
-            } catch (IOException err) {
-            	GUIMediator.safeInvokeAndWait(new Runnable() {
-            		public void run() {
-            			GUIMediator.showError(I18n.tr("Internal Document Error. Data could not be saved."));
-            		}
-            	});
-                continue;
-            }
-            
+        for(int i = 0; i < fds.length; i++) {            
             LimeXMLDocument oldDoc = fds[i].getXMLDocument(schemaURI);
             LimeXMLDocument result = null;
 
@@ -126,8 +114,8 @@ public class MetaDataSaver {
                 collection.addReply(fds[i], result);
             }
 
-            if (LimeXMLUtils.isSupportedFormat(fileName)) {
-                final MetaDataState committed = collection.mediaFileToDisk(fds[i], fileName, result);
+            if (LimeXMLUtils.isSupportedFormat(fds[i].getFileName())) {
+                final MetaDataState committed = collection.mediaFileToDisk(fds[i], result);
                 if (committed == MetaDataState.UNCHANGED) {
                 	if (listener != null) {
                 		listener.metaDataUnchanged(fds[i]);

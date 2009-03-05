@@ -57,13 +57,11 @@ R D/updates////
 R D/update////
 R D/udpconnect////
 R D/testfiles////
-R D/statistics////
-R D/resources////
 R D/privategroups////
-R D/performance////
-R D/net////
 R D/mp3////
 R D/mail////
-R D/library////
 R D/io////
+R D/gui////
 R D/encryption////
+R D/chat////
+R D/bugs////

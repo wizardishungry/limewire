@@ -73,12 +73,11 @@ R D/rpc////
 R D/privategroups////
 R D/plugins////
 R D/plugin////
-R D/net////
 R D/message////
 R D/mail////
 R D/interceptor////
 R D/image////
 R D/encryption////
-R D/daap////
+R D/chat////
 R D/caas////
 R D/antivirus////

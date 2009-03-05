@@ -1,21 +1,21 @@
 package com.limegroup.gnutella.geocode;
 
 import java.io.IOException;
-import java.net.URISyntaxException;
 
 import org.apache.http.HttpEntity;
-import org.apache.http.HttpException;
 import org.apache.http.HttpResponse;
 import org.apache.http.HttpStatus;
 import org.apache.http.client.methods.HttpGet;
+import org.limewire.core.settings.GeocodeSettings;
 import org.limewire.geocode.AbstractGeocoder;
 import org.limewire.http.httpclient.LimeHttpClient;
 
 import com.google.inject.Inject;
 import com.google.inject.Provider;
-import com.limegroup.gnutella.settings.GeocodeSettings;
 
 final class GeocoderImpl extends AbstractGeocoder {
+    
+  //  private static final Log LOG = LogFactory.getLog(GeocoderImpl.class);
     
     private final Provider<LimeHttpClient> httpClient;
     
@@ -31,18 +31,14 @@ final class GeocoderImpl extends AbstractGeocoder {
             return;
         }
         
-        HttpGet get;
-        try {
-            get = new HttpGet(url);
-        } catch(URISyntaxException muri) {
-            setInvalid(muri);
-            return;
-        }
-        
+        HttpGet get = new HttpGet(url);        
         LimeHttpClient client = httpClient.get();
         HttpResponse response = null;
         try {
+            //System.out.println("GeocodeImpl.initialize: calling client.execute");
+            // TODO: The following call seems to hang on some systems.
             response = client.execute(get);
+            //System.out.println("GeocodeImpl.initialize: response = " + response);
             if(response.getStatusLine().getStatusCode() == HttpStatus.SC_OK) {
                 HttpEntity entity = response.getEntity();
                 if(entity != null) {
@@ -51,8 +47,6 @@ final class GeocoderImpl extends AbstractGeocoder {
                 }
             }            
             setInvalid(new IOException("invalid response"));
-        } catch (HttpException e) {
-            setInvalid(e);
         } catch (IOException e) {
             setInvalid(e);
         } finally {

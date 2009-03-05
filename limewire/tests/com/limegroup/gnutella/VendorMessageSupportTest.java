@@ -8,6 +8,9 @@ import java.net.DatagramSocket;
 import java.net.ServerSocket;
 import java.util.Iterator;
 
+import org.limewire.core.settings.ConnectionSettings;
+import org.limewire.io.GUID;
+
 import junit.framework.Test;
 
 import com.google.inject.Injector;
@@ -28,11 +31,10 @@ import com.limegroup.gnutella.messages.vendor.UDPConnectBackVendorMessage;
 import com.limegroup.gnutella.messages.vendor.VendorMessage;
 import com.limegroup.gnutella.routing.QueryRouteTable;
 import com.limegroup.gnutella.routing.RouteTableMessage;
-import com.limegroup.gnutella.settings.ConnectionSettings;
 import com.limegroup.gnutella.util.EmptyResponder;
 import com.limegroup.gnutella.util.LimeTestCase;
 
-@SuppressWarnings( { "unchecked", "cast" } )
+@SuppressWarnings( { "cast" } )
 public class VendorMessageSupportTest extends LimeTestCase {
     
     private String _remoteHost = "localhost";

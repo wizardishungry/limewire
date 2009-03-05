@@ -3,10 +3,10 @@ package com.limegroup.gnutella.gui.search;
 import java.util.HashMap;
 import java.util.Map;
 
+import org.limewire.core.settings.PromotionSettings;
 import org.limewire.promotion.containers.PromotionMessageContainer;
 
 import com.limegroup.gnutella.ApplicationServices;
-import com.limegroup.gnutella.settings.ThirdPartySearchResultsSettings;
 import com.limegroup.gnutella.util.LimeWireUtils;
 import com.limegroup.gnutella.xml.LimeXMLDocument;
 import com.limegroup.gnutella.xml.LimeXMLDocumentFactory;
@@ -75,7 +75,7 @@ final class PromotionMessageContainerToSearchResultConverter {
      * @return a version of the <code>container</code>'s URL that redirects.
      */
     private String getURL(PromotionMessageContainer container) {
-        String url = ThirdPartySearchResultsSettings.REDIRECT_URL.getValue();
+        String url = PromotionSettings.REDIRECT_URL.getValue();
         url += "?url=" + container.getURL();
         url += "&now=" + System.currentTimeMillis() / 1000;
         url += "&id=" + container.getUniqueID();

@@ -23,7 +23,12 @@ import org.apache.http.protocol.HttpContext;
 import org.apache.http.protocol.HttpRequestHandler;
 import org.limewire.collection.Buffer;
 import org.limewire.collection.FixedsizeForgetfulHashMap;
+import org.limewire.core.settings.ConnectionSettings;
+import org.limewire.core.settings.UploadSettings;
 import org.limewire.http.HttpAcceptorListener;
+import org.limewire.http.auth.ServerAuthState;
+import org.limewire.lifecycle.Service;
+import org.limewire.lifecycle.ServiceRegistry;
 import org.limewire.util.FileLocker;
 import org.limewire.util.FileUtils;
 import org.limewire.util.Objects;
@@ -32,10 +37,10 @@ import com.google.inject.Inject;
 import com.google.inject.Provider;
 import com.google.inject.Singleton;
 import com.limegroup.gnutella.Uploader.UploadStatus;
-import com.limegroup.gnutella.auth.ContentManager;
+import com.limegroup.gnutella.auth.UrnValidator;
 import com.limegroup.gnutella.http.HttpContextParams;
-import com.limegroup.gnutella.settings.ConnectionSettings;
-import com.limegroup.gnutella.settings.UploadSettings;
+import com.limegroup.gnutella.library.FileDesc;
+import com.limegroup.gnutella.library.FileManager;
 import com.limegroup.gnutella.statistics.TcpBandwidthStatistics;
 import com.limegroup.gnutella.uploader.FileRequestHandler;
 import com.limegroup.gnutella.uploader.HTTPUploadSession;
@@ -44,6 +49,8 @@ import com.limegroup.gnutella.uploader.HTTPUploader;
 import com.limegroup.gnutella.uploader.HttpRequestHandlerFactory;
 import com.limegroup.gnutella.uploader.UploadSlotManager;
 import com.limegroup.gnutella.uploader.UploadType;
+import com.limegroup.gnutella.uploader.authentication.GnutellaBrowseFileListProvider;
+import com.limegroup.gnutella.uploader.authentication.GnutellaUploadFileListProvider;
 
 /**
  * Manages {@link HTTPUploader} objects that are created by
@@ -94,7 +101,7 @@ import com.limegroup.gnutella.uploader.UploadType;
  */
 @Singleton
 public class HTTPUploadManager implements FileLocker, BandwidthTracker,
-        UploadManager, HTTPUploadSessionManager {
+        UploadManager, HTTPUploadSessionManager, Service {
 
     /** The key used to store the {@link HTTPUploadSession} object. */
     private final static String SESSION_KEY = "org.limewire.session";
@@ -190,26 +197,46 @@ public class HTTPUploadManager implements FileLocker, BandwidthTracker,
     
     private final HttpRequestHandlerFactory httpRequestHandlerFactory;
 
-    private final Provider<ContentManager> contentManager;
-
     private final Provider<HTTPAcceptor> httpAcceptor;
     
     private final TcpBandwidthStatistics tcpBandwidthStatistics;
+
+    private final Provider<GnutellaUploadFileListProvider> gnutellaUploadFileListProvider;
+
+    private final Provider<GnutellaBrowseFileListProvider> gnutellaBrowseFileListProvider;
+    
+    private final UrnValidator urnValidator;
     
     @Inject
     public HTTPUploadManager(UploadSlotManager slotManager,
             HttpRequestHandlerFactory httpRequestHandlerFactory,
-            Provider<ContentManager> contentManager, Provider<HTTPAcceptor> httpAcceptor,
+            Provider<HTTPAcceptor> httpAcceptor,
             Provider<FileManager> fileManager, Provider<ActivityCallback> activityCallback,
-            TcpBandwidthStatistics tcpBandwidthStatistics) {
+            TcpBandwidthStatistics tcpBandwidthStatistics,
+            Provider<GnutellaUploadFileListProvider> gnutellaFileListProvider,
+            Provider<GnutellaBrowseFileListProvider> gnutellaBrowseFileListProvider,
+            UrnValidator urnValidator) {
+        this.gnutellaUploadFileListProvider = gnutellaFileListProvider;
+        this.gnutellaBrowseFileListProvider = gnutellaBrowseFileListProvider;
         this.slotManager = Objects.nonNull(slotManager, "slotManager");
         this.httpRequestHandlerFactory = httpRequestHandlerFactory;
-        this.contentManager = contentManager;
         this.freeLoaderRequestHandler = httpRequestHandlerFactory.createFreeLoaderRequestHandler();
         this.httpAcceptor = Objects.nonNull(httpAcceptor, "httpAcceptor");
         this.fileManager = Objects.nonNull(fileManager, "fileManager");
         this.activityCallback = Objects.nonNull(activityCallback, "activityCallback");
         this.tcpBandwidthStatistics = Objects.nonNull(tcpBandwidthStatistics, "tcpBandwidthStatistics");
+        this.urnValidator = urnValidator;
+    }
+    
+    public String getServiceName() {
+        return org.limewire.i18n.I18nMarker.marktr("Upload Management");
+    }
+    public void initialize() {
+    }
+    
+    @Inject
+    void register(ServiceRegistry registry) {
+        registry.register(this);
     }
 
     /**
@@ -228,7 +255,7 @@ public class HTTPUploadManager implements FileLocker, BandwidthTracker,
         httpAcceptor.get().addAcceptorListener(responseListener);
 
         // browse
-        httpAcceptor.get().registerHandler("/", httpRequestHandlerFactory.createBrowseRequestHandler());
+        httpAcceptor.get().registerHandler("/", httpRequestHandlerFactory.createBrowseRequestHandler(gnutellaBrowseFileListProvider.get(), false));
 
         // push-proxy requests
         NHttpRequestHandler pushProxyHandler = httpRequestHandlerFactory.createPushProxyRequestHandler();
@@ -236,8 +263,7 @@ public class HTTPUploadManager implements FileLocker, BandwidthTracker,
         httpAcceptor.get().registerHandler("/gnet/push-proxy", pushProxyHandler);
 
         // uploads
-        FileRequestHandler fileRequestHandler = httpRequestHandlerFactory.createFileRequestHandler();
-        httpAcceptor.get().registerHandler("/get*", fileRequestHandler);
+        FileRequestHandler fileRequestHandler = httpRequestHandlerFactory.createFileRequestHandler(gnutellaUploadFileListProvider.get(), false);
         httpAcceptor.get().registerHandler("/uri-res/*", fileRequestHandler);
         
         started = true;
@@ -379,7 +405,7 @@ public class HTTPUploadManager implements FileLocker, BandwidthTracker,
             return false;
         }
         
-        if (fileManager.get().hasApplicationSharedFiles())
+        if (fileManager.get().getGnutellaFileList().hasApplicationSharedFiles())
             return slotManager.hasHTTPSlotForMeta(uploadsInProgress()
                     + getNumQueuedUploads());
         return isServiceable();
@@ -412,7 +438,7 @@ public class HTTPUploadManager implements FileLocker, BandwidthTracker,
     public boolean releaseLock(File file) {
         assert started;
         
-        FileDesc fd = fileManager.get().getFileDescForFile(file);
+        FileDesc fd = fileManager.get().getManagedFileList().getFileDesc(file);
         if (fd != null)
             return killUploadsForFileDesc(fd);
         else
@@ -434,6 +460,7 @@ public class HTTPUploadManager implements FileLocker, BandwidthTracker,
     /**
      * Checks whether the given upload may proceed based on number of slots,
      * position in upload queue, etc. Updates the upload queue as necessary.
+     * @param context TODO
      * 
      * @return ACCEPTED if the download may proceed, QUEUED if this is in the
      *         upload queue, REJECTED if this is flat-out disallowed (and hence
@@ -443,53 +470,70 @@ public class HTTPUploadManager implements FileLocker, BandwidthTracker,
      *         LIMIT_REACHED. If BANNED, the <code>Uploader</code>'s state
      *         will be set to BANNED_GREEDY.
      */
-    private synchronized QueueStatus checkAndQueue(HTTPUploadSession session) {
+    private synchronized QueueStatus checkAndQueue(HTTPUploadSession session, HttpContext context) {
         RequestCache rqc = REQUESTS.get(session.getHost());
         if (rqc == null)
             rqc = new RequestCache();
         // make sure we don't forget this RequestCache too soon!
         REQUESTS.put(session.getHost(), rqc);
         rqc.countRequest();
-        if (rqc.isHammering()) {
-            if (LOG.isWarnEnabled())
-                LOG.warn(session.getUploader() + " banned.");
-            return QueueStatus.BANNED;
+        // only enforce hammering for unauthenticated clients that don't have credentials
+        ServerAuthState serverAuthState = (ServerAuthState) context.getAttribute(ServerAuthState.AUTH_STATE); 
+        if (serverAuthState == null || serverAuthState.getCredentials() == null) {
+            if (rqc.isHammering()) {
+                if (LOG.isWarnEnabled())
+                    LOG.warn("BANNED: " + session.getHost() + " (hammering)");
+                return QueueStatus.BANNED;
+            }
         }
 
         FileDesc fd = session.getUploader().getFileDesc();
-        if (!contentManager.get().isVerified(fd.getSHA1Urn())) // spawn a validation
-            fileManager.get().validate(fd);
+        if (!urnValidator.isValid(fd.getSHA1Urn())) {
+            urnValidator.validate(fd.getSHA1Urn());
+        }
 
         URN sha1 = fd.getSHA1Urn();
 
-        if (rqc.isDupe(sha1))
-            return QueueStatus.REJECTED;
+        if (rqc.isDupe(sha1) && UploadSettings.CHECK_DUPES.getValue()) {
+            if (LOG.isDebugEnabled())
+                LOG.debug("REJECTED: request " + sha1 + " from " + session.getHost() + " (duplicate request)");
+            return QueueStatus.REJECTED;    
+        }
 
         // check the host limit unless this is a poll
         if (slotManager.positionInQueue(session) == -1
                 && hostLimitReached(session.getHost())) {
             if (LOG.isDebugEnabled())
-                LOG.debug("host limit reached for " + session.getHost());
+                LOG.debug("REJECTED: request " + sha1 + " from " + session.getHost() + " (host limit reached)");
             return QueueStatus.REJECTED;
         }
 
         int queued = slotManager.pollForSlot(session, session.getUploader()
                 .supportsQueueing(), session.getUploader().isPriorityShare());
 
-        if (LOG.isDebugEnabled())
-            LOG.debug("queued at " + queued);
+//        if (LOG.isDebugEnabled())
+//            LOG.debug("queued at " + queued);
 
-        if (queued == -1) // not accepted nor queued.
+        if (queued == -1) { // not accepted nor queued.
+            if (LOG.isDebugEnabled())
+                LOG.debug("QUEUED: request " + sha1 + " from " + session.getHost() + " (attempt to queue failed)");
             return QueueStatus.REJECTED;
+        }
 
         if (queued > 0 && session.poll()) {
+            if (LOG.isDebugEnabled())
+                LOG.debug("BANNED: request " + sha1 + " from " + session.getHost());
             slotManager.cancelRequest(session);
             // TODO we used to just drop the connection
             return QueueStatus.BANNED;
         }
         if (queued > 0) {
+            if (LOG.isDebugEnabled())
+                LOG.debug("QUEUED: request " + sha1 + " from " + session.getHost());
             return QueueStatus.QUEUED;
         } else {
+            if (LOG.isDebugEnabled())
+                LOG.debug("ACCEPTED: request " + sha1 + " from " + session.getHost());
             rqc.startedTransfer(sha1);
             return QueueStatus.ACCEPTED;
         }
@@ -756,7 +800,7 @@ public class HTTPUploadManager implements FileLocker, BandwidthTracker,
         } else if (HttpContextParams.isLocal(context)) {
             session.setQueueStatus(QueueStatus.ACCEPTED);
         } else {
-            session.setQueueStatus(checkAndQueue(session));
+            session.setQueueStatus(checkAndQueue(session, context));
         }
 
         if (LOG.isDebugEnabled())

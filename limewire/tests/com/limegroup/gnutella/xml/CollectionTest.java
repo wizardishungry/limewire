@@ -7,6 +7,7 @@ import java.io.IOException;
 import java.io.ObjectOutputStream;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -17,24 +18,28 @@ import org.limewire.util.NameValue;
 import org.limewire.util.TestUtils;
 
 import com.google.inject.Injector;
-import com.limegroup.gnutella.FileDesc;
 import com.limegroup.gnutella.LimeTestUtils;
 import com.limegroup.gnutella.URN;
-import com.limegroup.gnutella.UrnCache;
 import com.limegroup.gnutella.helpers.UrnHelper;
+import com.limegroup.gnutella.library.FileDesc;
+import com.limegroup.gnutella.library.FileDescFactory;
+import com.limegroup.gnutella.library.UrnCache;
 import com.limegroup.gnutella.metadata.MetaDataReader;
 import com.limegroup.gnutella.util.LimeTestCase;
 
 
 public class CollectionTest extends LimeTestCase {
 
-    FileDesc[] files = new FileDesc[3];
-    final String fileLocation = "com/limegroup/gnutella/xml/";
-    final File mason = TestUtils.getResourceFile(fileLocation + "nullfile.null");
-    final File test1 = TestUtils.getResourceFile(fileLocation + "test1.mp3");
-    final File test2 = TestUtils.getResourceFile(fileLocation + "test2.mp3");
-    final String audioSchemaURI = "http://www.limewire.com/schemas/audio.xsd";
-    final String videoSchemaURI = "http://www.limewire.com/schemas/video.xsd";
+    private FileDesc[] files = new FileDesc[3];
+    private final String fileLocation = "com/limegroup/gnutella/xml/";
+    private final File mason = TestUtils.getResourceFile(fileLocation + "nullfile.null");
+    private final int MASON_IDX = 0;
+    private final File test1 = TestUtils.getResourceFile(fileLocation + "test1.mp3");
+    private final int TEST1_IDX = 1;
+    private final File test2 = TestUtils.getResourceFile(fileLocation + "test2.mp3");
+    private final int TEST2_IDX = 2;
+    private final String audioSchemaURI = "http://www.limewire.com/schemas/audio.xsd";
+    private final String videoSchemaURI = "http://www.limewire.com/schemas/video.xsd";
 
     private final String KEY_PREFIX = "audios" + XMLStringUtils.DELIMITER +
         "audio" + XMLStringUtils.DELIMITER;
@@ -77,6 +82,8 @@ public class CollectionTest extends LimeTestCase {
         limeXMLProperties = injector.getInstance(LimeXMLProperties.class);
         metaDataReader = injector.getInstance(MetaDataReader.class);
         
+        FileDescFactory factory = injector.getInstance(FileDescFactory.class);
+        
         files = new FileDesc[3];
         assertTrue("Necessary file nullfile.null cannot be found!", mason.exists());
         assertTrue("Necessary file test1.mp3 cannot be found!", test1.exists());
@@ -84,11 +91,11 @@ public class CollectionTest extends LimeTestCase {
         
         Set<URN> urns;
         urns = UrnHelper.calculateAndCacheURN(mason, urnCache);
-        files[0] = new FileDesc(mason, urns, 0);
+        files[MASON_IDX] = factory.createFileDesc(mason, urns, 0);
         urns = UrnHelper.calculateAndCacheURN(test1, urnCache);
-        files[1] = new FileDesc(test1, urns, 1);
+        files[TEST1_IDX] = factory.createFileDesc(test1, urns, 1);
         urns = UrnHelper.calculateAndCacheURN(test2, urnCache);
-        files[2] = new FileDesc(test2, urns, 2);
+        files[TEST2_IDX] = factory.createFileDesc(test2, urns, 2);
 
         
     }
@@ -106,18 +113,14 @@ public class CollectionTest extends LimeTestCase {
         assertEquals("LimeXMLCollection count wrong!", 2, collection.getCount());
 
         // test assocation
-        LimeXMLDocument doc = null;
-        doc = collection.getDocForHash(getHash(mason));
-        assertNull("Mason should not have a doc!", doc);
-        doc = collection.getDocForHash(getHash(test1));
-        assertNotNull("Test1 should have a doc!", doc);
-        doc = collection.getDocForHash(getHash(test2));
-        assertNotNull("Test2 should have a doc!", doc);
+        assertNull(files[MASON_IDX].getXMLDocument(audioSchemaURI));
+        assertNotNull(files[TEST1_IDX].getXMLDocument(audioSchemaURI));
+        assertNotNull(files[TEST2_IDX].getXMLDocument(audioSchemaURI));
 
         // test keyword generation
-        List keywords = collection.getKeyWords();
+        List keywords = getKeywords(audioSchemaURI);
 
-        assertEquals("Wrong keywords: " + keywords.toString(), 8, keywords.size());
+        assertEquals("Wrong keywords: " + keywords.toString(), 7, keywords.size());
 
         //Note: the Test1 and Test2 both contain the keyword "Movie", so we
         //check only 7 keywords while there are 8 entries
@@ -147,16 +150,12 @@ public class CollectionTest extends LimeTestCase {
         assertEquals(0, collection.getCount());
 
         // test assocation
-        LimeXMLDocument doc = null;
-        doc = collection.getDocForHash(getHash(mason));
-        assertNull("Mason should not have a doc!", doc);
-        doc = collection.getDocForHash(getHash(test1));
-        assertNull("Test1 should not have a doc!", doc);
-        doc = collection.getDocForHash(getHash(test2));
-        assertNull("Test2 should not have a doc!", doc);
+        for(FileDesc fd : files) {
+            assertNull(fd.getXMLDocument(videoSchemaURI));
+        }
 
         // test keyword generation
-        List keywords = collection.getKeyWords();
+        List keywords = getKeywords(videoSchemaURI);
         assertEquals("Wrong keyword count!", 0,  keywords.size());
     }
 
@@ -177,7 +176,7 @@ public class CollectionTest extends LimeTestCase {
         List<NameValue<String>> nameVals = new ArrayList<NameValue<String>>();
         nameVals.add(new NameValue<String>(TITLE_KEY, "tfie"));
         LimeXMLDocument searchDoc = limeXMLDocumentFactory.createLimeXMLDocument(nameVals, audioSchemaURI);
-        List results = collection.getMatchingReplies(searchDoc);
+        Set<LimeXMLDocument> results = collection.getMatchingDocuments(searchDoc);
         assertEquals("Not the correct amount of results",
                      1, results.size());
                      
@@ -186,7 +185,7 @@ public class CollectionTest extends LimeTestCase {
         nameVals = new ArrayList<NameValue<String>>();
         nameVals.add(new NameValue<String>(ARTIST_KEY, "tfie"));
         searchDoc = limeXMLDocumentFactory.createLimeXMLDocument(nameVals, audioSchemaURI);
-        results = collection.getMatchingReplies(searchDoc);
+        results = collection.getMatchingDocuments(searchDoc);
         assertEquals("Not the correct amount of results",
                      0, results.size());
 
@@ -196,7 +195,7 @@ public class CollectionTest extends LimeTestCase {
         nameVals.add(new NameValue<String>(ALBUM_KEY, "susheel"));
         nameVals.add(new NameValue<String>(TITLE_KEY, "o"));
         searchDoc = limeXMLDocumentFactory.createLimeXMLDocument(nameVals, audioSchemaURI);
-        results = collection.getMatchingReplies(searchDoc);
+        results = collection.getMatchingDocuments(searchDoc);
         assertEquals("Not the correct amount of results",
                          1, results.size());
 
@@ -206,7 +205,7 @@ public class CollectionTest extends LimeTestCase {
         nameVals.add(new NameValue<String>(ALBUM_KEY, "ignored"));
         nameVals.add(new NameValue<String>(ARTIST_KEY, "afield"));
         searchDoc = limeXMLDocumentFactory.createLimeXMLDocument(nameVals, audioSchemaURI);
-        results = collection.getMatchingReplies(searchDoc);
+        results = collection.getMatchingDocuments(searchDoc);
         assertEquals("Not the correct amount of results",
                      1, results.size());
 
@@ -215,7 +214,7 @@ public class CollectionTest extends LimeTestCase {
         nameVals.add(new NameValue<String>(TITLE_KEY, "othertf"));
         nameVals.add(new NameValue<String>(ARTIST_KEY, "otherafi"));
         searchDoc = limeXMLDocumentFactory.createLimeXMLDocument(nameVals, audioSchemaURI);
-        results = collection.getMatchingReplies(searchDoc);
+        results = collection.getMatchingDocuments(searchDoc);
         assertEquals("Not the correct amount of results", 
                           1, results.size()); 
 
@@ -224,7 +223,7 @@ public class CollectionTest extends LimeTestCase {
         nameVals.add(new NameValue<String>(TITLE_KEY, "othert"));
         nameVals.add(new NameValue<String>(ARTIST_KEY, "othra"));
         searchDoc = limeXMLDocumentFactory.createLimeXMLDocument(nameVals, audioSchemaURI);
-        results = collection.getMatchingReplies(searchDoc);
+        results = collection.getMatchingDocuments(searchDoc);
         assertEquals("Not the correct amount of results",
                           0, results.size());
 
@@ -233,7 +232,7 @@ public class CollectionTest extends LimeTestCase {
         nameVals.add(new NameValue<String>(ALBUM_KEY, "swi"));
         nameVals.add(new NameValue<String>(TRACK_KEY, "ferb"));
         searchDoc = limeXMLDocumentFactory.createLimeXMLDocument(nameVals, audioSchemaURI);
-        results = collection.getMatchingReplies(searchDoc);
+        results = collection.getMatchingDocuments(searchDoc);
         assertEquals("Not the correct amount of results",
                         0, results.size());
 
@@ -241,7 +240,7 @@ public class CollectionTest extends LimeTestCase {
         nameVals.clear();
         nameVals.add(new NameValue<String>(TRACK_KEY, "ferb"));
         searchDoc = limeXMLDocumentFactory.createLimeXMLDocument(nameVals, audioSchemaURI);
-        results = collection.getMatchingReplies(searchDoc);
+        results = collection.getMatchingDocuments(searchDoc);
         assertEquals("Not the correct amount of results",
                          0,  results.size());
                          
@@ -249,7 +248,7 @@ public class CollectionTest extends LimeTestCase {
         nameVals.clear();
         nameVals.add(new NameValue<String>(BITRATE_KEY, "64"));
         searchDoc = limeXMLDocumentFactory.createLimeXMLDocument(nameVals, audioSchemaURI);
-        results = collection.getMatchingReplies(searchDoc);
+        results = collection.getMatchingDocuments(searchDoc);
         assertEquals("Not the correct amount of results",
                         2, results.size());
                         
@@ -257,7 +256,7 @@ public class CollectionTest extends LimeTestCase {
         nameVals.clear();
         nameVals.add(new NameValue<String>(BITRATE_KEY, "6"));
         searchDoc = limeXMLDocumentFactory.createLimeXMLDocument(nameVals, audioSchemaURI);
-        results = collection.getMatchingReplies(searchDoc);
+        results = collection.getMatchingDocuments(searchDoc);
         assertEquals("Not the correct amount of results",
                         0, results.size());
     }
@@ -281,17 +280,17 @@ public class CollectionTest extends LimeTestCase {
         assertEquals("LimeXMLCollection count wrong!", 2, videoCollection.getCount());
 
         // test assocation
-        assertNull("Mason should not have a doc!", audioCollection.getDocForHash(getHash(mason)));
-        assertNotNull("Test1 should have a doc!", audioCollection.getDocForHash(getHash(test1)));
-        assertNotNull("Test2 should have a doc!", audioCollection.getDocForHash(getHash(test2)));
-        assertNotNull("Mason should have a doc!", videoCollection.getDocForHash(getHash(mason)));
-        assertNull("Test1 should not have a doc!", videoCollection.getDocForHash(getHash(test1)));
-        assertNotNull("Test2 should have a doc!", videoCollection.getDocForHash(getHash(test2)));
+        assertNull("Mason should not have a doc!", files[MASON_IDX].getXMLDocument(audioSchemaURI));
+        assertNotNull("Test1 should have a doc!", files[TEST1_IDX].getXMLDocument(audioSchemaURI));
+        assertNotNull("Test2 should have a doc!", files[TEST2_IDX].getXMLDocument(audioSchemaURI));
+        assertNotNull("Mason should have a doc!", files[MASON_IDX].getXMLDocument(videoSchemaURI));
+        assertNull("Test1 should not have a doc!",files[TEST1_IDX].getXMLDocument(videoSchemaURI));
+        assertNotNull("Test2 should have a doc!", files[TEST2_IDX].getXMLDocument(videoSchemaURI));
 
 
         // test keyword generation
-        List<String> keywords = audioCollection.getKeyWords();
-        assertEquals("Wrong keyword count!", 8, keywords.size());
+        List<String> keywords = getKeywords(audioSchemaURI);
+        assertEquals("Wrong keyword count!", 7, keywords.size());
         assertTrue("Correct keywords not in map!", 
                           (keywords.contains("othertfield") && 
                            keywords.contains("otherafield")  &&
@@ -301,7 +300,7 @@ public class CollectionTest extends LimeTestCase {
                            keywords.contains("Vocal") &&
                            keywords.contains("Movie") )
                           );
-        keywords = videoCollection.getKeyWords();
+        keywords = getKeywords(videoSchemaURI);
         assertEquals("Wrong keyword count!", 4, keywords.size());
         assertTrue("Correct keywords not in map!", 
                           (keywords.contains("null") && 
@@ -333,7 +332,7 @@ public class CollectionTest extends LimeTestCase {
         collection.addReply(files[1], newDoc2);
 
         //check the keywords.
-        List l = collection.getKeyWords();
+        List l = getKeywords(videoSchemaURI);
         assertTrue("Couldn't find all keywords",
                    (l.contains(keywds[0]) &&
                     l.contains(keywds[1]) &&
@@ -344,23 +343,23 @@ public class CollectionTest extends LimeTestCase {
         LimeXMLDocument newDocQ2 = limeXMLDocumentFactory.createLimeXMLDocument(buildXMLString(dir3));
 
         //make sure we get matches that we expect
-        l = collection.getMatchingReplies(newDocQ);
-        assertEquals("should of found two matches", 2, l.size());
-        
-        l = collection.getMatchingReplies(newDocQ2);
-        assertEquals("should of found only one match", 1, l.size());
+        Set<LimeXMLDocument> matchingReplies = collection.getMatchingDocuments(newDocQ);
+        assertEquals("should of found two matches", 2, matchingReplies.size());
+
+        matchingReplies = collection.getMatchingDocuments(newDocQ2);
+        assertEquals("should of found only one match", 1, matchingReplies.size());
         
         //make sure we get the same xml string...
         assertEquals("didn't get expected xml string",
-                     newDoc2.getXMLString(), ((LimeXMLDocument)l.iterator().next()).getXMLString());
+                     newDoc2.getXMLString(), matchingReplies.iterator().next().getXMLString());
 
 
         //check we get the right docs back from getDocForHash
-        LimeXMLDocument returnDoc = collection.getDocForHash(files[0].getSHA1Urn());
+        LimeXMLDocument returnDoc = files[0].getXMLDocument(videoSchemaURI);
         assertEquals("didn't get expected xml string (getDocForHash)",
                      newDoc.getXMLString(), returnDoc.getXMLString());
         
-        returnDoc = collection.getDocForHash(files[1].getSHA1Urn());
+        returnDoc = files[1].getXMLDocument(videoSchemaURI);
         assertEquals("didn't get expected xml string (getDocForHash)",
                      newDoc2.getXMLString(), returnDoc.getXMLString());
         
@@ -368,13 +367,26 @@ public class CollectionTest extends LimeTestCase {
         //remove 
         collection.removeDoc(files[1]);
         
-        l = collection.getMatchingReplies(newDocQ2);
-        assertEquals("should not of found a match", 0, l.size());
+        matchingReplies = collection.getMatchingDocuments(newDocQ2);
+        assertEquals("should not of found a match", 0, matchingReplies.size());
         
         //make sure the keywords got deleted as well
-        l = collection.getKeyWords();
+        l = getKeywords(videoSchemaURI);
         assertTrue("unexpected keywords",
                    l.contains(keywds[0]) && l.contains(keywds[1]) && !l.contains(keywds[2]));
+    }
+    
+    private List<String> getKeywords(String schema) {
+        Set<String> words = new HashSet<String>();
+        for(FileDesc fd : files) {
+            if(fd != null) {
+                LimeXMLDocument doc = fd.getXMLDocument(schema);
+                if(doc != null) {
+                    words.addAll(doc.getKeyWords());
+                }
+            }
+        }
+        return new ArrayList<String>(words);
     }
 
     // build xml string for video

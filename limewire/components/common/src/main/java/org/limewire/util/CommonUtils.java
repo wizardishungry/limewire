@@ -257,8 +257,8 @@ public class CommonUtils {
                 StackTraceElement[] value = entry.getValue();
                 
                 buffer.append(key.getName()).append("\n");
-                for(int i = 0; i < value.length; i++) {
-                    buffer.append("    ").append(value[i]).append("\n");
+                for (StackTraceElement aValue : value) {
+                    buffer.append("    ").append(aValue).append("\n");
                 }
                 buffer.append("\n");
             }
@@ -285,29 +285,29 @@ public class CommonUtils {
      *     "h:mm:ss" where h=hours<24, mm=minutes, ss=seconds, or
      *     "m:ss" where m=minutes<60, ss=seconds
      */
-    public static String seconds2time(int seconds) {
-        int minutes = seconds / 60;
+    public static String seconds2time(long seconds) {
+        long minutes = seconds / 60;
         seconds = seconds - minutes * 60;
-        int hours = minutes / 60;
+        long hours = minutes / 60;
         minutes = minutes - hours * 60;
-        int days = hours / 24;
+        long days = hours / 24;
         hours = hours - days * 24;
         // build the numbers into a string
         StringBuilder time = new StringBuilder();
         if (days != 0) {
-            time.append(Integer.toString(days));
+            time.append(Long.toString(days));
             time.append(":");
             if (hours < 10) time.append("0");
         }
         if (days != 0 || hours != 0) {
-            time.append(Integer.toString(hours));
+            time.append(Long.toString(hours));
             time.append(":");
             if (minutes < 10) time.append("0");
         }
-        time.append(Integer.toString(minutes));
+        time.append(Long.toString(minutes));
         time.append(":");
         if (seconds < 10) time.append("0");
-        time.append(Integer.toString(seconds));
+        time.append(Long.toString(seconds));
         return time.toString();
     }
 
@@ -416,18 +416,22 @@ public class CommonUtils {
     	        }
             }          
     	}
-        for (int i = 0; i < ILLEGAL_CHARS_ANY_OS.length; i++) 
-            name = name.replace(ILLEGAL_CHARS_ANY_OS[i], '_');
+        for (char aILLEGAL_CHARS_ANY_OS : ILLEGAL_CHARS_ANY_OS) {
+            name = name.replace(aILLEGAL_CHARS_ANY_OS, '_');
+        }
     	
         if ( OSUtils.isWindows() || OSUtils.isOS2() ) {
-            for (int i = 0; i < ILLEGAL_CHARS_WINDOWS.length; i++) 
-                name = name.replace(ILLEGAL_CHARS_WINDOWS[i], '_');
+            for (char aILLEGAL_CHARS_WINDOWS : ILLEGAL_CHARS_WINDOWS) {
+                name = name.replace(aILLEGAL_CHARS_WINDOWS, '_');
+            }
         } else if ( OSUtils.isLinux() || OSUtils.isSolaris() ) {
-            for (int i = 0; i < ILLEGAL_CHARS_UNIX.length; i++) 
-                name = name.replace(ILLEGAL_CHARS_UNIX[i], '_');
+            for (char aILLEGAL_CHARS_UNIX : ILLEGAL_CHARS_UNIX) {
+                name = name.replace(aILLEGAL_CHARS_UNIX, '_');
+            }
         } else if (OSUtils.isMacOSX()) {
-            for(int i = 0; i < ILLEGAL_CHARS_MACOS.length; i++)
-                name = name.replace(ILLEGAL_CHARS_MACOS[i], '_');
+            for (char aILLEGAL_CHARS_MACOS : ILLEGAL_CHARS_MACOS) {
+                name = name.replace(aILLEGAL_CHARS_MACOS, '_');
+            }
         }
         
         return name;
@@ -441,18 +445,22 @@ public class CommonUtils {
      * @return sanitized String
      */
     public static String santizeString(String name) {
-        for (int i = 0; i < ILLEGAL_CHARS_ANY_OS.length; i++) 
-            name = name.replace(ILLEGAL_CHARS_ANY_OS[i], '_');
+        for (char aILLEGAL_CHARS_ANY_OS : ILLEGAL_CHARS_ANY_OS) {
+            name = name.replace(aILLEGAL_CHARS_ANY_OS, '_');
+        }
         
         if ( OSUtils.isWindows() || OSUtils.isOS2() ) {
-            for (int i = 0; i < ILLEGAL_CHARS_WINDOWS.length; i++) 
-                name = name.replace(ILLEGAL_CHARS_WINDOWS[i], '_');
+            for (char aILLEGAL_CHARS_WINDOWS : ILLEGAL_CHARS_WINDOWS) {
+                name = name.replace(aILLEGAL_CHARS_WINDOWS, '_');
+            }
         } else if ( OSUtils.isLinux() || OSUtils.isSolaris() ) {
-            for (int i = 0; i < ILLEGAL_CHARS_UNIX.length; i++) 
-                name = name.replace(ILLEGAL_CHARS_UNIX[i], '_');
+            for (char aILLEGAL_CHARS_UNIX : ILLEGAL_CHARS_UNIX) {
+                name = name.replace(aILLEGAL_CHARS_UNIX, '_');
+            }
         } else if (OSUtils.isMacOSX()) {
-            for(int i = 0; i < ILLEGAL_CHARS_MACOS.length; i++)
-                name = name.replace(ILLEGAL_CHARS_MACOS[i], '_');
+            for (char aILLEGAL_CHARS_MACOS : ILLEGAL_CHARS_MACOS) {
+                name = name.replace(aILLEGAL_CHARS_MACOS, '_');
+            }
         }
         return name;
     }
@@ -519,7 +527,7 @@ public class CommonUtils {
                 throw new IOException("could not create preferences directory: " + dir);
         }
 
-        if(!dir.canWrite())
+        if(!FileUtils.canWrite(dir))
             throw new IOException("settings dir not writable: " + dir);
 
         if(!dir.canRead())
@@ -562,5 +570,21 @@ public class CommonUtils {
             return settingsDirectory;
         else
             return getUserHomeDir();
+    }
+    
+    /**
+     * Parses a long from the given string swallowing any exceptions. null is
+     * returned if there is an error parsing the string.
+     */
+    public static Long parseLongNoException(String str) {
+        Long num = null;
+        if (str != null) {
+            try {
+                num = Long.valueOf(str);
+            } catch (NumberFormatException e) {
+                // continue; null is returned
+            }
+        }
+        return num;
     }
 }

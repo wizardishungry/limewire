@@ -1,5 +1,9 @@
 package com.limegroup.bittorrent;
 
+import java.util.List;
+
+import org.limewire.io.Address;
+
 interface Torrent {
 
 	/**
@@ -49,6 +53,8 @@ interface Torrent {
 	
 	public boolean isActive();
 	
+	public boolean isDownloading();
+	
 	public TorrentState getState();
 	
 	public long getNextTrackerRequestTime();
@@ -83,4 +89,7 @@ interface Torrent {
 	 * Pauses the torrent.
 	 */
 	public abstract void pause();
+
+	/** Returns all sources as an address. */
+    public abstract List<Address> getSourceAddresses();
 }

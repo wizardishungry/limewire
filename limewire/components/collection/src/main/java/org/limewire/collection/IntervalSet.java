@@ -69,6 +69,15 @@ public class IntervalSet implements Iterable<Range>, Serializable{
     }
 
     /**
+     * Creates an interval set with the given base range.
+     * @param interval - range to create the interval set with.
+     */
+    public IntervalSet(Range interval) {
+        this();
+        add(interval);
+    }
+
+    /**
      * Creates an interval set representing a single Interval.
      * 
      * @param lowBound the lower bound of the represented Interval
@@ -529,7 +538,7 @@ public class IntervalSet implements Iterable<Range>, Serializable{
      * backed off of is new.
      */
     @Override
-    public IntervalSet clone() {
+    public IntervalSet clone() throws CloneNotSupportedException {
         IntervalSet ret = new IntervalSet();
         for(Range interval : this)
             // access the internal TreeSet directly, - it's faster that way.
@@ -665,8 +674,9 @@ public class IntervalSet implements Iterable<Range>, Serializable{
         
         List<Range> oldIntervals = new ArrayList<Range>(intervals);
         intervals.clear();
-        for(Iterator<Range> i = oldIntervals.iterator(); i.hasNext(); )
-            add(i.next());
+        for (Range oldInterval : oldIntervals) {
+            add(oldInterval);
+        }
         
         String postIntervals = intervals.toString();
         

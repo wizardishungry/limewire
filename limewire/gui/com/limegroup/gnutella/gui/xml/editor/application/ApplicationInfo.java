@@ -3,10 +3,10 @@ package com.limegroup.gnutella.gui.xml.editor.application;
 
 import javax.swing.JLabel;
 
-import com.limegroup.gnutella.FileDesc;
 import com.limegroup.gnutella.gui.xml.editor.AbstractMetaInfoPanel;
 import com.limegroup.gnutella.gui.xml.editor.DetailsPanel;
 import com.limegroup.gnutella.gui.xml.editor.IconPanel;
+import com.limegroup.gnutella.library.FileDesc;
 import com.limegroup.gnutella.xml.LimeXMLDocument;
 import com.limegroup.gnutella.xml.LimeXMLSchema;
 

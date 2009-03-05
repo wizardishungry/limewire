@@ -18,10 +18,11 @@ import javax.swing.JComboBox;
 import javax.swing.JDialog;
 import javax.swing.JPanel;
 
+import org.limewire.core.settings.StatusBarSettings;
+
 import com.jgoodies.forms.builder.DefaultFormBuilder;
 import com.jgoodies.forms.layout.FormLayout;
 import com.limegroup.gnutella.gui.actions.AbstractAction;
-import com.limegroup.gnutella.settings.StatusBarSettings;
 
 public class LanguageWindow extends JDialog {
 

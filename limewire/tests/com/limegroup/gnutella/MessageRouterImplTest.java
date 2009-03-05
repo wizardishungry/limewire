@@ -14,6 +14,7 @@ import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
 
 import junit.framework.Test;
@@ -22,10 +23,15 @@ import org.hamcrest.Description;
 import org.hamcrest.TypeSafeMatcher;
 import org.jmock.Expectations;
 import org.jmock.Mockery;
+import org.limewire.core.settings.ConnectionSettings;
+import org.limewire.core.settings.DHTSettings;
+import org.limewire.core.settings.UltrapeerSettings;
+import org.limewire.io.GUID;
 import org.limewire.io.IpPort;
 import org.limewire.io.IpPortImpl;
 import org.limewire.io.NetworkInstanceUtils;
 import org.limewire.io.NetworkUtils;
+import org.limewire.listener.ListenerSupport;
 import org.limewire.mojito.EntityKey;
 import org.limewire.mojito.KUID;
 import org.limewire.mojito.MojitoDHT;
@@ -48,6 +54,7 @@ import com.google.inject.Injector;
 import com.google.inject.Module;
 import com.google.inject.Provider;
 import com.google.inject.Singleton;
+import com.google.inject.name.Named;
 import com.limegroup.gnutella.connection.ConnectionLifecycleEvent;
 import com.limegroup.gnutella.connection.ConnectionLifecycleListener;
 import com.limegroup.gnutella.connection.GnetConnectObserver;
@@ -63,6 +70,10 @@ import com.limegroup.gnutella.handshaking.BadHandshakeException;
 import com.limegroup.gnutella.handshaking.HandshakeResponderFactory;
 import com.limegroup.gnutella.handshaking.HeadersFactory;
 import com.limegroup.gnutella.handshaking.NoGnutellaOkException;
+import com.limegroup.gnutella.helpers.UrnHelper;
+import com.limegroup.gnutella.library.FileDescChangeEvent;
+import com.limegroup.gnutella.library.FileDescStub;
+import com.limegroup.gnutella.library.FileManager;
 import com.limegroup.gnutella.messages.Message;
 import com.limegroup.gnutella.messages.MessageFactory;
 import com.limegroup.gnutella.messages.PingReply;
@@ -83,13 +94,10 @@ import com.limegroup.gnutella.messages.vendor.HeadPongFactory;
 import com.limegroup.gnutella.messages.vendor.MessagesSupportedVendorMessage;
 import com.limegroup.gnutella.messages.vendor.PushProxyAcknowledgement;
 import com.limegroup.gnutella.messages.vendor.PushProxyRequest;
+import com.limegroup.gnutella.routing.QRPUpdater;
 import com.limegroup.gnutella.routing.QueryRouteTable;
 import com.limegroup.gnutella.search.SearchResultHandler;
-import com.limegroup.gnutella.settings.ConnectionSettings;
-import com.limegroup.gnutella.settings.DHTSettings;
-import com.limegroup.gnutella.settings.UltrapeerSettings;
 import com.limegroup.gnutella.simpp.SimppManager;
-import com.limegroup.gnutella.stubs.FileDescStub;
 import com.limegroup.gnutella.stubs.NetworkManagerStub;
 import com.limegroup.gnutella.stubs.ReplyHandlerStub;
 import com.limegroup.gnutella.util.LeafConnection;
@@ -98,7 +106,6 @@ import com.limegroup.gnutella.util.TestConnection;
 import com.limegroup.gnutella.util.TestConnectionFactory;
 import com.limegroup.gnutella.util.TestConnectionManager;
 import com.limegroup.gnutella.version.UpdateHandler;
-import com.limegroup.gnutella.xml.MetaFileManager;
 
 // TODO write test for storing bypassed results
 public final class MessageRouterImplTest extends LimeTestCase {
@@ -214,7 +221,7 @@ public final class MessageRouterImplTest extends LimeTestCase {
      */
     // TODO refactor to unit test case and move to different class
     public void testResponsesToQueryReplies() throws Exception {
-        ConnectionSettings.LAST_FWT_STATE.setValue(true);
+        ConnectionSettings.CANNOT_DO_FWT.setValue(true);
         
         // needs valid address && port
         final NetworkManagerStub networkManagerStub = new NetworkManagerStub();
@@ -234,7 +241,7 @@ public final class MessageRouterImplTest extends LimeTestCase {
         uploadManager.start();
         try {
             Response[] res = new Response[20];
-            Arrays.fill(res, responseFactory.createResponse(0, 10, "test"));
+            Arrays.fill(res, responseFactory.createResponse(0, 10, "test", UrnHelper.SHA1));
             QueryRequest query = queryRequestFactory.createQuery("test");
             
             Iterable iter = messageRouterImpl.responsesToQueryReplies(res, query, 10, null); 
@@ -279,7 +286,7 @@ public final class MessageRouterImplTest extends LimeTestCase {
             @Override
             protected void configure() {
                 bind(ConnectionManager.class).to(TestConnectionManager.class);
-                bind(FileManager.class).to(TestFileManager.class);
+                bind(QRPUpdater.class).to(TestQRPUpdater.class);
             }
         });
         
@@ -334,7 +341,6 @@ public final class MessageRouterImplTest extends LimeTestCase {
             @Override
             protected void configure() {
                 bind(ConnectionManager.class).to(TestConnectionManager.class);
-                bind(FileManager.class).to(TestFileManager.class);
             }
         });
         
@@ -582,7 +588,7 @@ public final class MessageRouterImplTest extends LimeTestCase {
         ManagedConnectionStubFactory managedConnectionStubFactory = injector.getInstance(ManagedConnectionStubFactory.class);
         
         
-        staticMessages.initialize();
+        staticMessages.start();
         
         QueryReply limeReply = staticMessages.getLimeReply();
         
@@ -617,7 +623,7 @@ public final class MessageRouterImplTest extends LimeTestCase {
         });
         
         ConnectionManager cm = injector.getInstance(ConnectionManager.class);
-        cm.initialize();
+        cm.start();
         ConnectionServices connectionServices = injector.getInstance(ConnectionServices.class);
         PingRequestFactory pingRequestFactory = injector.getInstance(PingRequestFactory.class);
         HostCatcher hostCatcher = injector.getInstance(HostCatcher.class);
@@ -830,7 +836,7 @@ public final class MessageRouterImplTest extends LimeTestCase {
         });
         
         ConnectionManager cm = injector.getInstance(ConnectionManager.class);
-        cm.initialize();
+        cm.start();
         PingRequestFactory pingRequestFactory = injector.getInstance(PingRequestFactory.class);
         HostCatcher hostCatcher = injector.getInstance(HostCatcher.class);
 
@@ -1118,38 +1124,30 @@ public final class MessageRouterImplTest extends LimeTestCase {
         Map set = (Map)PrivilegedAccessor.getValue(hostCatcher, "FREE_ULTRAPEER_SLOTS_SET");
         set.clear();
     }        
-        
     
-    /**
-     * Test file manager that returns specialized keywords for QRP testing.
-     */
     @Singleton
-    private static final class TestFileManager extends MetaFileManager {
-        
-        private final List KEYWORDS = 
+    private static class TestQRPUpdater extends QRPUpdater {
+
+        private final List<String> KEYWORDS = 
             Arrays.asList(MY_KEYWORDS);
-
+        
         @Inject
-        TestFileManager(FileManagerController fileManagerController) {
-            super(fileManagerController);
+        public TestQRPUpdater(FileManager fileManager, 
+                @Named("backgroundExecutor") ScheduledExecutorService backgroundExecutor,
+                ListenerSupport<FileDescChangeEvent> fileDescListenerSupport) {
+            super(fileManager, backgroundExecutor, fileDescListenerSupport);
         }
         
-
-        public List getKeyWords() {
-            return KEYWORDS;
-        }
-
-        //added due to changes in FileManager
         @Override
-        protected void buildQRT() {
-            super.buildQRT();
-            Iterator iter = getKeyWords().iterator();
-            while(iter.hasNext()) {
-                _queryRouteTable.add((String)iter.next());
+        public synchronized QueryRouteTable getQRT() {
+            QueryRouteTable qrt = super.getQRT();
+            for(String s : KEYWORDS ) {
+                qrt.add(s);
             }
+            return qrt;
         }
     }
-    
+     
     private static class HeadListener extends ReplyHandlerStub {
     	Message _lastSent;
     	@Override

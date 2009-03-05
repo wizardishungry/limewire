@@ -9,25 +9,27 @@ import javax.swing.Action;
 import javax.swing.Icon;
 import javax.swing.SwingUtilities;
 
+import org.limewire.core.api.download.DownloadAction;
+import org.limewire.core.api.download.SaveLocationException;
+import org.limewire.core.settings.BittorrentSettings;
+import org.limewire.core.settings.DaapSettings;
+import org.limewire.core.settings.QuestionsHandler;
+import org.limewire.io.GUID;
 import org.limewire.io.IpPort;
+import org.limewire.util.MediaType;
+import org.limewire.util.OSUtils;
 
 import com.google.inject.Singleton;
-import com.limegroup.bittorrent.settings.BittorrentSettings;
+import com.limegroup.bittorrent.ManagedTorrent;
 import com.limegroup.gnutella.ActivityCallback;
 import com.limegroup.gnutella.Downloader;
-import com.limegroup.gnutella.FileManagerEvent;
-import com.limegroup.gnutella.GUID;
-import com.limegroup.gnutella.MediaType;
 import com.limegroup.gnutella.RemoteFileDesc;
 import com.limegroup.gnutella.Uploader;
-import com.limegroup.gnutella.Downloader.DownloadStatus;
 import com.limegroup.gnutella.browser.MagnetOptions;
-import com.limegroup.gnutella.chat.InstantMessenger;
 import com.limegroup.gnutella.connection.ConnectionLifecycleEvent;
 import com.limegroup.gnutella.connection.RoutedConnection;
 import com.limegroup.gnutella.gui.actions.LaunchAction;
 import com.limegroup.gnutella.gui.actions.ShowInLibraryAction;
-import com.limegroup.gnutella.gui.chat.ChatUIManager;
 import com.limegroup.gnutella.gui.download.DownloaderUtils;
 import com.limegroup.gnutella.gui.logging.LogEvent;
 import com.limegroup.gnutella.gui.notify.Notification;
@@ -35,11 +37,7 @@ import com.limegroup.gnutella.gui.notify.NotifyUserProxy;
 import com.limegroup.gnutella.gui.search.SearchInformation;
 import com.limegroup.gnutella.gui.search.SearchMediator;
 import com.limegroup.gnutella.gui.sharing.ShareManager;
-import com.limegroup.gnutella.gui.util.BackgroundExecutorService;
-import com.limegroup.gnutella.search.HostData;
-import com.limegroup.gnutella.settings.DaapSettings;
-import com.limegroup.gnutella.settings.QuestionsHandler;
-import com.limegroup.gnutella.settings.iTunesSettings;
+import com.limegroup.gnutella.messages.QueryReply;
 import com.limegroup.gnutella.uploader.UploadType;
 import com.limegroup.gnutella.util.QueryUtils;
 import com.limegroup.gnutella.version.UpdateInformation;
@@ -141,11 +139,11 @@ public final class VisualConnectionCallback implements ActivityCallback {
      *  Add a query reply to a query screen
      */
     public void handleQueryResult(final RemoteFileDesc rfd,
-                                  final HostData data,
+                                  final QueryReply queryReply,
                                   final Set<? extends IpPort> locs) {
 		SwingUtilities.invokeLater(new Runnable() {
 			public void run() {
-			    SearchMediator.handleQueryResult(rfd, data, locs);
+			    SearchMediator.handleQueryResult(rfd, queryReply, locs);
 			}
 		});
     }
@@ -192,22 +190,6 @@ public final class VisualConnectionCallback implements ActivityCallback {
 	///////////////////////////////////////////////////////////////////////////
 	//  Files-related callbacks
 	///////////////////////////////////////////////////////////////////////////
-	
-    /**
-     * File manager finished loading.
-     */
-    public void fileManagerLoaded() {
-        if (DaapSettings.DAAP_ENABLED.getValue()) {
-            Runnable r = new Runnable() {
-                public void run() {
-                    DaapManager.instance().fileManagerLoaded();
-                }
-            };
-
-            BackgroundExecutorService.schedule(r);
-        }
-    }
-    
 	/** 
 	 * This method notifies the frontend that the data for the 
 	 * specified shared <tt>File</tt> instance has been 
@@ -226,46 +208,6 @@ public final class VisualConnectionCallback implements ActivityCallback {
          */
          mf().getLibraryMediator().updateSharedFile(file);
     }
-        
-	/**
-	 * Handles events created by the FileManager. Passes these events on to DAAP
-	 * or the Library.
-	 */
-    public void handleFileEvent(final FileManagerEvent evt) {
-        BackgroundExecutorService.schedule(new Runnable() {
-            public void run() {
-                if (DaapSettings.DAAP_ENABLED.getValue()
-                        && DaapManager.instance().isEnabled()) {
-                    DaapManager.instance().handleFileManagerEvent(evt);
-                }
-            }
-        });
-
-        SwingUtilities.invokeLater(new Runnable() {
-            public void run() {
-                mf().getLibraryMediator().handleFileManagerEvent(evt);
-            }
-        });
-    }
-    
-    public void fileManagerLoading() {
-        SwingUtilities.invokeLater(new Runnable() {
-            public void run() {
-                mf().getLibraryMediator().clearLibrary();
-            }
-        });
-        
-        if (DaapSettings.DAAP_ENABLED.getValue()) {
-            Runnable r = new Runnable() {
-                public void run() {
-                    DaapManager.instance().fileManagerLoading();
-                }
-            };
-
-            BackgroundExecutorService.schedule(r);
-        }
-    }
-    
 
 	///////////////////////////////////////////////////////////////////////////
 	//  Download-related callbacks
@@ -276,15 +218,15 @@ public final class VisualConnectionCallback implements ActivityCallback {
         SwingUtilities.invokeLater(doWorkRunnable);
     }
 
-    public void removeDownload(Downloader mgr) {
+    public void downloadCompleted(Downloader mgr) {
         Runnable doWorkRunnable = new RemoveDownload(mgr);
         SwingUtilities.invokeLater(doWorkRunnable);
         
-        if (iTunesSettings.ITUNES_SUPPORT_ENABLED.getValue() 
-                && mgr.getState() == DownloadStatus.COMPLETE) {
-            
-            iTunesMediator.instance().addSong(mgr.getSaveFile());
-        }
+//        if (iTunesSettings.ITUNES_SUPPORT_ENABLED.getValue() 
+//                && mgr.getState() == DownloadStatus.COMPLETE) {
+//            
+//            iTunesMediator.instance().addSong(mgr.getSaveFile());
+//        }
     }
     
     public void downloadsComplete() {
@@ -400,72 +342,7 @@ public final class VisualConnectionCallback implements ActivityCallback {
             mf().getUploadMediator().remove(mgr);
 	    }
     }
-	
 
-	///////////////////////////////////////////////////////////////////////////
-	//  Chat-related callbacks
-	///////////////////////////////////////////////////////////////////////////
-	
-	/** 
-	 * Adds a new chat session, encapsulated in the specified 
-	 * <tt>Chatter</tt> instance.
-	 *
-	 * @param chatter the <tt>Chatter</tt> instance that provides all
-	 *  data access regarding the chat session
-	 */
-	public void acceptChat(final InstantMessenger chatter) {
-	    SwingUtilities.invokeLater(new Runnable() {
-	        public void run() {
-	            ChatUIManager.instance().acceptChat(chatter);
-			}
-	    });
-	}
-	
-	/**
-	 * Receives a new chat message for a specific <tt>Chatter</tt>
-	 * instance.
-	 * 
-	 * @param chatter the <tt>Chatter</tt> instance that is receiving
-	 *  a new message
-	 */
-	public void receiveMessage(final InstantMessenger chatter, final String message) {
-	    SwingUtilities.invokeLater(new Runnable() {
-	        public void run() {
-	            ChatUIManager.instance().receiveMessage(chatter, message);
-			}
-	    });
-	}
-
-	/** 
-	 * Specifies that the given chat host is no longer available, thereby
-	 * ending the chat session.
-	 *
-	 * @param chatter the <tt>Chatter</tt> instance for the chat session
-	 *  that is terminating 
-	 */
-	public void chatUnavailable(final InstantMessenger chatter) {
-	    SwingUtilities.invokeLater(new Runnable() {
-	        public void run() {
-	            ChatUIManager.instance().chatUnavailable(chatter);
-			}
-	    });
-	}
-
-	/** 
-	 * Display an error message for the specified chat session.
-	 *
-	 * @param chatter the <tt>Chatter</tt> instance to show an error for
-	 * @param str the error to display
-	 */
-	public void chatErrorMessage(final InstantMessenger chatter, final String str) {
-	    SwingUtilities.invokeLater(new Runnable() {
-	        public void run() {
-		        ChatUIManager.instance().chatErrorMessage(chatter, str);
-			}
-	    });
-	}
-
-	
 	///////////////////////////////////////////////////////////////////////////
 	//  Other stuff
 	///////////////////////////////////////////////////////////////////////////
@@ -510,14 +387,6 @@ public final class VisualConnectionCallback implements ActivityCallback {
         });
         
         return bool.get();
-    }
-    
-    public void setAnnotateEnabled(final boolean enabled) {
-    	    SwingUtilities.invokeLater(new Runnable() {
-            public void run() {
-                mf().getLibraryMediator().setAnnotateEnabled(enabled);
-            }
-        });
     }
 
 	/**
@@ -583,31 +452,8 @@ public final class VisualConnectionCallback implements ActivityCallback {
         });
 		    
 	}
-	
-	/**
-	 * Notification of a component loading.
-	 */
-	public void componentLoading(final String component) {
-	    SwingUtilities.invokeLater(new Runnable() {
-	        public void run() {
-                GUIMediator.setSplashScreenString(
-                    I18n.tr(component));
-            }
-        });
-    }       
-	
-	/**
-	 * Indicates that the firewalled state of this has changed. 
-	 */
-	public void acceptedIncomingChanged(final boolean status) {
-		SwingUtilities.invokeLater(new Runnable() {
-			public void run() {
-				GUIMediator.instance().getStatusLine().updateFirewallLabel(status);
-			}
-		});
-	}
 
-	public String getHostValue(String key) {
+    public String getHostValue(String key) {
         return I18n.tr(key);
     }
     
@@ -621,7 +467,7 @@ public final class VisualConnectionCallback implements ActivityCallback {
 	/**
 	 * Returns true since we want to kick off the magnet downloads ourselves.
 	 */
-	public boolean handleMagnets(final MagnetOptions[] magnets) {
+	public void handleMagnets(final MagnetOptions[] magnets) {
 		SwingUtilities.invokeLater(new Runnable() {
 			public void run() {
 				boolean oneSearchStarted = false;
@@ -648,7 +494,6 @@ public final class VisualConnectionCallback implements ActivityCallback {
 				}
 			}
 		});
-		return true;
 	}
 	
 	public void handleTorrent(final File torrentFile) {
@@ -666,4 +511,57 @@ public final class VisualConnectionCallback implements ActivityCallback {
             }
         });
     }
+    
+    public void handleDAAPConnectionError(Throwable t) {
+        if (t == null)
+            return;
+
+        String msg = t.getMessage();
+        if (msg == null
+                || msg.indexOf("Unable to establish loopback connection") == -1) {
+            handleDAAPConnectionError(t.getCause());
+            return;
+        }
+
+        // Problem with XP SP2. -- Loopback connections are disallowed.
+        // Why? Who knows. This patch fixes it:
+        // http://support.microsoft.com/default.aspx?kbid=884020
+        if (OSUtils.isWindowsXP() || OSUtils.isWindowsVista()) {
+            DialogOption answer = GUIMediator
+                    .showYesNoCancelMessage(I18n.tr("LimeWire was unable to start the Digital Audio Access Protocol (for sharing files in iTunes) because a Microsoft patch is required or a firewall is blocking access. LimeWire can direct you to Microsoft\'s page with information if you want to use this feature. Click \'Yes\' to go to the patch, \'No\' to disable this feature, or \'Cancel\' to decide later."));
+            switch (answer) {
+                case YES:
+                    GUIMediator
+                            .openURL("http://support.microsoft.com/default.aspx?kbid=884020");
+                    break;
+                case NO:
+                    DaapSettings.DAAP_ENABLED.setValue(false);
+                    break;
+            }
+        } else {
+            // Also a problem on non XP systems with firewalls.
+            DialogOption answer = GUIMediator
+                    .showYesNoMessage(I18n.tr("LimeWire was unable to start the Digital Audio Access Protocol (for sharing files in iTunes) because a firewall is blocking access. To continue using this feature, click \'Yes\' and change your firewall to allow \'LimeWire.exe\' full access to incoming and outgoing connections. To disable this feature, click \'No\'."),
+                            DialogOption.YES);
+            if (answer == DialogOption.NO)
+                DaapSettings.DAAP_ENABLED.setValue(false);
+        }
+        
+    }
+
+    public String translate(String s) {
+        return I18n.tr(s);
+    }
+
+    @Override
+    public void handleSaveLocationException(DownloadAction downLoadAction,
+            SaveLocationException sle, boolean supportsNewSaveDir) {
+        
+    }
+
+    @Override
+    public void promptTorrentUploadCancel(ManagedTorrent torrent) {
+        
+    }
+
 }

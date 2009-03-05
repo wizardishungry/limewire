@@ -1,6 +1,7 @@
 package com.limegroup.bittorrent.disk;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Set;
 
 import org.limewire.collection.BitField;
@@ -9,6 +10,7 @@ import org.limewire.collection.NECallable;
 import com.limegroup.bittorrent.BTInterval;
 import com.limegroup.bittorrent.BTPiece;
 import com.limegroup.bittorrent.PieceReadListener;
+import com.limegroup.bittorrent.handshaking.piecestrategy.PieceStrategy;
 import com.limegroup.gnutella.downloader.serial.BTDiskManagerMemento;
 
 /**
@@ -42,7 +44,7 @@ public interface TorrentDiskManager {
 
 	/**
 	 * Requests that a piece be read from disk
-	 * @param in the <tt>BTInterval</tt> representing the piece
+	 * @param in the <tt>BTInterval</tt> representing the Piece
 	 * @param listener the <tt>PieceReadListener</tt> to notify once the read
 	 * completes
 	 * @throws IOException if something goes wrong
@@ -65,32 +67,40 @@ public interface TorrentDiskManager {
 	public boolean isComplete();
 
 	/**
-	 * returns a random available range that has preferrably not yet been
-	 * requested
+	 * Returns an array of BTIntervals selected using the given piece strategy.
+	 * 
+     * @param bs the <tt>BitField</tt> of available ranges to choose from
+     * @param exclude the set of ranges that the connection is already about to request
+     * @param pieceStrategy the piece strategy to select the intervals with.
+     * @return a BTInterval that should be requested next.
+	 */
+	List<BTInterval> lease(BitField bs, Set<BTInterval> exclude, PieceStrategy pieceStrategy);
+	
+	/**
+	 * Returns up to 16k of a btInterval selected using the given piece strategy. 
+	 * If not pieceStrategy is included a default strategy will be selected.
 	 * 
 	 * @param bs the <tt>BitField</tt> of available ranges to choose from
-	 * @param exclude the set of ranges that the connection is already about to
-	 * request
+	 * @param exclude the set of ranges that the connection is already about to request
+	 * @param pieceStrategy the piece strategy to select the intervals with. Can be null.
 	 * @return a BTInterval that should be requested next.
 	 */
-	public BTInterval leaseRandom(BitField bs, Set<BTInterval> exclude);
+	public BTInterval leaseBTInterval(BitField bs, Set<BTInterval> exclude, PieceStrategy pieceStrategy);
 
 	/**
 	 * Removes an interval from the internal list of already requested intervals.
-	 * 
-	 * Note that during endgame several connections may be requesting the same interval
+	 * <p>
+	 * Note that during end game, several connections may be requesting the same interval
 	 * and as one of them fails that interval will no longer be considered requested.
-	 * That's ok as it will only result in that interval requested again.
+	 * That's ok as it will only result in that interval requested again. (See
+	 * http://wiki.theory.org/BitTorrentSpecification#End_Game)
 	 */
 	public void releaseInterval(BTInterval in);
 
 	/**
-	 * Creates a bitfield
-	 * 
 	 * @return returns an array of byte where the i'th byte is 1 if we have
 	 *         written and verified the i'th piece of the torrent and 0
 	 *         otherwise
-	 *         
 	 */
 	public byte[] createBitField();
 
@@ -131,9 +141,17 @@ public interface TorrentDiskManager {
 	public BTDiskManagerMemento toMemento();
     
     /**
-     * @return the last offset inside the torrent filesystem that has been 
-     * succesfully verified.
+     * @return the last offset inside the torrent file system that has been 
+     * successfully verified.
      */
     public long getLastVerifiedOffset();
+
+    /**
+     * Shrinks a lease from the old intrval to the new one.
+     * 
+     * @param oldInterval old interval to shrink
+     * @param newInterval new interval to maintain leased
+     */
+    public void renewLease(List<BTInterval> oldInterval, List<BTInterval> newInterval);
 
 }

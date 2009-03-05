@@ -1,25 +1,28 @@
 package com.limegroup.gnutella;
 
-import java.io.File;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 
 import junit.framework.Test;
 
-import org.limewire.util.FileUtils;
+import org.limewire.core.settings.LibrarySettings;
+import org.limewire.io.GUID;
 import org.limewire.util.PrivilegedAccessor;
 import org.limewire.util.TestUtils;
 
 import com.google.inject.Injector;
 import com.google.inject.Singleton;
+import com.google.inject.Stage;
+import com.limegroup.gnutella.library.FileManager;
+import com.limegroup.gnutella.library.FileManagerTestUtils;
 import com.limegroup.gnutella.messages.FeatureSearchData;
+import com.limegroup.gnutella.messages.Message.Network;
 import com.limegroup.gnutella.messages.QueryReply;
 import com.limegroup.gnutella.messages.QueryRequest;
 import com.limegroup.gnutella.messages.QueryRequestFactory;
-import com.limegroup.gnutella.messages.Message.Network;
-import com.limegroup.gnutella.settings.SharingSettings;
 import com.limegroup.gnutella.stubs.ActivityCallbackStub;
 
 /**
@@ -45,32 +48,6 @@ public class ServerSideMetaQueryTest extends ClientSideTestCase {
     @Override
     public void setSettings() {
         TIMEOUT = 1250;
-        SharingSettings.EXTENSIONS_TO_SHARE.setValue("txt;mp3;wmv;png;bin");
-        // get the resource file for com/limegroup/gnutella
-        File mp3 = 
-            TestUtils.getResourceFile("com/limegroup/gnutella/metadata/mpg1layIII_0h_58k-VBRq30_frame1211_44100hz_joint_XingTAG_sample.mp3");
-        // now move them to the share dir
-        FileUtils.copy(mp3, new File(_sharedDir, "berkeley.mp3"));
-        mp3 = 
-        TestUtils.getResourceFile("com/limegroup/gnutella/util/LimeTestCase.java");
-        // now move them to the share dir
-        FileUtils.copy(mp3, new File(_sharedDir, "meta audio.mp3"));
-        mp3 = 
-        TestUtils.getResourceFile("com/limegroup/gnutella/Backend.java");
-        // now move them to the share dir
-        FileUtils.copy(mp3, new File(_sharedDir, "meta video.wmv"));
-        mp3 = 
-        TestUtils.getResourceFile("com/limegroup/gnutella/Base32Test.java");
-        // now move them to the share dir
-        FileUtils.copy(mp3, new File(_sharedDir, "meta doc.txt"));
-        mp3 = 
-        TestUtils.getResourceFile("com/limegroup/gnutella/GUIDTest.java");
-        // now move them to the share dir
-        FileUtils.copy(mp3, new File(_sharedDir, "meta image.png"));
-        mp3 = 
-        TestUtils.getResourceFile("com/limegroup/gnutella/MediaTypeTest.java");
-        // now move them to the share dir
-        FileUtils.copy(mp3, new File(_sharedDir, "meta program txt.bin"));
     }
     
 
@@ -82,11 +59,19 @@ public class ServerSideMetaQueryTest extends ClientSideTestCase {
     
     @Override
     protected void setUp() throws Exception {
-        Injector injector = LimeTestUtils.createInjector(MyCallback.class);
+        Injector injector = LimeTestUtils.createInjector(Stage.PRODUCTION, MyCallback.class);
         super.setUp(injector);
         
         queryRequestFactory = injector.getInstance(QueryRequestFactory.class);
-        injector.getInstance(FileManager.class).loadSettingsAndWait(500);
+        FileManager fm = injector.getInstance(FileManager.class);
+        FileManagerTestUtils.waitForLoad(fm, 500);
+        LibrarySettings.ALLOW_PROGRAMS.setValue(true);
+        assertNotNull(fm.getGnutellaFileList().add(TestUtils.getResourceFile("com/limegroup/gnutella/resources/berkeley.mp3")).get(1, TimeUnit.SECONDS));
+        assertNotNull(fm.getGnutellaFileList().add(TestUtils.getResourceFile("com/limegroup/gnutella/resources/meta audio.mp3")).get(1, TimeUnit.SECONDS));
+        assertNotNull(fm.getGnutellaFileList().add(TestUtils.getResourceFile("com/limegroup/gnutella/resources/meta video.wmv")).get(1, TimeUnit.SECONDS));
+        assertNotNull(fm.getGnutellaFileList().add(TestUtils.getResourceFile("com/limegroup/gnutella/resources/meta doc.txt")).get(1, TimeUnit.SECONDS));
+        assertNotNull(fm.getGnutellaFileList().add(TestUtils.getResourceFile("com/limegroup/gnutella/resources/meta image.png")).get(1, TimeUnit.SECONDS));
+        assertNotNull(fm.getGnutellaFileList().add(TestUtils.getResourceFile("com/limegroup/gnutella/resources/meta program txt.bin")).get(1, TimeUnit.SECONDS));
     }
     
     @Singleton
@@ -112,7 +97,7 @@ public class ServerSideMetaQueryTest extends ClientSideTestCase {
             queryRequestFactory.createQueryRequest(GUID.makeGuid(), (byte)3,
                 "whatever", "", null, null, true, Network.TCP, false, 0, false, 0);
        
-        MediaType.Aggregator filter = MediaType.getAggregator(query);
+        MediaTypeAggregator.Aggregator filter = MediaTypeAggregator.getAggregator(query);
         assertNull(filter);
         }
 
@@ -153,7 +138,7 @@ public class ServerSideMetaQueryTest extends ClientSideTestCase {
                 "whatever", "", null, null, true, Network.TCP, false, 0, false,
                 flag);
        
-        MediaType.Aggregator filter = MediaType.getAggregator(query);
+        MediaTypeAggregator.Aggregator filter = MediaTypeAggregator.getAggregator(query);
         assertNotNull(filter);
         List filterList = (List) PrivilegedAccessor.getValue(filter, 
                                                              "_filters");

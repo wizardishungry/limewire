@@ -2,25 +2,28 @@ package com.limegroup.gnutella.filters;
 
 import java.util.Vector;
 
+import org.limewire.core.settings.FilterSettings;
+
 import com.google.inject.Inject;
 import com.google.inject.Provider;
 import com.google.inject.Singleton;
-import com.limegroup.gnutella.settings.FilterSettings;
 
 @Singleton
-public class SpamFilterFactoryImpl implements SpamFilterFactory {
+class SpamFilterFactoryImpl implements SpamFilterFactory {
     
     private final Provider<MutableGUIDFilter> mutableGUIDFilter;
     private final Provider<HostileFilter> hostileFilter;
     private final Provider<LocalIPFilter> ipFilter;
+    private final Provider<URNFilter> urnFilter;
 
     @Inject
     public SpamFilterFactoryImpl(Provider<MutableGUIDFilter> mutableGUIDFilter, 
             Provider<HostileFilter> hostileFilter,
-            Provider<LocalIPFilter> ipFilter) {
+            Provider<LocalIPFilter> ipFilter, Provider<URNFilter> urnFilter) {
         this.mutableGUIDFilter = mutableGUIDFilter;
         this.hostileFilter = hostileFilter;
         this.ipFilter = ipFilter;
+        this.urnFilter = urnFilter;
     }
     
     /* (non-Javadoc)
@@ -37,24 +40,19 @@ public class SpamFilterFactoryImpl implements SpamFilterFactory {
 
         //2. Keyword-based techniques.
         String[] badWords = FilterSettings.BANNED_WORDS.getValue();
+        String[] badExtensions = FilterSettings.BANNED_EXTENSIONS.getValue();
         
         boolean filterAdult = FilterSettings.FILTER_ADULT.getValue();
-        boolean filterVbs = FilterSettings.FILTER_VBS.getValue();
-        boolean filterHtml = FilterSettings.FILTER_HTML.getValue();
-        boolean filterWMVASF = FilterSettings.FILTER_WMV_ASF.getValue();
         
-        if (badWords.length!=0 || filterAdult || filterVbs || filterHtml) {
+        if (badWords.length!=0 || badExtensions.length!=0 || filterAdult) {
             KeywordFilter kf=new KeywordFilter();
-            for (int i=0; i<badWords.length; i++)
-                kf.disallow(badWords[i]);
+            for (String badWord : badWords)
+                kf.disallow(badWord);
+            for (String badExt : badExtensions)
+                kf.disallow(badExt);
             if (filterAdult)
                 kf.disallowAdult();
-            if (filterVbs)
-                kf.disallowVbs();
-            if (filterHtml)
-                kf.disallowHtml();
-            if (filterWMVASF)
-                kf.disallowWMVASF();
+
             buf.add(kf);
         }
 
@@ -64,6 +62,10 @@ public class SpamFilterFactoryImpl implements SpamFilterFactory {
         
         //4. Mutable GUID-based filters.
         buf.add(mutableGUIDFilter.get());
+        
+        //5. URN filters
+        if(FilterSettings.FILTER_URNS.getValue())
+            buf.add(urnFilter.get());
 
         return compose(buf);
     }
@@ -93,10 +95,6 @@ public class SpamFilterFactoryImpl implements SpamFilterFactory {
         //4. Queries containing hash urns.
         if (FilterSettings.FILTER_HASH_QUERIES.getValue())
             buf.add(new HashFilter());
-        
-        //4. BearShare high-bit queries.
-        // if (FilterSettings.FILTER_HIGHBIT_QUERIES.getValue())
-        //     buf.add(new BearShareFilter());
         
         // always filter hostiles
         buf.add(hostileFilter.get());

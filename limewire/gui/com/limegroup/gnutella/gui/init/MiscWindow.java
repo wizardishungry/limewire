@@ -14,18 +14,18 @@ import javax.swing.JPanel;
 import javax.swing.JRadioButton;
 import javax.swing.border.TitledBorder;
 
+import org.limewire.core.settings.ConnectionSettings;
+import org.limewire.core.settings.ContentSettings;
+import org.limewire.core.settings.DownloadSettings;
+import org.limewire.core.settings.SpeedConstants;
+import org.limewire.core.settings.StartupSettings;
 import org.limewire.i18n.I18nMarker;
 import org.limewire.util.OSUtils;
 
-import com.limegroup.gnutella.SpeedConstants;
 import com.limegroup.gnutella.gui.GUIUtils;
 import com.limegroup.gnutella.gui.I18n;
 import com.limegroup.gnutella.gui.URLLabel;
 import com.limegroup.gnutella.gui.WindowsUtils;
-import com.limegroup.gnutella.settings.ConnectionSettings;
-import com.limegroup.gnutella.settings.ContentSettings;
-import com.limegroup.gnutella.settings.DownloadSettings;
-import com.limegroup.gnutella.settings.StartupSettings;
 import com.limegroup.gnutella.util.MacOSXUtils;
 
 /**
@@ -57,17 +57,14 @@ final class MiscWindow extends SetupWindow {
     /**
      * Creates the window and its components.
      */
-    MiscWindow(SetupManager manager) {
-        super(
-                manager,
-                I18nMarker.marktr("Miscellaneous Settings"),
-                I18nMarker
-                        .marktr("Below, are several options that affect the performance and functionality of LimeWire."));
+    MiscWindow() {
+        super(I18nMarker.marktr("Miscellaneous Settings"),
+              I18nMarker.marktr("Below, are several options that affect " +
+                                "the performance and functionality of LimeWire."));
     }
 
     @Override
-    protected void createWindow() {
-        super.createWindow();
+    protected void createPageContent() {
 
         JPanel mainPanel = new JPanel(new GridBagLayout());
 
@@ -85,7 +82,7 @@ final class MiscWindow extends SetupWindow {
             _speedGroup.add(_modem);
             _speedGroup.add(_cable);
             
-            MultiLineLabel speedDesc = new MultiLineLabel(
+            WizardMultiLineLabel speedDesc = new WizardMultiLineLabel(
                     I18n.tr("Please choose the speed of your internet connection. Setting this speed correctly is important for optimum network performance."));
             speedDesc.setOpaque(false);
             speedDesc.setBorder(BorderFactory.createEmptyBorder(0, 10, 5, 5));
@@ -121,7 +118,7 @@ final class MiscWindow extends SetupWindow {
             _startup = new JCheckBox(I18n.tr("Start Automatically"));
             _startup.setSelected(StartupSettings.RUN_ON_STARTUP.getValue());
             
-            MultiLineLabel desc = new MultiLineLabel(
+            WizardMultiLineLabel desc = new WizardMultiLineLabel(
                     I18n.tr("Would you like LimeWire to start when you log into your computer? This will cause LimeWire to start faster when you use it later."));
             desc.setOpaque(false);
             desc.setBorder(BorderFactory.createEmptyBorder(0, 10, 5, 5));
@@ -150,7 +147,7 @@ final class MiscWindow extends SetupWindow {
             _filter = new JCheckBox(I18n.tr("Enable Content Filtering"));
             _filter.setSelected(ContentSettings.USER_WANTS_MANAGEMENTS.getValue());
             
-            MultiLineLabel desc = new MultiLineLabel(
+            WizardMultiLineLabel desc = new WizardMultiLineLabel(
                     I18n.tr("LimeWire can filter files that copyright owners request not be shared. By enabling filtering, you are telling LimeWire to confirm all files you download or share with a list of removed content. You can change this at any time by choosing Filters -> Configure Content Filters from the main menu."));
             desc.setOpaque(false);
             desc.setBorder(BorderFactory.createEmptyBorder(0, 10, 5, 5));

@@ -1,5 +1,6 @@
 package com.limegroup.gnutella.gui.upload;
 
+import java.io.File;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 
@@ -7,8 +8,8 @@ import javax.swing.Icon;
 
 import org.limewire.util.CommonUtils;
 
-import com.limegroup.gnutella.FileDesc;
 import com.limegroup.gnutella.InsufficientDataException;
+import com.limegroup.gnutella.URN;
 import com.limegroup.gnutella.Uploader;
 import com.limegroup.gnutella.Uploader.UploadStatus;
 import com.limegroup.gnutella.gui.GUIMediator;
@@ -25,6 +26,7 @@ import com.limegroup.gnutella.gui.tables.SizeHolder;
 import com.limegroup.gnutella.gui.tables.SpeedRenderer;
 import com.limegroup.gnutella.gui.tables.TimeRemainingHolder;
 import com.limegroup.gnutella.gui.upload.UploadProgressBarRenderer.UploadProgressBarData;
+import com.limegroup.gnutella.library.FileDesc;
 import com.limegroup.gnutella.uploader.UploadType;
 
 /**
@@ -790,5 +792,21 @@ public final class UploadDataLine extends AbstractDataLine<Uploader> {
         public InetAddress getInetAddress() { return inetAddr; }
         public int getPort() { return port; }
         public InetSocketAddress getInetSocketAddress() { return inetSocketAddr; }
+        public String getAddressDescription() { return inetSocketAddr.toString(); }
+
+        @Override
+        public File getFile() {
+            return fd.getFile();
+        }
+        
+        @Override
+        public URN getUrn() {
+            return fd.getSHA1Urn();
+        }
+
+        @Override
+        public int getNumUploadConnections() {
+            return 0;
+        }
 	}
 }

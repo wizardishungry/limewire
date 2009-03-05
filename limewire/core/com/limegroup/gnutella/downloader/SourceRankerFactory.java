@@ -1,12 +1,13 @@
 package com.limegroup.gnutella.downloader;
 
+import org.limewire.core.settings.DownloadSettings;
+
 import com.google.inject.Inject;
 import com.google.inject.Provider;
 import com.google.inject.Singleton;
 import com.limegroup.gnutella.MessageRouter;
 import com.limegroup.gnutella.NetworkManager;
 import com.limegroup.gnutella.UDPPinger;
-import com.limegroup.gnutella.settings.DownloadSettings;
 
 @Singleton
 public class SourceRankerFactory {
@@ -27,13 +28,21 @@ public class SourceRankerFactory {
         this.remoteFileDescFactory = remoteFileDescFactory;
     }
 
+    PingRanker createPingRanker() {
+        return new PingRanker(networkManager, udpPingerFactory.get(), messageRouter.get(), remoteFileDescFactory);
+    }
+    
+    FriendsFirstSourceRanker createFriendsFirstSourceRanker() {
+        return new FriendsFirstSourceRanker(createPingRanker());
+    }
+    
     /**
      * @return a ranker appropriate for our system's capabilities.
      */
     public SourceRanker getAppropriateRanker() {
         if (networkManager.canReceiveSolicited() && 
                 DownloadSettings.USE_HEADPINGS.getValue())
-            return new PingRanker(networkManager, udpPingerFactory.get(), messageRouter.get(), remoteFileDescFactory);
+            return createFriendsFirstSourceRanker();
         else 
             return new LegacyRanker();
     }
@@ -50,9 +59,9 @@ public class SourceRankerFactory {
         SourceRanker better;
         if (networkManager.canReceiveSolicited() && 
                 DownloadSettings.USE_HEADPINGS.getValue()) {
-            if (original instanceof PingRanker)
+            if (original instanceof FriendsFirstSourceRanker)
                 return original;
-            better = new PingRanker(networkManager, udpPingerFactory.get(), messageRouter.get(), remoteFileDescFactory);
+            better = createFriendsFirstSourceRanker();
         }else {
             if (original instanceof LegacyRanker)
                 return original;

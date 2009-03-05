@@ -9,6 +9,7 @@ import java.util.Set;
 import javax.swing.AbstractAction;
 import javax.swing.Action;
 
+import org.limewire.core.settings.SharingSettings;
 import org.limewire.i18n.I18nMarker;
 
 import com.limegroup.gnutella.gui.ButtonRow;
@@ -18,7 +19,6 @@ import com.limegroup.gnutella.gui.LabeledComponent;
 import com.limegroup.gnutella.gui.library.RecursiveSharingDialog;
 import com.limegroup.gnutella.gui.library.RecursiveSharingDialog.State;
 import com.limegroup.gnutella.gui.options.OptionsMediator;
-import com.limegroup.gnutella.settings.SharingSettings;
 
 /**
  * This class defines the panel in the options window that allows the user to

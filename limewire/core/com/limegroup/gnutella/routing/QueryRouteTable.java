@@ -9,12 +9,12 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.zip.DataFormatException;
 import java.util.zip.Inflater;
 
+import org.limewire.core.settings.ConnectionSettings;
 import org.limewire.io.IOUtils;
 
 import com.limegroup.gnutella.URN;
 import com.limegroup.gnutella.messages.BadPacketException;
 import com.limegroup.gnutella.messages.QueryRequest;
-import com.limegroup.gnutella.settings.ConnectionSettings;
 import com.limegroup.gnutella.util.Utilities;
 import com.limegroup.gnutella.xml.LimeXMLDocument;
 
@@ -543,7 +543,12 @@ public class QueryRouteTable {
             //      this.bitTable.get is true, prev.bitTable.get
             //      is false, and vice versa.            
             if(!this.storage.equals(prev.storage) ) {
-                QRTTableStorage xOr = this.storage.clone();
+                QRTTableStorage xOr = null;
+                try {
+                    xOr = this.storage.clone();
+                } catch (CloneNotSupportedException e) {
+                    throw new RuntimeException(e);
+                }
                 xOr.xor(prev.storage);
                 for (int i : xOr) {
                     data[i] = this.storage.get(i) ?

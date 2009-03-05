@@ -1,15 +1,44 @@
 package com.limegroup.gnutella;
 
 import java.io.IOException;
+import java.io.PrintWriter;
+import java.io.StringWriter;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.net.UnknownHostException;
 import java.util.Properties;
+import java.util.Set;
 
+import org.limewire.core.api.connection.FirewallStatusEvent;
+import org.limewire.core.api.connection.FirewallTransferStatus;
+import org.limewire.core.api.connection.FirewallTransferStatusEvent;
+import org.limewire.core.settings.ConnectionSettings;
+import org.limewire.core.settings.LimeProps;
+import org.limewire.core.settings.SearchSettings;
+import org.limewire.i18n.I18nMarker;
+import org.limewire.inspection.InspectablePrimitive;
+import org.limewire.io.Address;
+import org.limewire.io.Connectable;
+import org.limewire.io.ConnectableImpl;
+import org.limewire.io.GUID;
 import org.limewire.io.NetworkInstanceUtils;
 import org.limewire.io.NetworkUtils;
+import org.limewire.listener.BroadcastPolicy;
+import org.limewire.listener.CachingEventMulticasterImpl;
 import org.limewire.listener.EventListener;
-import org.limewire.listener.EventListenerList;
+import org.limewire.listener.EventMulticaster;
+import org.limewire.listener.ListenerSupport;
+import org.limewire.logging.Log;
+import org.limewire.logging.LogFactory;
+import org.limewire.net.address.AddressEvent;
+import org.limewire.net.address.FirewalledAddress;
+import org.limewire.nio.ByteBufferCache;
+import org.limewire.nio.ssl.SSLEngineTest;
+import org.limewire.nio.ssl.SSLUtils;
 import org.limewire.rudp.RUDPUtils;
-import org.limewire.setting.evt.SettingEvent;
-import org.limewire.setting.evt.SettingListener;
+import org.limewire.service.ErrorService;
+import org.limewire.setting.BooleanSetting;
+import org.limewire.util.OSUtils;
 
 import com.google.inject.Inject;
 import com.google.inject.Provider;
@@ -19,56 +48,122 @@ import com.limegroup.gnutella.dht.DHTManager;
 import com.limegroup.gnutella.handshaking.HeaderNames;
 import com.limegroup.gnutella.messages.vendor.CapabilitiesVMFactory;
 import com.limegroup.gnutella.messages.vendor.HeaderUpdateVendorMessage;
-import com.limegroup.gnutella.settings.ConnectionSettings;
-import com.limegroup.gnutella.settings.SearchSettings;
 import com.limegroup.gnutella.statistics.OutOfBandStatistics;
 
 @Singleton
 public class NetworkManagerImpl implements NetworkManager {
+
+    private static final Log LOG = LogFactory.getLog(NetworkManagerImpl.class);
     
     private final Provider<UDPService> udpService;
     private final Provider<Acceptor> acceptor;
     private final Provider<DHTManager> dhtManager;
     private final Provider<ConnectionManager> connectionManager;
-    private final Provider<ActivityCallback> activityCallback;
     private final OutOfBandStatistics outOfBandStatistics;
     private final NetworkInstanceUtils networkInstanceUtils;
     private final Provider<CapabilitiesVMFactory> capabilitiesVMFactory;
-    private final SettingListener fwtListener = new FWTChangeListener();
+    private final Provider<ByteBufferCache> bbCache;
     
-    private final EventListenerList<NetworkManagerEvent> listeners =
-        new EventListenerList<NetworkManagerEvent>();
+    private final Object addressLock = new Object();
+
+    private volatile Connectable directAddress;
+    private volatile FirewalledAddress firewalledAddress;
     
+    
+    /** True if TLS is supported for this session. */
+    private volatile boolean tlsSupported = true;
+    
+    /** The Throwable that was the reason TLS failed. */
+    @InspectablePrimitive("reason tls failed")
+    @SuppressWarnings({"unused", "FieldCanBeLocal", "UnusedDeclaration"})
+    private volatile String tlsDisabledReason;
+    
+    private final EventMulticaster<AddressEvent> listeners =
+        new CachingEventMulticasterImpl<AddressEvent>(BroadcastPolicy.IF_NOT_EQUALS);
+    private final ApplicationServices applicationServices;
+    private volatile boolean started;
+    
+    /**
+     * Set of cached proxies, if proxies are known before the external address is.
+     */
+    private volatile Set<Connectable> cachedProxies;
+
     @Inject
     public NetworkManagerImpl(Provider<UDPService> udpService,
             Provider<Acceptor> acceptor,
             Provider<DHTManager> dhtManager,
             Provider<ConnectionManager> connectionManager,
-            Provider<ActivityCallback> activityCallback,
             OutOfBandStatistics outOfBandStatistics,
             NetworkInstanceUtils networkInstanceUtils,
-            Provider<CapabilitiesVMFactory> capabilitiesVMFactory) {
+            Provider<CapabilitiesVMFactory> capabilitiesVMFactory,
+            Provider<ByteBufferCache> bbCache,
+            ApplicationServices applicationServices) {
         this.udpService = udpService;
         this.acceptor = acceptor;
         this.dhtManager = dhtManager;
         this.connectionManager = connectionManager;
-        this.activityCallback = activityCallback;
         this.outOfBandStatistics = outOfBandStatistics;
         this.networkInstanceUtils = networkInstanceUtils;
         this.capabilitiesVMFactory = capabilitiesVMFactory;
+        this.bbCache = bbCache;
+        this.applicationServices = applicationServices;
+    }
+    
+    @Inject
+    void register(org.limewire.lifecycle.ServiceRegistry registry) {
+        registry.register(this);
+    }
+    
+    @Inject
+    void register(ListenerSupport<FirewallStatusEvent> firewallStatusSupport,
+                  ListenerSupport<FirewallTransferStatusEvent> firewallTransferStatusSupport) {
+        firewallStatusSupport.addListener(new EventListener<FirewallStatusEvent>() {
+            @Override
+            public void handleEvent(FirewallStatusEvent event) {
+                if(started) {
+                    // TODO use event
+                    maybeFireNewDirectConnectionAddress();
+                }
+            }
+        });    
+        firewallTransferStatusSupport.addListener(new EventListener<FirewallTransferStatusEvent>() {
+            private volatile FirewallTransferStatus lastStatus = null;
+            
+            @Override
+            public void handleEvent(FirewallTransferStatusEvent event) {
+                if(started && lastStatus != event.getSource()) {
+                    lastStatus = event.getSource();
+                    updateCapabilities();
+                }
+            }
+        });
     }
     
 
-    public void start() {
-        ConnectionSettings.LAST_FWT_STATE.addSettingListener(fwtListener);
+    public void start() {        
+        if(isIncomingTLSEnabled() || isOutgoingTLSEnabled()) {
+            SSLEngineTest sslTester = new SSLEngineTest(SSLUtils.getTLSContext(), SSLUtils.getTLSCipherSuites(), bbCache.get());
+            if(!sslTester.go()) {
+                Throwable t = sslTester.getLastFailureCause();
+                setTLSNotSupported(t);
+                if(!SSLSettings.IGNORE_SSL_EXCEPTIONS.getValue() && !sslTester.isIgnorable(t))
+                    ErrorService.error(t);
+            }
+        }
+        started = true;
     }
 
 
     public void stop() {
-        ConnectionSettings.LAST_FWT_STATE.removeSettingListener(fwtListener);
+        started = false;
+        ConnectionSettings.EVER_ACCEPTED_INCOMING.setValue(acceptedIncomingConnection());
     }
     
     public void initialize() {
+    }
+    
+    public String getServiceName() {
+        return I18nMarker.marktr("Network Management");
     }
 
 
@@ -144,7 +239,6 @@ public class NetworkManagerImpl implements NetworkManager {
      */
     public boolean incomingStatusChanged() {
         updateCapabilities();
-        activityCallback.get().handleAddressStateChanged();
         // Only continue if the current address/port is valid & not private.
         byte addr[] = getAddress();
         int port = getPort();
@@ -162,10 +256,15 @@ public class NetworkManagerImpl implements NetworkManager {
         capabilitiesVMFactory.get().updateCapabilities();
         if (connectionManager.get().isShieldedLeaf()) 
             connectionManager.get().sendUpdatedCapabilities();
+        synchronized (addressLock) {
+            FirewalledAddress address = firewalledAddress;
+            if (address != null) {
+                newPushProxies(address.getPushProxies());
+            }
+        }
     }
-    
+
     public boolean addressChanged() {
-        activityCallback.get().handleAddressStateChanged();        
         
         // Only continue if the current address/port is valid & not private.
         byte addr[] = getAddress();
@@ -198,15 +297,101 @@ public class NetworkManagerImpl implements NetworkManager {
     		if (c.getConnectionCapabilities().remoteHostSupportsHeaderUpdate() >= HeaderUpdateVendorMessage.VERSION)
     			c.send(huvm);
     	}
-        
-        fireEvent(new NetworkManagerEvent(this, EventType.ADDRESS_CHANGE));
+
+        // TODO
+        //fireEvent(new AddressEvent(null, Address.EventType.ADDRESS_CHANGED));
         
         return true;
     }
 
-    /* (non-Javadoc)
-     * @see com.limegroup.gnutella.NetworkManager#acceptedIncomingConnection()
+    public void externalAddressChanged() {
+        maybeFireNewDirectConnectionAddress();
+    }
+
+    private void maybeFireNewDirectConnectionAddress() {
+        Connectable newDirectAddress = null;
+        boolean fireEvent = false;
+        Set<Connectable> proxies = null;
+        synchronized (addressLock) {
+            if(isDirectConnectionCapable()) {
+                newDirectAddress = getPublicAddress(false);
+                if (directAddress == null || ConnectableImpl.COMPARATOR.compare(directAddress, newDirectAddress) != 0) {
+                    directAddress = newDirectAddress;
+                    fireEvent = true;
+                    assert NetworkUtils.isValidIpPort(newDirectAddress);
+                }
+            } else {
+                directAddress = null;
+                proxies = cachedProxies;
+                cachedProxies = null;
+            }
+        }
+        if (fireEvent) {
+            fireAddressChange(newDirectAddress);
+        } else if (proxies != null) {
+            newPushProxies(proxies);
+        }
+    }
+
+    private boolean isDirectConnectionCapable() {
+        return NetworkUtils.isValidAddress(getExternalAddress()) 
+        && acceptedIncomingConnection() && NetworkUtils.isValidPort(getPort());
+    }
+
+    public void portChanged() {
+        maybeFireNewDirectConnectionAddress();
+    }
+
+    public void newPushProxies(Set<Connectable> pushProxies) {
+        Connectable publicAddress = getPublicAddress(canDoFWT());
+        if (!NetworkUtils.isValidIpPort(publicAddress)) {
+            cachedProxies = pushProxies;
+            return;
+        }
+        FirewalledAddress newAddress = new FirewalledAddress(publicAddress, getPrivateAddress(), new GUID(applicationServices.getMyGUID()), pushProxies, supportsFWTVersion());
+        boolean changed = false;
+        synchronized (addressLock) {
+            if (!newAddress.equals(firewalledAddress) && directAddress == null) {
+                firewalledAddress = newAddress;
+                // ensure that we have a valid public address if we support fwts
+                assert firewalledAddress.getFwtVersion() == 0 || NetworkUtils.isValidIpPort(firewalledAddress.getPublicAddress());
+                changed = true;
+            }
+        }
+        if (changed) {
+            fireAddressChange(newAddress);
+        }
+    }
+    
+    /**
+     * @param udpPort uses stable udp port if true otherwise {@link #getPort()}
      */
+    private Connectable getPublicAddress(boolean udpPort) {
+        try {
+            return new ConnectableImpl(NetworkUtils.ip2string(getExternalAddress()),
+                    udpPort ? getStableUDPPort() : getPort(), isIncomingTLSEnabled());
+        } catch (UnknownHostException e) {
+            throw new RuntimeException(e);
+        }
+    }
+    
+    @Override
+    public Connectable getPublicAddress() {
+        return getPublicAddress(!acceptedIncomingConnection());
+    }
+    
+    private Connectable getPrivateAddress() {
+        byte[] privateAddress = getNonForcedAddress();
+        try {
+            return new ConnectableImpl(new InetSocketAddress(InetAddress.getByAddress(privateAddress), getNonForcedPort()), isIncomingTLSEnabled());
+        } catch (UnknownHostException e) {
+            throw new RuntimeException(e);
+        }
+    }
+    
+    /* (non-Javadoc)
+    * @see com.limegroup.gnutella.NetworkManager#acceptedIncomingConnection()
+    */
     public boolean acceptedIncomingConnection() {
     	return acceptor.get().acceptedIncoming();
     }
@@ -255,22 +440,72 @@ public class NetworkManagerImpl implements NetworkManager {
         return networkInstanceUtils.isPrivateAddress(addr);
     }
     
-    private class FWTChangeListener implements SettingListener {
-        public void settingChanged(SettingEvent evt) {
-            if (evt.getEventType() == SettingEvent.EventType.VALUE_CHANGED)
-                updateCapabilities();
+    /** Disables TLS for this session. */
+    private void setTLSNotSupported(Throwable reason) {
+        tlsSupported = false;
+        if(reason != null) {
+            StringWriter writer = new StringWriter();
+            PrintWriter pw = new PrintWriter(writer);
+            reason.printStackTrace(pw);
+            pw.flush();
+            tlsDisabledReason = writer.getBuffer().toString();
+        } else {
+            tlsDisabledReason = null;
         }
     }
+    
+    /** Returns true if TLS is disabled for this session. */
+    public boolean isTLSSupported() {
+        return tlsSupported;
+    }
+    
+    /** Whether or not incoming TLS is allowed. */
+    public boolean isIncomingTLSEnabled() {
+        return tlsSupported && SSLSettings.TLS_INCOMING.getValue() && OSUtils.supportsTLS();
+    }
 
-    public void addListener(EventListener<NetworkManagerEvent> listener) {
+    public void setIncomingTLSEnabled(boolean enabled) {
+        SSLSettings.TLS_INCOMING.setValue(enabled);
+    }
+
+    /** Whether or not outgoing TLS is allowed. */
+    public boolean isOutgoingTLSEnabled() {
+        return tlsSupported && SSLSettings.TLS_OUTGOING.getValue() && OSUtils.supportsTLS();
+    }
+
+    public void setOutgoingTLSEnabled(boolean enabled) {
+        SSLSettings.TLS_OUTGOING.setValue(enabled);
+    }
+
+    public void addListener(EventListener<AddressEvent> listener) {
         listeners.addListener(listener);
     }
 
-    public boolean removeListener(EventListener<NetworkManagerEvent> listener) {
+    public boolean removeListener(EventListener<AddressEvent> listener) {
         return listeners.removeListener(listener);
     }
     
-    private void fireEvent(NetworkManagerEvent event) {
-        listeners.broadcast(event);
+    private void fireAddressChange(Address newAddress) {
+        LOG.debugf("firing new address: {0}", newAddress);
+        listeners.broadcast(new AddressEvent(newAddress, Address.EventType.ADDRESS_CHANGED));
     }
+    
+    private static class SSLSettings extends LimeProps {
+    
+        private SSLSettings() {}
+        
+        /** Whether or not we want to accept incoming TLS connections. */
+        public static final BooleanSetting TLS_INCOMING =
+            FACTORY.createBooleanSetting("TLS_INCOMING", true);
+        
+        /** Whether or not we want to make outgoing connections with TLS. */
+        public static final BooleanSetting TLS_OUTGOING =
+            FACTORY.createBooleanSetting("TLS_OUTGOING", true);
+        
+        /** False if we want to report exceptions in TLS handling. */
+        public static final BooleanSetting IGNORE_SSL_EXCEPTIONS =
+            FACTORY.createRemoteBooleanSetting("IGNORE_SSL_EXCEPTIONS", true, "TLS.ignoreException");
+    
+    }
+
 }

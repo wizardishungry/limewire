@@ -29,6 +29,7 @@ import javax.swing.plaf.metal.DefaultMetalTheme;
 import javax.swing.plaf.metal.MetalLookAndFeel;
 import javax.swing.plaf.metal.MetalTheme;
 
+import org.limewire.core.settings.ApplicationSettings;
 import org.limewire.util.OSUtils;
 import org.limewire.util.StringUtils;
 
@@ -37,7 +38,6 @@ import com.limegroup.gnutella.gui.themes.LimeLookAndFeel;
 import com.limegroup.gnutella.gui.themes.LimePlasticTheme;
 import com.limegroup.gnutella.gui.themes.ThemeFileHandler;
 import com.limegroup.gnutella.gui.themes.ThemeSettings;
-import com.limegroup.gnutella.settings.ApplicationSettings;
 
 /**
  * Manages application resources, including the custom <tt>LookAndFeel</tt>,

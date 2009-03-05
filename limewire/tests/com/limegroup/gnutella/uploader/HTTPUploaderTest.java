@@ -2,10 +2,7 @@ package com.limegroup.gnutella.uploader;
 
 import java.io.InputStream;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
-import java.util.Vector;
 
 import junit.framework.Test;
 
@@ -14,6 +11,8 @@ import org.apache.http.HttpStatus;
 import org.apache.http.client.HttpClient;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.impl.client.DefaultHttpClient;
+import org.limewire.core.settings.ConnectionSettings;
+import org.limewire.core.settings.NetworkSettings;
 import org.limewire.http.httpclient.HttpClientUtils;
 import org.limewire.io.LocalSocketAddressProvider;
 import org.limewire.net.ConnectionDispatcher;
@@ -25,19 +24,17 @@ import com.google.inject.Singleton;
 import com.google.inject.name.Names;
 import com.limegroup.gnutella.Acceptor;
 import com.limegroup.gnutella.ActivityCallback;
-import com.limegroup.gnutella.FileDesc;
-import com.limegroup.gnutella.FileManager;
 import com.limegroup.gnutella.HTTPAcceptor;
 import com.limegroup.gnutella.HTTPUploadManager;
 import com.limegroup.gnutella.LimeTestUtils;
 import com.limegroup.gnutella.URN;
 import com.limegroup.gnutella.Uploader;
 import com.limegroup.gnutella.Uploader.UploadStatus;
-import com.limegroup.gnutella.settings.ConnectionSettings;
-import com.limegroup.gnutella.settings.NetworkSettings;
+import com.limegroup.gnutella.library.FileDescStub;
+import com.limegroup.gnutella.library.FileManager;
+import com.limegroup.gnutella.library.FileManagerStub;
+import com.limegroup.gnutella.library.GnutellaFileListStub;
 import com.limegroup.gnutella.stubs.ActivityCallbackStub;
-import com.limegroup.gnutella.stubs.FileDescStub;
-import com.limegroup.gnutella.stubs.FileManagerStub;
 import com.limegroup.gnutella.stubs.LocalSocketAddressProviderStub;
 import com.limegroup.gnutella.util.LimeTestCase;
 
@@ -77,13 +74,6 @@ public class HTTPUploaderTest extends LimeTestCase {
         ConnectionSettings.LOCAL_IS_PRIVATE.setValue(false);
         ConnectionSettings.EVER_ACCEPTED_INCOMING.setValue(true);
 
-        Map<URN, FileDesc> urns = new HashMap<URN, FileDesc>();
-        Vector<FileDesc> descs = new Vector<FileDesc>();
-        urn1 = URN.createSHA1Urn("urn:sha1:PLSTHIPQGSSZTS5FJUPAKUZWUGYQYPFG");
-
-        fd1 = new FileDescStub("abc1.txt", urn1, 0);
-        urns.put(urn1, fd1);
-        descs.add(fd1);
 
         final LocalSocketAddressProviderStub localSocketAddressProvider = new LocalSocketAddressProviderStub();
         localSocketAddressProvider.setTLSCapable(true);
@@ -96,8 +86,10 @@ public class HTTPUploaderTest extends LimeTestCase {
         });        
 
         fm = (FileManagerStub) injector.getInstance(FileManager.class);
-        fm.setUrns(urns);
-        fm.setDescs(descs);
+        GnutellaFileListStub sharedList = fm.getGnutellaFileList();
+        urn1 = URN.createSHA1Urn("urn:sha1:PLSTHIPQGSSZTS5FJUPAKUZWUGYQYPFG");
+        fd1 = new FileDescStub("abc1.txt", urn1, 0);
+        sharedList.add(fd1);
 
         cb = (MyActivityCallback) injector.getInstance(ActivityCallback.class);
 
@@ -193,7 +185,7 @@ public class HTTPUploaderTest extends LimeTestCase {
 
     public void testAmountRead() throws Exception {
         HTTPUploader uploader;
-        HttpGet method = new HttpGet(host + "/get/0/" + fd1.getFileName());
+        HttpGet method = new HttpGet(host + "/uri-res/N2R?" + urn1);
         HttpResponse response = null;
         try {
             response = client.execute(method);

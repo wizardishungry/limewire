@@ -16,6 +16,8 @@ import java.util.StringTokenizer;
 
 import org.limewire.collection.BitNumbers;
 import org.limewire.collection.IntervalSet;
+import org.limewire.core.settings.FilterSettings;
+import org.limewire.core.settings.MessageSettings;
 import org.limewire.io.BadGGEPPropertyException;
 import org.limewire.io.ConnectableImpl;
 import org.limewire.io.GGEP;
@@ -36,10 +38,12 @@ import com.limegroup.gnutella.altlocs.AlternateLocation;
 import com.limegroup.gnutella.altlocs.AlternateLocationCollection;
 import com.limegroup.gnutella.altlocs.DirectAltLoc;
 import com.limegroup.gnutella.filters.IPFilter;
+import com.limegroup.gnutella.library.CreationTimeCache;
+import com.limegroup.gnutella.library.FileDesc;
+import com.limegroup.gnutella.library.IncompleteFileDesc;
 import com.limegroup.gnutella.messages.GGEPKeys;
 import com.limegroup.gnutella.messages.HUGEExtension;
 import com.limegroup.gnutella.messages.IntervalEncoder;
-import com.limegroup.gnutella.settings.MessageSettings;
 import com.limegroup.gnutella.uploader.HTTPHeaderUtils;
 import com.limegroup.gnutella.util.DataUtils;
 import com.limegroup.gnutella.xml.LimeXMLDocument;
@@ -48,12 +52,6 @@ import com.limegroup.gnutella.xml.LimeXMLNames;
 
 @Singleton
 public class ResponseFactoryImpl implements ResponseFactory {
-
-    /**
-     * The maximum number of alternate locations to include in responses in the
-     * GGEP block
-     */
-    private static final int MAX_LOCATIONS = 10;
 
     /** The magic byte to use as extension separators. */
     private static final byte EXT_SEPARATOR = 0x1c;
@@ -85,16 +83,16 @@ public class ResponseFactoryImpl implements ResponseFactory {
     /* (non-Javadoc)
      * @see com.limegroup.gnutella.ResponseFactory#createResponse(long, long, java.lang.String)
      */
-    public Response createResponse(long index, long size, String name) {
-        return createResponse(index, size, name, -1, null, null, null, null);
+    public Response createResponse(long index, long size, String name, URN urn) {
+        return createResponse(index, size, name, -1, new UrnSet(urn), null, null, null);
     }
   
     /* (non-Javadoc)
      * @see com.limegroup.gnutella.ResponseFactory#createResponse(long, long, java.lang.String, com.limegroup.gnutella.xml.LimeXMLDocument)
      */
     public Response createResponse(long index, long size, String name,
-            LimeXMLDocument doc) {
-        return createResponse(index, size, name, -1, null, doc, null, null);
+            LimeXMLDocument doc, URN urn) {
+        return createResponse(index, size, name, -1, new UrnSet(urn), doc, null, null);
     }
     
     /* (non-Javadoc)
@@ -114,8 +112,28 @@ public class ResponseFactoryImpl implements ResponseFactory {
                 .getCreationTimeAsLong(fd.getSHA1Urn()), fd.getFileSize(), ranges, 
                 verified, fd.getTTROOTUrn());
 
-        return createResponse(fd.getIndex(), fd.getFileSize(),
-                fd.getFileName(), -1, fd.getUrns(), null, container, null);
+        LimeXMLDocument doc = getLimeXmlDoc(fd);
+        
+        Response response =  createResponse(fd.getIndex(), fd.getFileSize(),
+                fd.getFileName(), -1, fd.getUrns(), doc, container, null);
+        
+        return response;
+    }
+
+   /**
+    * If the FileDesc has no XML documents, null is returned. If the FileDesc
+    * has one XML document, that document is returned. If the FileDesc
+    * has multiple XML documents, null is returned. The reasoning behind returning null
+    *  when there are multiple XML docs is that presumably
+    * the query will be a 'rich' query, and we want to include only the schema
+    * that was in the query.
+    */
+    private LimeXMLDocument getLimeXmlDoc(FileDesc fileDesc) {
+        List<LimeXMLDocument> docs = fileDesc.getLimeXMLDocuments();
+        if (docs.size() == 1) {
+            return docs.get(0);
+        }
+        return null;
     }
 
     /* (non-Javadoc)
@@ -384,15 +402,18 @@ public class ResponseFactoryImpl implements ResponseFactory {
      */
     private Set<? extends IpPort> getAsIpPorts(
             AlternateLocationCollection<DirectAltLoc> col) {
-        if (col == null || !col.hasAlternateLocations())
+        if (!col.hasAlternateLocations())
             return Collections.emptySet();
 
         long now = System.currentTimeMillis();
         synchronized (col) {
             Set<IpPort> endpoints = null;
             int i = 0;
+            // Never send more alt-locs than another LimeWire peer would accept
+            final int maxLocations = Math.min(10,
+                    FilterSettings.MAX_ALTS_PER_RESPONSE.getValue() - 1);
             for (Iterator<DirectAltLoc> iter = col.iterator(); iter.hasNext()
-                    && i < MAX_LOCATIONS;) {
+                    && i < maxLocations;) {
                 DirectAltLoc al = iter.next();
                 if (al.canBeSent(AlternateLocation.MESH_RESPONSE)) {
                     IpPort host = al.getHost();
@@ -473,9 +494,9 @@ public class ResponseFactoryImpl implements ResponseFactory {
 
         // if the block has a ALTS value, get it, parse it,
         // and move to the next.
-        if (ggep.hasKey(GGEPKeys.GGEP_HEADER_ALTS)) {
+        if (ggep.hasValueFor(GGEPKeys.GGEP_HEADER_ALTS)) {
             byte[] tlsData = null;
-            if (ggep.hasKey(GGEPKeys.GGEP_HEADER_ALTS_TLS)) {
+            if (ggep.hasValueFor(GGEPKeys.GGEP_HEADER_ALTS_TLS)) {
                 try {
                     tlsData = ggep.getBytes(GGEPKeys.GGEP_HEADER_ALTS_TLS);
                 } catch (BadGGEPPropertyException ignored) {
@@ -489,25 +510,24 @@ public class ResponseFactoryImpl implements ResponseFactory {
             }
         }
 
-        if (ggep.hasKey(GGEPKeys.GGEP_HEADER_CREATE_TIME)) {
+        if (ggep.hasValueFor(GGEPKeys.GGEP_HEADER_CREATE_TIME)) {
             try {
                 createTime = ggep.getLong(GGEPKeys.GGEP_HEADER_CREATE_TIME) * 1000;
             } catch (BadGGEPPropertyException bad) {
             }
         }
 
-        if (ggep.hasKey(GGEPKeys.GGEP_HEADER_LARGE_FILE)) {
+        if (ggep.hasValueFor(GGEPKeys.GGEP_HEADER_LARGE_FILE)) {
             try {
                 size64 = ggep.getLong(GGEPKeys.GGEP_HEADER_LARGE_FILE);
             } catch (BadGGEPPropertyException bad) {
             }
         }
         
-        if (ggep.hasKey(GGEPKeys.GGEP_HEADER_TTROOT)) {
+        if (ggep.hasValueFor(GGEPKeys.GGEP_HEADER_TTROOT)) {
             try {
                 byte []tt = ggep.get(GGEPKeys.GGEP_HEADER_TTROOT);
-                if (tt != null)
-                    ttroot = URN.createTTRootFromBytes(tt);
+                ttroot = URN.createTTRootFromBytes(tt);
             } catch (IOException bad){}
         }
         
@@ -603,4 +623,5 @@ public class ResponseFactoryImpl implements ResponseFactory {
                     ttroot == null;
         }
     }
+
 }

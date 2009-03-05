@@ -11,13 +11,15 @@ import org.apache.commons.logging.LogFactory;
 import org.limewire.inspection.Inspectable;
 import org.limewire.inspection.InspectableContainer;
 import org.limewire.inspection.InspectionPoint;
+import org.limewire.listener.EventListener;
 
 import com.google.inject.Singleton;
 import com.limegroup.gnutella.URN;
+import com.limegroup.gnutella.library.FileListChangedEvent;
 import com.limegroup.gnutella.util.ClassCNetworks;
 
 @Singleton
-public class AltLocManager {
+public class AltLocManager implements EventListener<FileListChangedEvent> {
 
     private static final Log LOG = LogFactory.getLog(AltLocManager.class);
     
@@ -191,7 +193,7 @@ public class AltLocManager {
         urnMap.clear();
     }
     
-    public void purge(URN sha1) {
+    private void purge(URN sha1) {
         urnMap.remove(sha1);
     }
     
@@ -229,6 +231,24 @@ public class AltLocManager {
             return;
         data.removeListener(listener);
         removeIfEmpty(sha1,data);
+    }
+    
+    /**
+     * Listens for events from FileManager
+     */
+    public void handleEvent(FileListChangedEvent evt) {
+        switch(evt.getType()) {
+        case CLEAR:
+            purge();
+            break;
+        case REMOVED:
+            URN urn = evt.getFileDesc().getSHA1Urn();
+            // Purge if there's no more FDs for this URN.
+            if(evt.getList().getFileDescsMatching(urn).isEmpty()) {
+                purge(urn);
+            }
+            break;
+        }
     }
 
     private static class URNData {

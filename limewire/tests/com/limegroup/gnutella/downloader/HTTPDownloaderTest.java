@@ -12,6 +12,7 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -25,11 +26,14 @@ import org.limewire.collection.Function;
 import org.limewire.collection.MultiIterable;
 import org.limewire.collection.Range;
 import org.limewire.inject.Providers;
+import org.limewire.io.Address;
 import org.limewire.io.Connectable;
+import org.limewire.io.ConnectableImpl;
 import org.limewire.io.IpPort;
 import org.limewire.io.IpPortImpl;
 import org.limewire.io.IpPortSet;
 import org.limewire.io.NetworkInstanceUtils;
+import org.limewire.net.address.StrictIpPortSet;
 import org.limewire.nio.NIOSocket;
 import org.limewire.util.PrivilegedAccessor;
 
@@ -38,7 +42,6 @@ import com.google.inject.Injector;
 import com.google.inject.Module;
 import com.limegroup.gnutella.BandwidthManager;
 import com.limegroup.gnutella.ConnectionManager;
-import com.limegroup.gnutella.CreationTimeCache;
 import com.limegroup.gnutella.DownloadManager;
 import com.limegroup.gnutella.LimeTestUtils;
 import com.limegroup.gnutella.NetworkManager;
@@ -46,6 +49,7 @@ import com.limegroup.gnutella.PushEndpointCache;
 import com.limegroup.gnutella.PushEndpointFactory;
 import com.limegroup.gnutella.RemoteFileDesc;
 import com.limegroup.gnutella.SelfEndpoint;
+import com.limegroup.gnutella.URN;
 import com.limegroup.gnutella.altlocs.AlternateLocation;
 import com.limegroup.gnutella.altlocs.AlternateLocationFactory;
 import com.limegroup.gnutella.altlocs.DirectAltLoc;
@@ -54,13 +58,13 @@ import com.limegroup.gnutella.http.HTTPConstants;
 import com.limegroup.gnutella.http.HTTPHeaderName;
 import com.limegroup.gnutella.http.ProblemReadingHeaderException;
 import com.limegroup.gnutella.http.SimpleReadHeaderState;
+import com.limegroup.gnutella.library.CreationTimeCache;
 import com.limegroup.gnutella.statistics.TcpBandwidthStatistics;
 import com.limegroup.gnutella.stubs.IOStateObserverStub;
 import com.limegroup.gnutella.stubs.NetworkManagerStub;
 import com.limegroup.gnutella.stubs.ReadBufferChannel;
 import com.limegroup.gnutella.tigertree.ThexReaderFactory;
 import com.limegroup.gnutella.util.MockUtils;
-import com.limegroup.gnutella.util.StrictIpPortSet;
 
 public class HTTPDownloaderTest extends com.limegroup.gnutella.util.LimeTestCase {
 
@@ -130,7 +134,7 @@ public class HTTPDownloaderTest extends com.limegroup.gnutella.util.LimeTestCase
 
     /**
      * Tests if X-FW-Node-Info header is written. Must not have accepted an incoming
-     * connection for this to happend.
+     * connection for this to happen.
      */
     public void testFWNodeInfoHeaderIsWritten() throws Exception {
         final NetworkManagerStub networkManagerStub = new NetworkManagerStub();
@@ -304,39 +308,47 @@ public class HTTPDownloaderTest extends com.limegroup.gnutella.util.LimeTestCase
         assertEquals(10, receivedLocations.size());
         dl.stop();
 
-        Set<IpPort> tlsExpected = new IpPortSet(new IpPortImpl("1.2.3.4:5"), new IpPortImpl(
-                "2.3.4.5:6"), new IpPortImpl("3.4.5.6:7"), new IpPortImpl("4.5.6.7:8"),
-                new IpPortImpl("7.6.5.4:3"), new IpPortImpl("5.6.7.8:9"));
-        Set<IpPort> normalExpected = new IpPortSet(new IpPortImpl("4.3.2.1:6346"), new IpPortImpl(
-                "5.4.3.2:1"), new IpPortImpl("6.5.4.3:2"), new IpPortImpl("8.7.6.5:4"));
+        Set<Connectable> tlsExpected = new StrictIpPortSet<Connectable>(new ConnectableImpl("1.2.3.4:5", true),
+                new ConnectableImpl("2.3.4.5:6", true), new ConnectableImpl("3.4.5.6:7", true), new ConnectableImpl("4.5.6.7:8", true),
+                new ConnectableImpl("7.6.5.4:3", true), new ConnectableImpl("5.6.7.8:9", true));
+        Set<Connectable> normalExpected = new StrictIpPortSet<Connectable>(new ConnectableImpl("4.3.2.1:6346", false), new ConnectableImpl(
+                "5.4.3.2:1", false), new ConnectableImpl("6.5.4.3:2", false), new ConnectableImpl("8.7.6.5:4", false));
 
-        Set<Connectable> allLocs = new StrictIpPortSet<Connectable>(receivedLocations);
+        Set<Address> allLocs = new HashSet<Address>(toAddresses(receivedLocations));
         allLocs.retainAll(tlsExpected);
         assertEquals(allLocs, tlsExpected);
-        for (Connectable c : allLocs)
-            assertTrue(c.isTLSCapable());
+        for (Address address : allLocs)
+            assertTrue(((Connectable)address).isTLSCapable());
 
-        allLocs = new StrictIpPortSet<Connectable>(receivedLocations);
+        allLocs = new HashSet<Address>(toAddresses(receivedLocations));
         allLocs.retainAll(normalExpected);
         assertEquals(normalExpected, allLocs);
-        for (Connectable c : allLocs)
-            assertFalse(c.isTLSCapable());
+        for (Address address : allLocs)
+            assertFalse(((Connectable)address).isTLSCapable());
 
-        allLocs = new StrictIpPortSet<Connectable>(receivedLocations);
+        allLocs = new HashSet<Address>(toAddresses(receivedLocations));
         allLocs.removeAll(tlsExpected);
         allLocs.removeAll(normalExpected);
         assertTrue(allLocs.isEmpty());
+    }
+    
+    private static Collection<? extends Address> toAddresses(Collection<? extends RemoteFileDesc> rfds) {
+        List<Address> list = new ArrayList<Address>();
+        for (RemoteFileDesc rfd : rfds) {
+            list.add(rfd.getAddress());
+        }
+        return list;
     }
 
     public void testParseContentRange() throws Throwable {
         setupInjector();
         int length = 1000;
-        RemoteFileDesc rfd = remoteFileDescFactory.createRemoteFileDesc("1.2.3.4", 1, 1, "file", length, new byte[16], 1,
-                false, 2, false, null, null, false, false, "LIME", null, -1, false);
+        RemoteFileDesc rfd = remoteFileDescFactory.createRemoteFileDesc(new ConnectableImpl("1.2.3.4", 1, false), 1, "file", length, new byte[16], 1,
+                false, 2, false, null, URN.NO_URN_SET, false, "LIME", -1);
         File f = new File("sam");
         VerifyingFile vf = verifyingFileFactory.createVerifyingFile(length);
         vf.open(f);
-        HTTPDownloader dl = httpDownloaderFactory.create(null, rfd, vf, false);
+        HTTPDownloader dl = httpDownloaderFactory.create(null, new RemoteFileDescContext(rfd), vf, false);
 
         PrivilegedAccessor.setValue(dl, "_amountToRead", new Long(rfd.getSize()));
 
@@ -352,13 +364,21 @@ public class HTTPDownloaderTest extends com.limegroup.gnutella.util.LimeTestCase
 
         assertEquals(Range.createRange(1, 9), parseContentRange(dl, "Content-range:bytes 1-9/*"));
 
-        // should this work? the server says the size is 10, we think it's
-        // 1000. throw IllegalArgumentException or ProblemReadingHeader?
-        // Putting aside the "should it work" question, this is the faulty
-        // header from LimeWire 0.5, in which we subtract 1 from the
-        // sizes (they send exclusive instead of inclusive values).
-        assertEquals(Range.createRange(0, 9), parseContentRange(dl, "Content-range:bytes 1-10/10"));
+        // expect exception for invalid header requests
+        try {
+            assertEquals(Range.createRange(0, 9), parseContentRange(dl, "Content-range:bytes 1-10/10"));
+        } catch (IOException ie) {
+            assertInstanceof(ProblemReadingHeaderException.class, ie);
+        }
 
+        assertEquals(Range.createRange(0, 0), parseContentRange(dl, "Content-range:bytes 0-0/1"));
+        
+        try {
+            parseContentRange(dl, "Content-range:bytes -1-9/10");
+            fail("Should have thrown exception");
+        } catch (ProblemReadingHeaderException ignored) {
+        }
+        
         Range iv = null;
         try {
             iv = parseContentRange(dl, "Content-range:bytes 1 10 10");
@@ -481,7 +501,7 @@ public class HTTPDownloaderTest extends com.limegroup.gnutella.util.LimeTestCase
     private static Range parseContentRange(HTTPDownloader dl, String s) throws Throwable {
         try {
             return (Range) PrivilegedAccessor.invokeMethod(dl, "parseContentRange",
-                    new Object[] { s });
+                    s);
         } catch (Exception e) {
             if (e.getCause() != null)
                 throw e.getCause();
@@ -496,16 +516,15 @@ public class HTTPDownloaderTest extends com.limegroup.gnutella.util.LimeTestCase
         server.setReuseAddress(true);
         server.bind(new InetSocketAddress(0));
 
-        RemoteFileDesc rfd = remoteFileDescFactory.createRemoteFileDesc("127.0.0.1", server.getLocalPort(), 1, "file", 1000, new byte[16], 1,
-                false, 1, false, null, UrnHelper.URN_SETS[0], false, false, "TEST", IpPort.EMPTY_SET,
-                -1, 0, false);
+        RemoteFileDesc rfd = remoteFileDescFactory.createRemoteFileDesc(new ConnectableImpl("127.0.0.1", server.getLocalPort(), false), 1, "file", 1000, new byte[16], 1,
+                false, 1, false, null, UrnHelper.URN_SETS[0], false, "TEST", -1);
 
         VerifyingFile vf = verifyingFileFactory.createVerifyingFile(1000);
 
         Socket socket = new NIOSocket("127.0.0.1", server.getLocalPort());
         Socket accept = server.accept();
 
-        HTTPDownloader dl = httpDownloaderFactory.create(socket, rfd, vf, false);
+        HTTPDownloader dl = httpDownloaderFactory.create(socket, new RemoteFileDescContext(rfd), vf, false);
         func.apply(dl);
 
         dl.initializeTCP();
@@ -540,10 +559,9 @@ public class HTTPDownloaderTest extends com.limegroup.gnutella.util.LimeTestCase
         s += "\r\n";
         SimpleReadHeaderState reader = new SimpleReadHeaderState(null, 100, 2048);
         reader.process(new ReadBufferChannel(s.getBytes()), ByteBuffer.allocate(1024));
-        RemoteFileDesc rfd = remoteFileDescFactory.createRemoteFileDesc("127.0.0.1", 1, 1, "file", 1000, new byte[16], 1, false, 1,
-                false, null, UrnHelper.URN_SETS[0], false, false, "TEST", IpPort.EMPTY_SET, -1, 0,
-                false);
-        HTTPDownloader d = httpDownloaderFactory.create(null, rfd, null, false);
+        RemoteFileDesc rfd = remoteFileDescFactory.createRemoteFileDesc(new ConnectableImpl("127.0.0.1", 1, false), 1, "file", 1000, new byte[16], 1, false, 1,
+                false, null, UrnHelper.URN_SETS[0], false, "TEST", -1);
+        HTTPDownloader d = httpDownloaderFactory.create(null, new RemoteFileDescContext(rfd), null, false);
         PrivilegedAccessor.setValue(d, "_headerReader", reader);
         return d;
     }

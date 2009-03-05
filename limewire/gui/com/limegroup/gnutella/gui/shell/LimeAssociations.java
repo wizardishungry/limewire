@@ -4,12 +4,12 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 
+import org.limewire.core.settings.ApplicationSettings;
 import org.limewire.util.OSUtils;
 import org.limewire.util.SystemUtils;
 
 import com.limegroup.gnutella.gui.I18n;
 import com.limegroup.gnutella.gui.ResourceManager;
-import com.limegroup.gnutella.settings.ApplicationSettings;
 
 public class LimeAssociations {
 	

@@ -1,12 +1,21 @@
 package org.limewire.concurrent;
 
+import java.util.Collection;
+import java.util.List;
+import java.util.concurrent.AbstractExecutorService;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+
+import org.limewire.util.Objects;
 
 
 /**
@@ -32,7 +41,7 @@ public class ExecutorsHelper {
      * @param name the name of the processing thread that is created 
      * with the daemon thread factory.
      */
-    public static ExecutorService newProcessingQueue(String name) {
+    public static ListeningExecutorService newProcessingQueue(String name) {
         return newProcessingQueue(daemonThreadFactory(name));
     }
     
@@ -47,8 +56,8 @@ public class ExecutorsHelper {
      * 
      * @param factory the factory used for creating a new processing thread 
      */
-    public static ExecutorService newProcessingQueue(ThreadFactory factory) {
-        return Executors.unconfigurableExecutorService(newSingleThreadExecutor(factory));
+    public static ListeningExecutorService newProcessingQueue(ThreadFactory factory) {
+        return unconfigurableExecutorService(newSingleThreadExecutor(factory));
     }
     
     /**
@@ -64,8 +73,8 @@ public class ExecutorsHelper {
      * 
      * @param factory the factory used for creating a new processing thread 
      */
-    public static java.util.concurrent.ThreadPoolExecutor newSingleThreadExecutor(ThreadFactory factory) {
-        ThreadPoolExecutor tpe = new ThreadPoolExecutor(1, 1,
+    public static ThreadPoolListeningExecutor newSingleThreadExecutor(ThreadFactory factory) {
+        ThreadPoolListeningExecutor tpe = new ThreadPoolListeningExecutor(1, 1,
                 5L, TimeUnit.SECONDS,
                 new LinkedBlockingQueue<Runnable>(),
                 factory);
@@ -80,9 +89,9 @@ public class ExecutorsHelper {
      * the tasks.  Each thread is set to linger for a short period of time,
      * ready to handle new tasks, before the thread terminates.
      */
-    public static ExecutorService newThreadPool(String name) {
-        return Executors.unconfigurableExecutorService(
-                new ThreadPoolExecutor(0, Integer.MAX_VALUE,
+    public static ListeningExecutorService newThreadPool(String name) {
+        return unconfigurableExecutorService(
+                new ThreadPoolListeningExecutor(0, Integer.MAX_VALUE,
                         5L, TimeUnit.SECONDS,
                         new SynchronousQueue<Runnable>(),
                         daemonThreadFactory(name)));
@@ -97,9 +106,9 @@ public class ExecutorsHelper {
      * 
      * @param factory the factory used for creating a new processing thread 
      */
-    public static ExecutorService newThreadPool(ThreadFactory factory) {
-        return Executors.unconfigurableExecutorService(
-                new ThreadPoolExecutor(0, Integer.MAX_VALUE,
+    public static ListeningExecutorService newThreadPool(ThreadFactory factory) {
+        return unconfigurableExecutorService(
+                new ThreadPoolListeningExecutor(0, Integer.MAX_VALUE,
                         5L, TimeUnit.SECONDS,
                         new SynchronousQueue<Runnable>(),
                         factory));
@@ -110,23 +119,40 @@ public class ExecutorsHelper {
      * Items added while no threads are available to process them will wait
      * until an executing item is finished and then be processed.
      */
-    public static ExecutorService newFixedSizeThreadPool(int size, String name) {
-        ThreadPoolExecutor tpe =  new ThreadPoolExecutor(size, size,
+    public static ListeningExecutorService newFixedSizeThreadPool(int size, String name) {
+        ThreadPoolListeningExecutor tpe =  new ThreadPoolListeningExecutor(size, size,
                 5L, TimeUnit.SECONDS,
                 new LinkedBlockingQueue<Runnable>(),
                 daemonThreadFactory(name));
         tpe.allowCoreThreadTimeOut(true);
-        return Executors.unconfigurableExecutorService(tpe);
+        return unconfigurableExecutorService(tpe);
+    }
+    
+
+    /**
+     * Returns an object that delegates all defined {@link
+     * ListeningExecutorService} methods to the given executor, but not any
+     * other methods that might otherwise be accessible using
+     * casts. This provides a way to safely "freeze" configuration and
+     * disallow tuning of a given concrete implementation.
+     * @param executor the underlying implementation
+     * @return an <tt>ListeningExecutorService</tt> instance
+     * @throws NullPointerException if executor null
+     */
+    public static ListeningExecutorService unconfigurableExecutorService(ListeningExecutorService es) {
+        return new DelegatedExecutorService(Objects.nonNull(es, "es"));
     }
     
     
-    /** Returns the default thread factory, using the given name. 
-     * */
+    /**
+     * Returns the default thread factory, using the given name.
+     */
     public static ThreadFactory defaultThreadFactory(String name) {
         return new DefaultThreadFactory(name, false);
     }
     
-    /** Returns the a thread factory of daemon threads, using the given name. 
+    /**
+     * Returns the a thread factory of daemon threads, using the given name.
      */
     public static ThreadFactory daemonThreadFactory(String name) {
         return new DefaultThreadFactory(name, true);
@@ -152,5 +178,50 @@ public class ExecutorsHelper {
             return t;
         }
     }
+    
+    /**
+     * A wrapper class that exposes only the ListeningExecutorService methods
+     * of an ListeningExecutorService implementation.
+     */
+    private static class DelegatedExecutorService extends AbstractExecutorService implements ListeningExecutorService {
+        private final ListeningExecutorService e;
+        DelegatedExecutorService(ListeningExecutorService executor) { e = executor; }
+        public void execute(Runnable command) { e.execute(command); }
+        public void shutdown() { e.shutdown(); }
+        public List<Runnable> shutdownNow() { return e.shutdownNow(); }
+        public boolean isShutdown() { return e.isShutdown(); }
+        public boolean isTerminated() { return e.isTerminated(); }
+        public boolean awaitTermination(long timeout, TimeUnit unit)
+            throws InterruptedException {
+            return e.awaitTermination(timeout, unit);
+        }
+        public ListeningFuture<?> submit(Runnable task) {
+            return e.submit(task);
+        }
+        public <T> ListeningFuture<T> submit(Callable<T> task) {
+            return e.submit(task);
+        }
+        public <T> ListeningFuture<T> submit(Runnable task, T result) {
+            return e.submit(task, result);
+        }
+        public <T> List<Future<T>> invokeAll(Collection<? extends Callable<T>> tasks)
+            throws InterruptedException {
+            return e.invokeAll(tasks);
+        }
+        public <T> List<Future<T>> invokeAll(Collection<? extends Callable<T>> tasks,
+                                             long timeout, TimeUnit unit)
+            throws InterruptedException {
+            return e.invokeAll(tasks, timeout, unit);
+        }
+        public <T> T invokeAny(Collection<? extends Callable<T>> tasks)
+            throws InterruptedException, ExecutionException {
+            return e.invokeAny(tasks);
+        }
+        public <T> T invokeAny(Collection<? extends Callable<T>> tasks,
+                               long timeout, TimeUnit unit)
+            throws InterruptedException, ExecutionException, TimeoutException {
+            return e.invokeAny(tasks, timeout, unit);
+        }
+    }    
     
 }

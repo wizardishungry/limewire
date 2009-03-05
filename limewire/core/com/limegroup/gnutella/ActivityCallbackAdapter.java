@@ -3,13 +3,16 @@ package com.limegroup.gnutella;
 import java.io.File;
 import java.util.Set;
 
+import org.limewire.core.api.download.DownloadAction;
+import org.limewire.core.api.download.SaveLocationException;
+import org.limewire.io.GUID;
 import org.limewire.io.IpPort;
 
 import com.google.inject.Singleton;
+import com.limegroup.bittorrent.ManagedTorrent;
 import com.limegroup.gnutella.browser.MagnetOptions;
-import com.limegroup.gnutella.chat.InstantMessenger;
 import com.limegroup.gnutella.connection.ConnectionLifecycleEvent;
-import com.limegroup.gnutella.search.HostData;
+import com.limegroup.gnutella.messages.QueryReply;
 import com.limegroup.gnutella.version.UpdateInformation;
 
 /**
@@ -20,14 +23,6 @@ import com.limegroup.gnutella.version.UpdateInformation;
 @Singleton
 public class ActivityCallbackAdapter implements ActivityCallback {
 
-    public void acceptChat(InstantMessenger ctr) {
-        
-    }
-
-    public void acceptedIncomingChanged(boolean status) {
-        
-    }
-
     public void addUpload(Uploader u) {
         
     }
@@ -36,23 +31,7 @@ public class ActivityCallbackAdapter implements ActivityCallback {
         
     }
 
-    public void chatErrorMessage(InstantMessenger chatter, String str) {
-        
-    }
-
-    public void chatUnavailable(InstantMessenger chatter) {
-        
-    }
-
-    public void componentLoading(String component) {
-        
-    }
-
-    public void fileManagerLoaded() {
-        
-    }
-
-    public void fileManagerLoading() {
+    public void componentLoading(String state, String component) {
         
     }
 
@@ -64,15 +43,11 @@ public class ActivityCallbackAdapter implements ActivityCallback {
         
     }
 
-    public void handleFileEvent(FileManagerEvent evt) {
-        
+    public void handleMagnets(MagnetOptions[] magnets) {
+
     }
 
-    public boolean handleMagnets(MagnetOptions[] magnets) {
-        return false;
-    }
-
-    public void handleQueryResult(RemoteFileDesc rfd, HostData data,
+    public void handleQueryResult(RemoteFileDesc rfd, QueryReply queryReply,
             Set<? extends IpPort> locs) {
         
     }
@@ -97,19 +72,11 @@ public class ActivityCallbackAdapter implements ActivityCallback {
         return false;
     }
 
-    public void receiveMessage(InstantMessenger chr, String messsage) {
-        
-    }
-
     public void removeUpload(Uploader u) {
         
     }
 
     public void restoreApplication() {
-        
-    }
-
-    public void setAnnotateEnabled(boolean enabled) {
         
     }
 
@@ -141,11 +108,24 @@ public class ActivityCallbackAdapter implements ActivityCallback {
        
     }
 
-    public void removeDownload(Downloader d) {
+    public void downloadCompleted(Downloader d) {
         
     }
 
     public void showDownloads() {
+        
+    }
+    
+    public void handleDAAPConnectionError(Throwable t) {  }
+    public String translate(String s) { return s;}
+
+    @Override
+    public void handleSaveLocationException(DownloadAction downLoadAction,
+            SaveLocationException sle, boolean supportsNewSaveDir) {
+    }
+
+    @Override
+    public void promptTorrentUploadCancel(ManagedTorrent torrent) {
         
     }
 

@@ -11,8 +11,6 @@ import javax.swing.Icon;
 
 import org.limewire.util.NameValue;
 
-import com.limegroup.gnutella.FileDesc;
-import com.limegroup.gnutella.FileManager;
 import com.limegroup.gnutella.downloader.IncompleteFileManager;
 import com.limegroup.gnutella.gui.GUIMediator;
 import com.limegroup.gnutella.gui.GuiCoreMediator;
@@ -30,9 +28,9 @@ import com.limegroup.gnutella.gui.themes.ThemeMediator;
 import com.limegroup.gnutella.gui.themes.ThemeObserver;
 import com.limegroup.gnutella.gui.util.BackgroundExecutorService;
 import com.limegroup.gnutella.gui.xml.XMLUtils;
+import com.limegroup.gnutella.library.FileDesc;
 import com.limegroup.gnutella.licenses.License;
 import com.limegroup.gnutella.xml.LimeXMLDocument;
-import com.limegroup.gnutella.xml.MetaFileManager;
 
 /**
  * This class acts as a single line containing all
@@ -65,11 +63,6 @@ public final class LibraryTableDataLine extends AbstractDataLine<File>
      * The schemas available
      */
     private static String[] _schemas;
-
-    /**
-     * The meta file manager
-     */
-    private static MetaFileManager _mfm;
     
     /**
      * Constant for the column with the icon of the file.
@@ -248,7 +241,7 @@ public final class LibraryTableDataLine extends AbstractDataLine<File>
     @Override
     public void initialize(File file) {
         super.initialize(file);
-        _fileDesc = GuiCoreMediator.getFileManager().getFileDescForFile(file);
+        _fileDesc = GuiCoreMediator.getFileManager().getManagedFileList().getFileDesc(file);
 
         String fullPath = file.getPath();
         try {
@@ -383,8 +376,7 @@ public final class LibraryTableDataLine extends AbstractDataLine<File>
 			}
 			return new Date(initializer.lastModified());
         case SHARED_IDX:
-            if (GuiCoreMediator.getFileManager().isFileShared(initializer) ||
-                GuiCoreMediator.getFileManager().isFolderShared(initializer))
+            if (GuiCoreMediator.getFileManager().getGnutellaFileList().contains(initializer))
                 return GUIMediator.getThemeImage("sharing_on");
                 
             return GUIMediator.getThemeImage("sharing_off");
@@ -429,13 +421,9 @@ public final class LibraryTableDataLine extends AbstractDataLine<File>
 	static void setXMLEnabled(boolean en) {
 	    _allowXML = en;
 	    if ( _allowXML ) {
-	        _schemas =
-	            GuiCoreMediator.getLimeXMLSchemaRepository().getAvailableSchemaURIs();
-    	    FileManager fm = GuiCoreMediator.getFileManager();
-    	    if ( fm instanceof MetaFileManager ) _mfm = (MetaFileManager)fm;
+	        _schemas = GuiCoreMediator.getLimeXMLSchemaRepository().getAvailableSchemaURIs();
 	    } else {
 	        _schemas = null;
-	        _mfm = null;
 	    }
 	}
 	
@@ -470,8 +458,7 @@ public final class LibraryTableDataLine extends AbstractDataLine<File>
             boolean shared = false;
             boolean isfile = getFile().isFile();
             
-            if (GuiCoreMediator.getFileManager().isFileShared(initializer) ||
-                GuiCoreMediator.getFileManager().isFolderShared(initializer))
+            if (GuiCoreMediator.getFileManager().getGnutellaFileList().contains(initializer))
                 shared = true;
                 
             if (isfile && shared)
@@ -485,11 +472,10 @@ public final class LibraryTableDataLine extends AbstractDataLine<File>
         }
         
 	    // if XML isn't finished loading, no schemas exist,
-	    // we don't have a meta file manager, or we don't
-	    // have a FileDesc, get out of here.
+	    // or we don't have a FileDesc, get out of here.
 	    if ( !_allowXML
 	         || _schemas == null || _schemas.length == 0
-	         || _mfm == null || _fileDesc == null
+	         || _fileDesc == null
 	        ) return null;
 
         // Dynamically add the information.
@@ -511,11 +497,11 @@ public final class LibraryTableDataLine extends AbstractDataLine<File>
 	private Color getColor() {
 		if (_fileDesc != null)
 			return _sharedCellColor;
-		if (GuiCoreMediator.getFileManager().isFolderShared(initializer))
-			return _sharedCellColor;
+//		if (GuiCoreMediator.getFileManager().isFolderShared(initializer))
+//			return _sharedCellColor;
 		// paint store directories as if they were shared files
-        if (GuiCoreMediator.getFileManager().isStoreDirectory(initializer))
-            return _sharedCellColor;
+//        if (GuiCoreMediator.getFileManager().isStoreDirectory(initializer))
+//            return _sharedCellColor;
 		return _unsharedCellColor;
 	}
 }

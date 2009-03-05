@@ -54,6 +54,7 @@ import org.apache.log4j.Logger;
 import org.apache.log4j.PatternLayout;
 import org.apache.log4j.WriterAppender;
 import org.apache.log4j.spi.LoggerRepository;
+import org.limewire.core.settings.ConsoleSettings;
 import org.limewire.i18n.I18nMarker;
 import org.limewire.mojito.MojitoDHT;
 import org.limewire.service.ErrorService;
@@ -65,7 +66,6 @@ import com.limegroup.gnutella.dht.DHTManager;
 import com.limegroup.gnutella.gui.themes.ThemeFileHandler;
 import com.limegroup.gnutella.gui.themes.ThemeMediator;
 import com.limegroup.gnutella.gui.themes.ThemeObserver;
-import com.limegroup.gnutella.settings.ConsoleSettings;
 
 
 /**

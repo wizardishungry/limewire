@@ -2,9 +2,10 @@ package com.limegroup.gnutella.gui.tabs;
 
 import javax.swing.JComponent;
 
+import org.limewire.core.settings.ApplicationSettings;
+
 import com.limegroup.gnutella.gui.I18n;
 import com.limegroup.gnutella.gui.logging.LoggingMediator;
-import com.limegroup.gnutella.settings.ApplicationSettings;
 
 public class LoggingTab extends AbstractTab {
     

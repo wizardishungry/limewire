@@ -3,6 +3,7 @@ package org.limewire.io;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.io.UnsupportedEncodingException;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
@@ -36,6 +37,11 @@ public class GGEP {
     /** The GGEP prefix.  A GGEP block will start with this byte value.
      */
     public static final byte GGEP_PREFIX_MAGIC_NUMBER = (byte) 0xC3;
+
+    /**
+     * Default character set for GGEP values encoded as Strings
+     */
+    private static final String DEFAULT_ENCODING_CHARSET = "UTF-8";
 
     /** 
      * The collection of key/value pairs.  Rep. rationale: arrays of bytes are
@@ -71,6 +77,13 @@ public class GGEP {
     /**  Creates a new empty GGEP block that does not needs COBS encoding. */
     public GGEP() {
         this(false);
+    }
+    
+    /**
+     * Constructs a new ggep message with the given data. 
+     */
+    public GGEP(byte[] data) throws BadGGEPBlockException {
+        this(data, 0);
     }
     
     /**
@@ -444,6 +457,10 @@ public class GGEP {
 
     /** 
      * Adds a key with string value, using the default character encoding.
+     * 
+     * Enforcing a default encoding (UTF-8) because each machine can have its
+     * own default encoding
+     * 
      * @param key the name of the GGEP extension, whose length should be between
      *  1 and 15, inclusive
      * @param value the GGEP extension data
@@ -451,7 +468,21 @@ public class GGEP {
      *  or if value is null
      */
     public void put(String key, String value) throws IllegalArgumentException {
-        put(key, value==null ? null : value.getBytes());
+        put(key, value, DEFAULT_ENCODING_CHARSET);
+    }
+    
+    /**
+     * keeping private access modifier until necessary to 
+     * treat GGEP value Strings as encoded in different character sets
+     */
+    private void put(String key, String value, String charSetName)
+    throws IllegalArgumentException { 
+        try {
+            put(key, value==null ? null : value.getBytes(charSetName));
+        } catch (UnsupportedEncodingException e) {
+            throw new IllegalArgumentException("Unsupported character set for " +
+            		"String encoding", e);
+        }
     }
 
     /** 
@@ -509,7 +540,8 @@ public class GGEP {
     }
 
     /**
-     * Returns the value for a key, as a string.
+     * Returns the value for a key, as a string, using the default encoding (UTF-8).
+     * 
      * @param key the name of the GGEP extension
      * @return the GGEP extension data associated with the key
      * @exception BadGGEPPropertyException extension not found, was corrupt,
@@ -517,7 +549,20 @@ public class GGEP {
      *  is always thrown for extensions with no data; use hasKey instead.
      */
     public String getString(String key) throws BadGGEPPropertyException {
-        return new String(getBytes(key));
+        return getString(key, DEFAULT_ENCODING_CHARSET);
+    }
+    
+    /**
+     * keeping private access modifier until necessary to 
+     * treat GGEP value Strings as encoded in different character sets
+     */
+    private String getString(String key, String encoding) throws BadGGEPPropertyException, IllegalArgumentException {
+        try {
+            return new String(getBytes(key), encoding);
+        } catch (UnsupportedEncodingException e) {
+            throw new IllegalArgumentException("Cannot get GGEP key value as " +
+            		"String due to unsupported encoding", e);
+        }
     }
 
     /**
@@ -561,6 +606,11 @@ public class GGEP {
      */
     public boolean hasKey(String key) {
         return _props.containsKey(key);
+    }
+    
+    /** Returns true if the GGEP has a non-null value for the key. */
+    public boolean hasValueFor(String key) {
+        return get(key) != null;
     }
 
     /** 

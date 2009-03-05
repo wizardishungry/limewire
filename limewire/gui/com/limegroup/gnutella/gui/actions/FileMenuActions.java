@@ -17,6 +17,8 @@ import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.border.EmptyBorder;
 
+import org.limewire.util.URIUtils;
+
 
 import com.limegroup.gnutella.ConnectionManager;
 import com.limegroup.gnutella.browser.MagnetOptions;
@@ -34,7 +36,6 @@ import com.limegroup.gnutella.gui.IconManager;
 import com.limegroup.gnutella.gui.MultiLineLabel;
 import com.limegroup.gnutella.gui.download.TorrentFileFilter;
 import com.limegroup.gnutella.gui.search.MagnetClipboardListener;
-import com.limegroup.gnutella.http.URIUtils;
 
 public class FileMenuActions {
     

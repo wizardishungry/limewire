@@ -9,25 +9,27 @@ import java.util.List;
 
 import junit.framework.Test;
 
-import org.limewire.util.FileUtils;
+import org.limewire.core.settings.ConnectionSettings;
+import org.limewire.core.settings.FilterSettings;
+import org.limewire.core.settings.NetworkSettings;
+import org.limewire.core.settings.UltrapeerSettings;
+import org.limewire.core.settings.UploadSettings;
+import org.limewire.io.GUID;
+import org.limewire.net.TLSManager;
 import org.limewire.util.PrivilegedAccessor;
 import org.limewire.util.TestUtils;
 
 import com.google.inject.Injector;
+import com.google.inject.Stage;
 import com.limegroup.gnutella.downloader.PushDownloadManager;
 import com.limegroup.gnutella.downloader.RemoteFileDescFactory;
+import com.limegroup.gnutella.library.FileManager;
+import com.limegroup.gnutella.library.FileManagerTestUtils;
 import com.limegroup.gnutella.messagehandlers.MessageHandler;
 import com.limegroup.gnutella.messages.Message;
 import com.limegroup.gnutella.messages.PushRequest;
 import com.limegroup.gnutella.messages.QueryReply;
 import com.limegroup.gnutella.messages.QueryRequest;
-import com.limegroup.gnutella.settings.ConnectionSettings;
-import com.limegroup.gnutella.settings.FilterSettings;
-import com.limegroup.gnutella.settings.NetworkSettings;
-import com.limegroup.gnutella.settings.SSLSettings;
-import com.limegroup.gnutella.settings.SharingSettings;
-import com.limegroup.gnutella.settings.UltrapeerSettings;
-import com.limegroup.gnutella.settings.UploadSettings;
 import com.limegroup.gnutella.util.LimeTestCase;
 
 public class MulticastTest extends LimeTestCase {
@@ -40,16 +42,14 @@ public class MulticastTest extends LimeTestCase {
     
     private  UnicastedHandler U_HANDLER;
         
-	private static final String MP3_NAME =
-        "com/limegroup/gnutella/metadata/mpg2layI_0h_128k_frame54_22050hz_joint_CRCOrig_test33.mp3";
+	private static final String FILE_NAME =
+        "com/limegroup/gnutella/metadata/metadata.mp3";
 
     private MessageRouterImpl messageRouter;
 
     private ConnectionServices connectionServices;
 
     private SearchServices searchServices;
-
-    private NetworkManager networkManager;
 
     private PushDownloadManager pushDownloadManager;
 
@@ -60,7 +60,12 @@ public class MulticastTest extends LimeTestCase {
     private LifecycleManager lifeCycleManager;
     
     private RemoteFileDescFactory remoteFileDescFactory;
-        
+    
+    private TLSManager TLSManager;
+            
+    protected Injector injector;
+
+    private PushEndpointFactory pushEndpointFactory;
 
     public MulticastTest(String name) {
         super(name);
@@ -80,13 +85,6 @@ public class MulticastTest extends LimeTestCase {
         String ip = InetAddress.getLocalHost().getHostAddress();
         FilterSettings.WHITE_LISTED_IP_ADDRESSES.setValue(new String[] { ip });
         NetworkSettings.PORT.setValue(TEST_PORT);
-        SharingSettings.EXTENSIONS_TO_SHARE.setValue("mp3;");
-        File mp3 = TestUtils.getResourceFile(MP3_NAME);
-        assertTrue(mp3.exists());
-        File result = new File(_sharedDir, "metadata.mp3");
-        FileUtils.copy(mp3, result);
-        assertTrue(result.exists());
-
         ConnectionSettings.CONNECT_ON_STARTUP.setValue(false);
         ConnectionSettings.DO_NOT_BOOTSTRAP.setValue(true);
 		UltrapeerSettings.EVER_ULTRAPEER_CAPABLE.setValue(true);
@@ -96,7 +94,6 @@ public class MulticastTest extends LimeTestCase {
 		ConnectionSettings.NUM_CONNECTIONS.setValue(3);
 		ConnectionSettings.LOCAL_IS_PRIVATE.setValue(false);
 		ConnectionSettings.WATCHDOG_ACTIVE.setValue(false);
-
         ConnectionSettings.MULTICAST_PORT.setValue(9021);
         ConnectionSettings.ALLOW_MULTICAST_LOOPBACK.setValue(true);
 	}
@@ -107,19 +104,20 @@ public class MulticastTest extends LimeTestCase {
         
         M_HANDLER = new MulticastHandler();
         U_HANDLER = new UnicastedHandler();
-    
-        Injector injector = LimeTestUtils.createInjector();
+
+        injector = LimeTestUtils.createInjector(Stage.PRODUCTION);
         
         fileManager = injector.getInstance(FileManager.class);
         connectionServices = injector.getInstance(ConnectionServices.class);
         messageRouter = (MessageRouterImpl) injector.getInstance(MessageRouter.class);
         searchServices = injector.getInstance(SearchServices.class);
-        networkManager = injector.getInstance(NetworkManager.class);
         pushDownloadManager = injector.getInstance(PushDownloadManager.class);
         downloadServices = injector.getInstance(DownloadServices.class);
         forMeReplyHandler = injector.getInstance(ForMeReplyHandler.class);
         lifeCycleManager = injector.getInstance(LifecycleManager.class);
         remoteFileDescFactory = injector.getInstance(RemoteFileDescFactory.class);
+        TLSManager = injector.getInstance(NetworkManager.class);
+        pushEndpointFactory = injector.getInstance(PushEndpointFactory.class);
         
         lifeCycleManager.start();
 		connectionServices.connect();
@@ -134,9 +132,11 @@ public class MulticastTest extends LimeTestCase {
         messageRouter.addUDPMessageHandler(QueryReply.class, U_HANDLER);
         messageRouter.addUDPMessageHandler(PushRequest.class, U_HANDLER);
         
-        fileManager.loadSettingsAndWait(3000);
+        FileManagerTestUtils.waitForLoad(fileManager,3000);
         
-        assertEquals("unexpected number of shared files", 1, fileManager.getNumFiles() );
+        File file = TestUtils.getResourceFile(FILE_NAME);
+        assertNotNull(fileManager.getGnutellaFileList().add(file).get());        
+        assertEquals("unexpected number of shared files", 1, fileManager.getGnutellaFileList().size() );
     }
     
     @Override
@@ -148,7 +148,7 @@ public class MulticastTest extends LimeTestCase {
     private static void sleep(int time) {
         try {
             Thread.sleep(time);
-        } catch(InterruptedException e) {}
+        } catch(InterruptedException ignore) {}
 	}
     
     /**
@@ -178,12 +178,23 @@ public class MulticastTest extends LimeTestCase {
         assertEquals("wrong hops", 1, qr.getHops());
     }
     
+    public void testQueryRepliesIsFirewalled() throws Exception {
+        testQueryReplies(false);
+    }
+    
+    public void testQueryRepliesNotFirewalled() throws Exception {
+        testQueryReplies(true);
+    }
+    
     /**
      * Tests that replies to multicast queries contain the MCAST GGEP header
      * and other appropriate info.
      */
-    public void testQueryReplies() throws Exception {
+    public void testQueryReplies(boolean acceptedIncoming) throws Exception {
         byte[] guid = searchServices.newQueryGUID();
+
+        //searchServices = getSearchServices(acceptedIncoming);
+        
         searchServices.query(guid, "metadata"); // search for the name
         
         // sleep to let the search process.
@@ -214,8 +225,8 @@ public class MulticastTest extends LimeTestCase {
         
         // wipe out the address so the first addr == my addr check isn't used
         wipeAddress(qr);
-        assertEquals("wrong qos", 4, qr.calculateQualityOfService(false, networkManager));
-        assertEquals("wrong qos", 4, qr.calculateQualityOfService(true, networkManager));
+        PrivilegedAccessor.setValue(injector.getInstance(Acceptor.class), "_acceptedIncoming", acceptedIncoming);
+        assertEquals("wrong qos", 4, qr.calculateQualityOfService());
 	}
     
     /**
@@ -250,7 +261,7 @@ public class MulticastTest extends LimeTestCase {
         List responses = qr.getResultsAsList();
         assertEquals("should only have 1 response", 1, responses.size());
         Response res = (Response)responses.get(0);
-        RemoteFileDesc rfd = res.toRemoteFileDesc(qr.getHostData(), remoteFileDescFactory);
+        RemoteFileDesc rfd = res.toRemoteFileDesc(qr, null, remoteFileDescFactory, pushEndpointFactory);
         
         assertTrue("rfd should be multicast", rfd.isReplyToMulticast());
         
@@ -259,7 +270,7 @@ public class MulticastTest extends LimeTestCase {
         U_HANDLER.unicasted.clear();        
         
         // Finally, we have the RFD we want to push.
-        SSLSettings.TLS_INCOMING.setValue(true);
+        TLSManager.setIncomingTLSEnabled(true);
         pushDownloadManager.sendPush(rfd);
         
         
@@ -316,7 +327,7 @@ public class MulticastTest extends LimeTestCase {
         List responses = qr.getResultsAsList();
         assertEquals("should only have 1 response", 1, responses.size());
         Response res = (Response)responses.get(0);
-        RemoteFileDesc rfd = res.toRemoteFileDesc(qr.getHostData(), remoteFileDescFactory);
+        RemoteFileDesc rfd = res.toRemoteFileDesc(qr, null, remoteFileDescFactory, pushEndpointFactory);
         
         assertTrue("rfd should be multicast", rfd.isReplyToMulticast());
         
@@ -325,7 +336,7 @@ public class MulticastTest extends LimeTestCase {
         U_HANDLER.unicasted.clear();        
         
         // Finally, we have the RFD we want to push.
-        SSLSettings.TLS_INCOMING.setValue(false);
+        TLSManager.setIncomingTLSEnabled(false);
         pushDownloadManager.sendPush(rfd);
         
         
@@ -381,7 +392,7 @@ public class MulticastTest extends LimeTestCase {
         List responses = qr.getResultsAsList();
         assertEquals("should only have 1 response", 1, responses.size());
         Response res = (Response)responses.get(0);
-        RemoteFileDesc rfd = res.toRemoteFileDesc(qr.getHostData(), remoteFileDescFactory);
+        RemoteFileDesc rfd = res.toRemoteFileDesc(qr, null, remoteFileDescFactory, pushEndpointFactory);
         
         // clear the data to make it easier to look at again...
         M_HANDLER.multicasted.clear();
@@ -389,8 +400,6 @@ public class MulticastTest extends LimeTestCase {
         
         assertFalse("file should not be saved yet", 
             new File( _savedDir, "metadata.mp3").exists());
-        assertTrue("file should be shared",
-            new File(_sharedDir, "metadata.mp3").exists());
         
         downloadServices.download(new RemoteFileDesc[] { rfd }, false, 
                                new GUID(guid));
@@ -411,17 +420,17 @@ public class MulticastTest extends LimeTestCase {
             new File(_savedDir, "metadata.mp3").exists());
 
         // Get rid of this file, so the -Dtimes=X option works properly... =)
-        assertEquals("unexpected number of shared files", 2, fileManager.getNumFiles());
+        assertEquals("unexpected number of shared files", 2, fileManager.getGnutellaFileList().size());
 
         File temp = new File(_savedDir, "metadata.mp3");
         if (temp.exists()) {
-            fileManager.removeFileIfSharedOrStore(temp);
+            fileManager.getManagedFileList().remove(temp);
             temp.delete();
         }
         sleep(2 * DELAY);
         assertFalse("file should have been deleted", temp.exists());
 
-        assertEquals("unexpected number of shared files", 1, fileManager.getNumFiles());
+        assertEquals("unexpected number of shared files", 1, fileManager.getGnutellaFileList().size());
 	}
     
     private static void wipeAddress(QueryReply qr) throws Exception {

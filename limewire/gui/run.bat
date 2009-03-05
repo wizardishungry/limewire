@@ -1,7 +1,9 @@
 @echo off
+echo This run script is deprecrated.  Download cygwin and use limewire/run (../run) instead.
+
 SETLOCAL ENABLEDELAYEDEXPANSION 
 SET PATH=%PATH%;..\lib\native\windows
-SET CLASSPATH=.;..\core
+SET CLASSPATH=.;..\core;..\lib\resources\windows
 
 REM Get all common jars.
 FOR %%j IN (..\lib\jars\*.jar) DO (

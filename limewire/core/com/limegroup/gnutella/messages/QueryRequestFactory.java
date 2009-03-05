@@ -3,8 +3,8 @@ package com.limegroup.gnutella.messages;
 import java.util.Set;
 
 import org.limewire.security.AddressSecurityToken;
+import org.limewire.util.MediaType;
 
-import com.limegroup.gnutella.MediaType;
 import com.limegroup.gnutella.URN;
 import com.limegroup.gnutella.messages.Message.Network;
 
@@ -343,14 +343,6 @@ public interface QueryRequestFactory {
      */
     public QueryRequest createQueryKeyQuery(QueryRequest qr,
             AddressSecurityToken key);
-
-    /**
-     * Creates a new specialized <tt>QueryRequest</tt> instance for browse
-     * host queries so that <tt>FileManager</tt> can understand them.
-     * 
-     * @return a new <tt>QueryRequest</tt> for browse host queries
-     */
-    public QueryRequest createBrowseHostQuery();
 
     /**
      * Specialized constructor used to create a query without the firewalled bit

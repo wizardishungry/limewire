@@ -8,17 +8,21 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.util.Arrays;
 
+import org.limewire.core.settings.ConnectionSettings;
+
 import junit.framework.Test;
 
 import com.google.inject.AbstractModule;
 import com.google.inject.Injector;
+import com.google.inject.Stage;
+import com.limegroup.gnutella.library.FileDescStub;
+import com.limegroup.gnutella.library.GnutellaFileListStub;
+import com.limegroup.gnutella.library.FileManager;
+import com.limegroup.gnutella.library.FileManagerStub;
 import com.limegroup.gnutella.messages.MessageFactory;
 import com.limegroup.gnutella.messages.Message.Network;
 import com.limegroup.gnutella.messages.vendor.HeadPing;
 import com.limegroup.gnutella.messages.vendor.HeadPong;
-import com.limegroup.gnutella.settings.ConnectionSettings;
-import com.limegroup.gnutella.stubs.FileDescStub;
-import com.limegroup.gnutella.stubs.FileManagerStub;
 import com.limegroup.gnutella.util.LimeTestCase;
 
 /**
@@ -59,7 +63,7 @@ public class ServerSideHeadTest extends LimeTestCase {
     	socket2.setSoTimeout(300);
     	
 
-    	ping1 = new HeadPing(FileManagerStub.NOT_HAVE);
+    	ping1 = new HeadPing(GnutellaFileListStub.DEFAULT_URN);
     	ping2 = new HeadPing(URN.createSHA1Urn(FileDescStub.DEFAULT_URN));
 
     	ByteArrayOutputStream baos1 = new ByteArrayOutputStream();
@@ -71,7 +75,7 @@ public class ServerSideHeadTest extends LimeTestCase {
     	addr2 = new InetSocketAddress(InetAddress.getLocalHost(), port2);
 
     	
-    	Injector injector = LimeTestUtils.createInjector(new AbstractModule() {
+    	Injector injector = LimeTestUtils.createInjector(Stage.PRODUCTION, new AbstractModule() {
     	    @Override
     	    protected void configure() {
     	        bind(FileManager.class).to(FileManagerStub.class);

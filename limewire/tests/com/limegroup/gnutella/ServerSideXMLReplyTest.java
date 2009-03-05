@@ -2,20 +2,20 @@ package com.limegroup.gnutella;
 
 import java.io.File;
 import java.util.Iterator;
+import java.util.concurrent.TimeUnit;
 
 import junit.framework.Test;
 
-import org.limewire.util.FileUtils;
 import org.limewire.util.TestUtils;
 
 import com.google.inject.Injector;
+import com.google.inject.Stage;
 import com.limegroup.gnutella.helpers.UrnHelper;
 import com.limegroup.gnutella.messages.QueryReply;
 import com.limegroup.gnutella.messages.QueryRequest;
 import com.limegroup.gnutella.messages.QueryRequestFactory;
 import com.limegroup.gnutella.routing.QueryRouteTable;
 import com.limegroup.gnutella.routing.RouteTableMessage;
-import com.limegroup.gnutella.settings.SharingSettings;
 
 /**
  *  Tests that a Ultrapeer correctly sends XML Replies.  
@@ -54,17 +54,6 @@ public final class ServerSideXMLReplyTest extends ServerSideTestCase {
 	public int getNumberOfLeafpeers() {
 	    return 1;
     }
-	
-    @Override
-    public void setSettings() {
-        SharingSettings.EXTENSIONS_TO_SHARE.setValue("mp3;");
-        // get the resource file for com/limegroup/gnutella
-        File mp3 = 
-            TestUtils.getResourceFile("com/limegroup/gnutella/metadata/ID3V24.mp3");
-        assertTrue(mp3.exists());
-        // now move them to the share dir        
-        FileUtils.copy(mp3, new File(_sharedDir, "metadata.mp3"));
-    }
 
     @Override
     public void setUpQRPTables() throws Exception {
@@ -90,16 +79,20 @@ public final class ServerSideXMLReplyTest extends ServerSideTestCase {
 
     @Override
     protected void setUp() throws Exception {
-        Injector injector = LimeTestUtils.createInjector();
+        Injector injector = LimeTestUtils.createInjector(Stage.PRODUCTION);
         super.setUp(injector);
         queryRequestFactory = injector.getInstance(QueryRequestFactory.class);
+        
+        // get the resource file for com/limegroup/gnutella
+        File file = TestUtils.getResourceFile("com/limegroup/gnutella/metadata/ID3V24.mp3");
+        assertNotNull(fileManager.getGnutellaFileList().add(file).get(1, TimeUnit.SECONDS));
     }
     
     public void testXMLReturned1() throws Exception {
         drainAll();
 
         // send a query
-        QueryRequest query = queryRequestFactory.createQuery("metadata");
+        QueryRequest query = queryRequestFactory.createQuery("ID3V24");
         ULTRAPEER[0].send(query);
         ULTRAPEER[0].flush();
 

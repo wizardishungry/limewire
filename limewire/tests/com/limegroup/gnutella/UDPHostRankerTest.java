@@ -16,18 +16,14 @@ import java.util.Set;
 
 import junit.framework.Test;
 
+import org.limewire.io.GUID;
 import org.limewire.io.IpPort;
 
 import com.google.inject.Injector;
 import com.google.inject.Singleton;
-import com.limegroup.gnutella.messages.Message;
-import com.limegroup.gnutella.messages.MessageFactory;
-import com.limegroup.gnutella.messages.PingReply;
-import com.limegroup.gnutella.messages.PingReplyFactory;
-import com.limegroup.gnutella.messages.PingRequest;
-import com.limegroup.gnutella.messages.PingRequestFactory;
+import com.google.inject.Stage;
+import com.limegroup.gnutella.messages.*;
 import com.limegroup.gnutella.messages.Message.Network;
-import com.limegroup.gnutella.search.HostData;
 import com.limegroup.gnutella.stubs.ActivityCallbackStub;
 
 /**
@@ -61,7 +57,7 @@ public class UDPHostRankerTest extends ClientSideTestCase {
     
     @Override
     protected void setUp() throws Exception {
-        Injector injector = LimeTestUtils.createInjector(MyActivityCallback.class);
+        Injector injector = LimeTestUtils.createInjector(Stage.PRODUCTION, MyActivityCallback.class);
         super.setUp(injector);
         pingRequestFactory = injector.getInstance(PingRequestFactory.class);
         uniqueHostPinger = injector.getInstance(UniqueHostPinger.class);
@@ -175,7 +171,7 @@ public class UDPHostRankerTest extends ClientSideTestCase {
 
         @Override
         public void handleQueryResult(RemoteFileDesc rfd,
-                                      HostData data,
+                                      QueryReply queryReply,
                                       Set locs) {
             this.rfd = rfd;
         }

@@ -8,10 +8,10 @@ import javax.swing.text.BadLocationException;
 import javax.swing.text.Document;
 import javax.swing.text.PlainDocument;
 
+import org.limewire.core.settings.SearchSettings;
 import org.limewire.util.I18NConvert;
 
 import com.limegroup.gnutella.gui.ClearableAutoCompleteTextField;
-import com.limegroup.gnutella.settings.SearchSettings;
 
 
 /**

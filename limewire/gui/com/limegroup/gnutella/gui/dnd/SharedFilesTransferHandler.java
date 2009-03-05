@@ -16,7 +16,8 @@ import javax.swing.JCheckBox;
 import javax.swing.JComponent;
 import javax.swing.JOptionPane;
 
-import com.limegroup.gnutella.FileManager;
+import org.limewire.core.settings.QuestionsHandler;
+
 import com.limegroup.gnutella.gui.ButtonRow;
 import com.limegroup.gnutella.gui.CheckBoxList;
 import com.limegroup.gnutella.gui.CheckBoxListPanel;
@@ -30,7 +31,7 @@ import com.limegroup.gnutella.gui.MultiLineLabel;
 import com.limegroup.gnutella.gui.library.RecursiveSharingDialog;
 import com.limegroup.gnutella.gui.library.RecursiveSharingDialog.State;
 import com.limegroup.gnutella.gui.util.BackgroundExecutorService;
-import com.limegroup.gnutella.settings.QuestionsHandler;
+import com.limegroup.gnutella.library.FileManager;
 
 /**
  * Handles local files being dropped on limewire by asking the user if
@@ -143,9 +144,9 @@ public class SharedFilesTransferHandler extends LimeTransferHandler {
 		
 		for (File file : filesToShare) {
 			if (file.isDirectory()) {
-				if (fileManager.isFolderShareable(file, true)) {
+//				if (fileManager.isFolderShareable(file, true)) {
 					dirs.add(file);
-				}
+//				}
 			} else if (file.exists()) {
 				fileSet.add(file);
 			}
@@ -156,7 +157,7 @@ public class SharedFilesTransferHandler extends LimeTransferHandler {
 			if (dialog.showChooseDialog(MessageService.getParentComponent()) == State.OK) {
 				BackgroundExecutorService.schedule(new Runnable() {
 					public void run() {
-						fileManager.addSharedFolders(dialog.getRootsToShare(), dialog.getFoldersToExclude());
+//						fileManager.addSharedFolders(dialog.getRootsToShare(), dialog.getFoldersToExclude());
 					}
 				});
 			}
@@ -165,7 +166,7 @@ public class SharedFilesTransferHandler extends LimeTransferHandler {
 		BackgroundExecutorService.schedule(new Runnable() {
 			public void run() {
 				for (File file : fileSet) {
-					fileManager.addFileAlways(file);
+					fileManager.getGnutellaFileList().add(file);
 				}
 			}
 		});
@@ -177,7 +178,8 @@ public class SharedFilesTransferHandler extends LimeTransferHandler {
 		FileManager fileManager = GuiCoreMediator.getFileManager();
 		ArrayList<File> list = new ArrayList<File>(files.length);
 		for (File file : files) {
-			if (!fileManager.isFileShared(file) && !fileManager.isFolderShared(file)) {
+			if (!fileManager.getGnutellaFileList().contains(file)) {
+//			        && !fileManager.isFolderShared(file)) {
 				list.add(file);
 			}
 		}

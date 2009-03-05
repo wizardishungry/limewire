@@ -10,15 +10,15 @@ import org.jmock.Mockery;
 import org.jmock.Sequence;
 import org.jmock.api.Invocation;
 import org.jmock.lib.action.CustomAction;
+import org.limewire.core.settings.DHTSettings;
+import org.limewire.io.GUID;
 import org.limewire.io.IpPort;
 import org.limewire.io.IpPortImpl;
 import org.limewire.io.IpPortSet;
 import org.limewire.util.BaseTestCase;
 
-import com.limegroup.gnutella.GUID;
 import com.limegroup.gnutella.PushEndpoint;
 import com.limegroup.gnutella.PushEndpointCache;
-import com.limegroup.gnutella.settings.DHTSettings;
 
 public class PushEndpointManagerImplTest extends BaseTestCase {
 
@@ -52,7 +52,6 @@ public class PushEndpointManagerImplTest extends BaseTestCase {
         pushEndpointManager = new PushEndpointManagerImpl(pushEndpointCache, pushEndpointFinder);
     }
     
-    @SuppressWarnings({ "cast", "unchecked" })
     public void testNoSearchIfPushEndpointInCache() throws Exception {
         final GUID guid = new GUID();
         final IpPortSet proxies = new IpPortSet(new IpPortImpl("192.168.1.1:4545"));
@@ -118,7 +117,7 @@ public class PushEndpointManagerImplTest extends BaseTestCase {
     }
     
     /**
-     * Asserts that {@link PushEndpointManagerImpl#startSearch(com.limegroup.gnutella.GUID, SearchListener)}
+     * Asserts that {@link PushEndpointManagerImpl#startSearch(org.limewire.io.GUID, SearchListener)}
      * starts a search and notifies the cache of results.
      */
     @SuppressWarnings("unchecked")

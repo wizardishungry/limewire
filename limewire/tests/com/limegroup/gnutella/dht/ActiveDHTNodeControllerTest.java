@@ -7,6 +7,7 @@ import java.util.List;
 
 import junit.framework.Test;
 
+import org.limewire.core.settings.DHTSettings;
 import org.limewire.io.IpPort;
 import org.limewire.mojito.Context;
 import org.limewire.mojito.KUID;
@@ -21,10 +22,10 @@ import org.limewire.mojito.settings.ContextSettings;
 import org.limewire.util.CommonUtils;
 
 import com.google.inject.Injector;
+import com.google.inject.Stage;
 import com.limegroup.gnutella.LifecycleManager;
 import com.limegroup.gnutella.LimeTestUtils;
 import com.limegroup.gnutella.NetworkManager;
-import com.limegroup.gnutella.settings.DHTSettings;
 import com.limegroup.gnutella.util.EventDispatcher;
 
 public class ActiveDHTNodeControllerTest extends DHTTestCase {
@@ -53,7 +54,7 @@ public class ActiveDHTNodeControllerTest extends DHTTestCase {
         DHTTestUtils.setSettings(PORT);
         DHTSettings.FORCE_DHT_CONNECT.setValue(true);
         
-        injector = LimeTestUtils.createInjector();
+        injector = LimeTestUtils.createInjector(Stage.PRODUCTION);
         
         dhtControllerFactory = injector.getInstance(DHTControllerFactory.class);
     }

@@ -12,8 +12,8 @@ import javax.swing.Icon;
 import javax.swing.ImageIcon;
 import javax.swing.JPanel;
 
-import com.limegroup.gnutella.FileDesc;
 import com.limegroup.gnutella.gui.IconManager;
+import com.limegroup.gnutella.library.FileDesc;
 
 public class IconPanel extends JPanel {
     

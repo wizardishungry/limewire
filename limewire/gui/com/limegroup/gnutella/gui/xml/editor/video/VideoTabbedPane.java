@@ -1,7 +1,7 @@
 package com.limegroup.gnutella.gui.xml.editor.video;
 
-import com.limegroup.gnutella.FileDesc;
 import com.limegroup.gnutella.gui.xml.editor.MetaEditorTabbedPane;
+import com.limegroup.gnutella.library.FileDesc;
 import com.limegroup.gnutella.xml.LimeXMLNames;
 
 /**

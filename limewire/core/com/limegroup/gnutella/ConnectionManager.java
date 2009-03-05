@@ -6,12 +6,15 @@ import java.util.List;
 import java.util.Set;
 
 import org.limewire.io.Connectable;
+import org.limewire.io.GUID;
 import org.limewire.io.IpPort;
+import org.limewire.listener.EventListener;
 import org.limewire.net.ConnectionAcceptor;
 import org.limewire.net.SocketsManager.ConnectType;
 
 import com.limegroup.gnutella.connection.ConnectionLifecycleEvent;
 import com.limegroup.gnutella.connection.ConnectionLifecycleListener;
+import com.limegroup.gnutella.connection.GnutellaConnectionEvent;
 import com.limegroup.gnutella.connection.RoutedConnection;
 import com.limegroup.gnutella.handshaking.HandshakeResponse;
 import com.limegroup.gnutella.handshaking.HandshakeStatus;
@@ -35,8 +38,8 @@ import com.limegroup.gnutella.util.EventDispatcher;
  * of good is constantly changing.  For a current view of 'good', review
  * HandshakeResponse.isGoodUltrapeer().  LimeWire leaves will NOT deny
  * a connection to an ultrapeer even if they've reached their maximum
- * desired number of connections (currently 4).  This means that if 5
- * connections resolve simultaneously, the leaf will remain connected to all 5.
+ * desired number of connections (currently 3).  This means that if 4
+ * connections resolve simultaneously, the leaf will remain connected to all 4.
  * <br>
  * As an Ultrapeer, LimeWire will seek outgoing connections for 5 less than
  * the number of it's desired peer slots.  This is done so that newcomers
@@ -46,15 +49,15 @@ import com.limegroup.gnutella.util.EventDispatcher;
  * reserves 3 slots for non-LimeWire peers.  LimeWire ultrapeers will allow
  * ANY leaf to connect, so long as there are atleast 15 slots open.  Beyond
  * that number, LimeWire will only allow 'good' leaves.  To see what consitutes
- * a good leave, view HandshakeResponse.isGoodLeaf().  To ensure that the
- * network does not remain too LimeWire-centric, it reserves 3 slots for
+ * a good leaf, view HandshakeResponse.isGoodLeaf().  To ensure that the
+ * network does not remain too LimeWire-centric, it reserves 2 slots for
  * non-LimeWire leaves.<p>
  *
  * ConnectionManager has methods to get up and downstream bandwidth, but it
  * doesn't quite fit the BandwidthTracker interface.
  */
 public interface ConnectionManager extends ConnectionAcceptor, 
-        EventDispatcher<ConnectionLifecycleEvent, ConnectionLifecycleListener> {
+        EventDispatcher<ConnectionLifecycleEvent, ConnectionLifecycleListener>, EventListener<GnutellaConnectionEvent> {
     
 
     /** The number of connections leaves should maintain to Ultrapeers. */
@@ -73,7 +76,7 @@ public interface ConnectionManager extends ConnectionAcceptor,
      * Links the ConnectionManager up with the other back end pieces and
      * launches the ConnectionWatchdog and the initial ConnectionFetchers.
      */
-    public void initialize();
+    public void start();
     
     /**
      * Create a new connection, allowing it to initialize and loop for messages on a new thread.
@@ -371,6 +374,8 @@ public interface ConnectionManager extends ConnectionAcceptor,
      * Accessor for the <tt>Set</tt> of push proxies for this node.  If
      * there are no push proxies available, this will return an empty <tt>Set</tt>.
      *
+     * Callers can take ownership of the returned set; the set might be immutable.
+     *
      * @return a <tt>Set</tt> of push proxies with a maximum size of 4
      *
      *  TODO: should the set of pushproxy UPs be cached and updated as
@@ -521,5 +526,8 @@ public interface ConnectionManager extends ConnectionAcceptor,
      * notification that a connect back request has been sent on the given network 
      */
     public void connectBackSent(Network network);
+
+    /** Returns the number of connections that are currently being fetched. */
+    public int getNumFetchingConnections();
     
 }

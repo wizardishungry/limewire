@@ -16,12 +16,13 @@ import javax.swing.JLabel;
 import javax.swing.SwingUtilities;
 import javax.swing.border.Border;
 
+import org.limewire.core.settings.StartupAdSettings;
+
 import com.limegroup.gnutella.gui.actions.AbstractAction;
 import com.limegroup.gnutella.gui.startup.ImagePanel;
 import com.limegroup.gnutella.gui.startup.StartupAd;
 import com.limegroup.gnutella.gui.startup.StartupBanner;
 import com.limegroup.gnutella.gui.util.BackgroundExecutorService;
-import com.limegroup.gnutella.settings.StartupAdSettings;
 import com.limegroup.gnutella.util.LimeWireUtils;
 
 /**

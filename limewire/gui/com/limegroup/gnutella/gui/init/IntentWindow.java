@@ -16,14 +16,16 @@ import org.limewire.util.CommonUtils;
 
 import com.limegroup.gnutella.util.LimeWireUtils;
 
+
 /** State Your Intent. */
 final class IntentWindow extends SetupWindow {
-    
+
+    // has the intent radio button been pressed yet?
     private boolean setWillNot = false;
     private Properties properties;
 
-	IntentWindow(SetupManager manager) {
-		super(manager, I18nMarker.marktr("State Your Intent"), I18nMarker
+	IntentWindow() {
+		super(I18nMarker.marktr("State Your Intent"), I18nMarker
                 .marktr("One more thing..."));
     }
 	
@@ -44,28 +46,34 @@ final class IntentWindow extends SetupWindow {
 	    return isCurrentVersionChecked() || setWillNot;
 	}
     
-    @Override
-    protected void createWindow() {
-        super.createWindow();
-        
+    protected void createPageContent() {
+
         JPanel innerPanel = new JPanel(new BorderLayout());
         final IntentPanel intentPanel = new IntentPanel();
         innerPanel.add(intentPanel, BorderLayout.CENTER);        
         setSetupComponent(innerPanel);
-        
-        setNext(null);
+
         intentPanel.addButtonListener(new ActionListener() {
             public void actionPerformed(ActionEvent e) {
                 if(intentPanel.hasSelection()) {
-                    setNext(IntentWindow.this);
                     setWillNot = intentPanel.isWillNot();
-                    _manager.enableActions(getAppropriateActions());
+                    updateButtons();
                 }
             }
         });
 	}
 
-	@Override
+    @Override
+    public boolean canFlipToNextPage() {
+        return false;           // this is the last page!
+    }
+    
+    @Override
+    public boolean isPageComplete() {
+        return setWillNot;      // not complete until user clicks button
+    }
+
+    @Override
     public void applySettings(boolean loadCoreComponents) {
 	    if(setWillNot) {
 	        properties.put(LimeWireUtils.getLimeWireVersion(), "true");

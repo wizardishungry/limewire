@@ -160,6 +160,12 @@ public class FilePieceReader implements PieceReader {
         // return a valid piece 
         if (offset == readOffset) {
             listener.readSuccessful();
+        } else {
+            if (LOG.isDebugEnabled()) {
+                synchronized (this) {
+                    LOG.debug("offset, readOffset: " + offset + ", " + readOffset);
+                }
+            }
         }
     }
 
@@ -325,7 +331,7 @@ public class FilePieceReader implements PieceReader {
                 processingOffset += length;
                 remaining -= length;
                 jobCount.incrementAndGet();
-                QUEUE.submit(job);
+                QUEUE.execute(job);
             }
         }
     }

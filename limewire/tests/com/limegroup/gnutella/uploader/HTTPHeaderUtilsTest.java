@@ -22,6 +22,7 @@ import org.limewire.io.IpPortImpl;
 import org.limewire.io.NetworkInstanceUtils;
 import org.limewire.net.ConnectionDispatcher;
 import org.limewire.net.SocketsManager;
+import org.limewire.net.address.StrictIpPortSet;
 import org.limewire.util.BaseTestCase;
 
 import com.google.inject.AbstractModule;
@@ -35,7 +36,6 @@ import com.limegroup.gnutella.ConnectionManagerImpl;
 import com.limegroup.gnutella.ConnectionServices;
 import com.limegroup.gnutella.HostCatcher;
 import com.limegroup.gnutella.LimeTestUtils;
-import com.limegroup.gnutella.MessageRouter;
 import com.limegroup.gnutella.NetworkManager;
 import com.limegroup.gnutella.NodeAssigner;
 import com.limegroup.gnutella.QueryUnicaster;
@@ -50,7 +50,6 @@ import com.limegroup.gnutella.messages.PingRequestFactory;
 import com.limegroup.gnutella.messages.vendor.CapabilitiesVMFactory;
 import com.limegroup.gnutella.simpp.SimppManager;
 import com.limegroup.gnutella.stubs.NetworkManagerStub;
-import com.limegroup.gnutella.util.StrictIpPortSet;
 
 public class HTTPHeaderUtilsTest extends BaseTestCase {
     
@@ -267,7 +266,7 @@ public class HTTPHeaderUtilsTest extends BaseTestCase {
                 Provider<SimppManager> simppManager,
                 CapabilitiesVMFactory capabilitiesVMFactory,
                 RoutedConnectionFactory managedConnectionFactory,
-                Provider<MessageRouter> messageRouter, Provider<QueryUnicaster> queryUnicaster,
+                Provider<QueryUnicaster> queryUnicaster,
                 SocketsManager socketsManager, ConnectionServices connectionServices,
                 Provider<NodeAssigner> nodeAssigner,  
                  Provider<IPFilter> ipFilter,
@@ -275,7 +274,7 @@ public class HTTPHeaderUtilsTest extends BaseTestCase {
                 PingRequestFactory pingRequestFactory,
                 NetworkInstanceUtils networkInstanceUtils) {
             super(networkManager, hostCatcher, connectionDispatcher, backgroundExecutor, simppManager,
-                    capabilitiesVMFactory, managedConnectionFactory, messageRouter, queryUnicaster,
+                    capabilitiesVMFactory, managedConnectionFactory, queryUnicaster,
                     socketsManager, connectionServices, nodeAssigner, ipFilter, connectionCheckerManager,
                     pingRequestFactory, networkInstanceUtils);
             

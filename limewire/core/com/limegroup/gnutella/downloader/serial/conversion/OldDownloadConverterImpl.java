@@ -17,13 +17,23 @@ import java.util.Set;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.limewire.collection.Range;
+import org.limewire.core.settings.SharingSettings;
+import org.limewire.io.Address;
+import org.limewire.io.ConnectableImpl;
 import org.limewire.io.IOUtils;
+import org.limewire.io.IpPort;
+import org.limewire.io.IpPortImpl;
+import org.limewire.net.address.AddressFactory;
 import org.limewire.util.CommonUtils;
 
+import com.google.inject.Inject;
+import com.limegroup.gnutella.PushEndpointFactory;
+import com.limegroup.gnutella.RemoteFileDesc;
 import com.limegroup.gnutella.URN;
 import com.limegroup.gnutella.browser.MagnetOptions;
 import com.limegroup.gnutella.downloader.DownloaderType;
 import com.limegroup.gnutella.downloader.FileNotFoundException;
+import com.limegroup.gnutella.downloader.RemoteFileDescImpl;
 import com.limegroup.gnutella.downloader.serial.BTDiskManagerMemento;
 import com.limegroup.gnutella.downloader.serial.BTDiskManagerMementoImpl;
 import com.limegroup.gnutella.downloader.serial.BTDownloadMemento;
@@ -40,11 +50,18 @@ import com.limegroup.gnutella.downloader.serial.RemoteHostMemento;
 import com.limegroup.gnutella.downloader.serial.TorrentFileSystemMemento;
 import com.limegroup.gnutella.downloader.serial.TorrentFileSystemMementoImpl;
 import com.limegroup.gnutella.downloader.serial.conversion.DownloadConverterObjectInputStream.Version;
-import com.limegroup.gnutella.settings.SharingSettings;
 
 public class OldDownloadConverterImpl implements OldDownloadConverter {
     
     private static Log LOG = LogFactory.getLog(OldDownloadConverterImpl.class);
+    private final PushEndpointFactory pushEndpointFactory;
+    private final AddressFactory addressFactory;
+    
+    @Inject
+    public OldDownloadConverterImpl(PushEndpointFactory pushEndpointFactory, AddressFactory addressFactory) {
+        this.pushEndpointFactory = pushEndpointFactory;
+        this.addressFactory = addressFactory;
+    }
     
     public List<DownloadMemento> readAndConvertOldDownloads(File inputFile) throws IOException {
         if(!inputFile.exists())
@@ -283,15 +300,39 @@ public class OldDownloadConverterImpl implements OldDownloadConverter {
     private Set<RemoteHostMemento> convertToMementos(Set<SerialRemoteFileDesc> rfds) {
         Set<RemoteHostMemento> mementos = new HashSet<RemoteHostMemento>(rfds.size());
         for(SerialRemoteFileDesc rfd : rfds) {
-            RemoteHostMemento memento = new RemoteHostMemento(rfd.getHost(), rfd.getPort(), rfd.getFilename(), rfd
-                    .getIndex(), rfd.getClientGUID(), rfd.getSpeed(), rfd.getSize(), rfd
-                    .isChatEnabled(), rfd.getQuality(), rfd.isReplyToMulticast(), rfd
-                    .getXml(), rfd.getUrns(), rfd.isBrowseHostEnabled(), rfd.isFirewalled(),
-                    rfd.getVendor(), rfd.isHttp11(), rfd.isTlsCapable(), rfd.getHttpPushAddr());
-            if(rfd instanceof SerialUrlRemoteFileDesc)
-                memento.setCustomUrl(((SerialUrlRemoteFileDesc)rfd).getUrl());
-            mementos.add(memento);
+            try {
+                Address address = getAddress(rfd);
+                RemoteHostMemento memento = new RemoteHostMemento(address, rfd.getFilename(), rfd
+                        .getIndex(), rfd.getClientGUID(), rfd.getSpeed(), rfd.getSize(), rfd
+                        .isChatEnabled(), rfd.getQuality(), rfd.isReplyToMulticast(), rfd
+                        .getXml(), rfd.getUrns(), rfd.isBrowseHostEnabled(),
+                        rfd.getVendor(), rfd.isHttp11(), RemoteFileDescImpl.TYPE, addressFactory);
+                if(rfd instanceof SerialUrlRemoteFileDesc)
+                    memento.setCustomUrl(((SerialUrlRemoteFileDesc)rfd).getUrl());
+                mementos.add(memento);
+            } catch (IOException ie) {
+                LOG.debug("", ie);
+            }
         }
         return mementos;
+    }
+
+    Address getAddress(SerialRemoteFileDesc rfd) throws IOException {
+        if (rfd.isFirewalled() ) {
+            if(rfd.getHttpPushAddr() != null) {
+                return pushEndpointFactory.createPushEndpoint(rfd.getHttpPushAddr());
+            } else {
+            	// This is from very old versions, or versions that didn't have proxies.
+            	// In this case, we still make it, but the address might be private, in which
+            	// case the only useful bit of info is the clientGUID.
+                if (!RemoteFileDesc.BOGUS_IP.equals(rfd.getHost())) {
+                    return pushEndpointFactory.createPushEndpoint(rfd.getClientGUID(), IpPort.EMPTY_SET, (byte)0, 0, new IpPortImpl(rfd.getHost(), rfd.getPort()));
+                } else {
+                    return pushEndpointFactory.createPushEndpoint(rfd.getClientGUID());
+                }
+            }
+        } else {
+            return new ConnectableImpl(rfd.getHost(), rfd.getPort(), rfd.isTlsCapable());
+        }
     }
 }

@@ -6,25 +6,23 @@ import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.Socket;
-import java.util.Set;
 
 import junit.framework.Test;
 
+import org.limewire.io.GUID;
 import org.limewire.net.SocketsManager;
 import org.limewire.service.ErrorService;
-import org.limewire.util.PrivilegedAccessor;
 
 import com.limegroup.gnutella.connection.BlockingConnection;
-import com.google.inject.AbstractModule;
+import com.limegroup.gnutella.helpers.UrnHelper;
 import com.google.inject.Injector;
+import com.google.inject.Stage;
 import com.limegroup.gnutella.messages.BadPacketException;
 import com.limegroup.gnutella.messages.Message;
 import com.limegroup.gnutella.messages.QueryReplyFactory;
 import com.limegroup.gnutella.messages.QueryRequest;
 import com.limegroup.gnutella.messages.vendor.MessagesSupportedVendorMessage;
 import com.limegroup.gnutella.messages.vendor.QueryStatusResponse;
-import com.limegroup.gnutella.search.HostData;
-import com.limegroup.gnutella.stubs.ActivityCallbackStub;
 import com.limegroup.gnutella.stubs.NetworkManagerStub;
 
 /**
@@ -63,7 +61,7 @@ public class ClientSideMixedOOBGuidanceTest extends ClientSideTestCase {
     @Override
     protected void setUp() throws Exception {
         networkManagerStub = new NetworkManagerStub();
-        Injector injector = LimeTestUtils.createInjector(new LimeTestUtils.NetworkManagerStubModule(networkManagerStub));
+        Injector injector = LimeTestUtils.createInjector(Stage.PRODUCTION, new LimeTestUtils.NetworkManagerStubModule(networkManagerStub));
         super.setUp(injector);
         
         responseFactory = injector.getInstance(ResponseFactory.class);
@@ -118,8 +116,7 @@ public class ClientSideMixedOOBGuidanceTest extends ClientSideTestCase {
                                      SERVER_PORT), 12);
                 os = sock.getOutputStream();
                 os.write("CONNECT BACK\n\n".getBytes());
-            } catch (IOException ignored) {
-            } catch (SecurityException ignored) {
+                os.flush();
             } catch (Throwable t) {
                 ErrorService.error(t);
             } finally {
@@ -165,17 +162,17 @@ public class ClientSideMixedOOBGuidanceTest extends ClientSideTestCase {
         // we're sending.
         for (int i = 0; i < testUP.length; i++) {
             Response[] res = new Response[] {
-                responseFactory.createResponse(10, 10, "susheel"+i),
-                responseFactory.createResponse(10, 10, "susheel smells good"+i),
-                responseFactory.createResponse(10, 10, "anita is sweet"+i),
-                responseFactory.createResponse(10, 10, "anita is prety"+i),
-                responseFactory.createResponse(10, 10, "susheel smells bad" + i),
-                responseFactory.createResponse(10, 10, "renu is sweet " + i),
-                responseFactory.createResponse(10, 10, "prety is spelled pretty " + i),
-                responseFactory.createResponse(10, 10, "go susheel go" + i),
-                responseFactory.createResponse(10, 10, "susheel runs fast" + i),
-                responseFactory.createResponse(10, 10, "susheel jumps high" + i),
-                responseFactory.createResponse(10, 10, "sleepy susheel" + i),
+                responseFactory.createResponse(10, 10, "susheel"+i, UrnHelper.SHA1),
+                responseFactory.createResponse(10, 10, "susheel smells good"+i, UrnHelper.SHA1),
+                responseFactory.createResponse(10, 10, "anita is sweet"+i, UrnHelper.SHA1),
+                responseFactory.createResponse(10, 10, "anita is prety"+i, UrnHelper.SHA1),
+                responseFactory.createResponse(10, 10, "susheel smells bad" + i, UrnHelper.SHA1),
+                responseFactory.createResponse(10, 10, "renu is sweet " + i, UrnHelper.SHA1),
+                responseFactory.createResponse(10, 10, "prety is spelled pretty " + i, UrnHelper.SHA1),
+                responseFactory.createResponse(10, 10, "go susheel go" + i, UrnHelper.SHA1),
+                responseFactory.createResponse(10, 10, "susheel runs fast" + i, UrnHelper.SHA1),
+                responseFactory.createResponse(10, 10, "susheel jumps high" + i, UrnHelper.SHA1),
+                responseFactory.createResponse(10, 10, "sleepy susheel" + i, UrnHelper.SHA1),
             };
             m = queryReplyFactory.createQueryReply(queryGuid.bytes(), (byte) 1, 6355,
                     myIP(), 0, res, GUID.makeGuid(), new byte[0], false, false,

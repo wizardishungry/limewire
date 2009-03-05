@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.Map;
 
 import org.limewire.collection.MultiCollection;
+import org.limewire.core.settings.DHTSettings;
 import org.limewire.mojito.KUID;
 import org.limewire.mojito.db.DHTValue;
 import org.limewire.mojito.db.Storable;
@@ -20,12 +21,11 @@ import org.limewire.mojito.util.DatabaseUtils;
 import com.google.inject.Inject;
 import com.google.inject.Provider;
 import com.google.inject.Singleton;
-import com.limegroup.gnutella.FileDesc;
-import com.limegroup.gnutella.FileManager;
-import com.limegroup.gnutella.IncompleteFileDesc;
 import com.limegroup.gnutella.URN;
 import com.limegroup.gnutella.dht.util.KUIDUtils;
-import com.limegroup.gnutella.settings.DHTSettings;
+import com.limegroup.gnutella.library.FileDesc;
+import com.limegroup.gnutella.library.FileManager;
+import com.limegroup.gnutella.library.SharedFileList;
 import com.limegroup.gnutella.tigertree.HashTree;
 import com.limegroup.gnutella.tigertree.HashTreeCache;
 
@@ -63,17 +63,16 @@ public class AltLocModel implements StorableModel {
             return Collections.emptySet();
         }
         
-        FileDesc[] fds = fileManager.get().getAllSharedFileDescriptors();
-        
         // List of Storables we're going to publish
         List<Storable> toRemove = new ArrayList<Storable>();
         List<Storable> toPublish = new ArrayList<Storable>();
         
+        SharedFileList sharedFiles = fileManager.get().getGnutellaFileList();
         synchronized (values) {
-            
-            // Step One: Add every new FileDesc to the Map
-            for (FileDesc fd : fds) {
-                if (!(fd instanceof IncompleteFileDesc)) {
+            sharedFiles.getReadLock().lock();
+            try {
+                // Step One: Add every new FileDesc to the Map
+                for(FileDesc fd : sharedFiles) {
                     URN urn = fd.getSHA1Urn();
                     KUID primaryKey = KUIDUtils.toKUID(urn);
                     if (!values.containsKey(primaryKey)) {
@@ -88,6 +87,8 @@ public class AltLocModel implements StorableModel {
                         values.put(primaryKey, new Storable(primaryKey, value));
                     }
                 }
+            } finally {
+                sharedFiles.getReadLock().unlock();
             }
             
             // Step Two: Remove every Storable that is no longer
@@ -100,7 +101,7 @@ public class AltLocModel implements StorableModel {
                 URN urn = KUIDUtils.toURN(primaryKey);
                 
                 // For each URN check if the FileDesc still exists
-                FileDesc fd = fileManager.get().getFileDescForUrn(urn);
+                FileDesc fd = sharedFiles.getFileDesc(urn);
                 
                 // If it doesn't then remove it from the values map and
                 // replace the entity value with the empty value
@@ -114,7 +115,7 @@ public class AltLocModel implements StorableModel {
                     
                 // And if it does then check if it is rare and needs
                 // publishing.
-                } else if (fileManager.get().isRareFile(fd) 
+                } else if (fd.isRareFile() 
                         && DatabaseUtils.isPublishingRequired(storable)) {
                     toPublish.add(storable);
                 }

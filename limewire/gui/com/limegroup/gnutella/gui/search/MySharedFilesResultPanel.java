@@ -5,9 +5,6 @@ import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.event.ActionEvent;
-import java.util.Collections;
-import java.util.List;
-import java.util.Set;
 
 import javax.swing.Action;
 import javax.swing.Box;
@@ -16,16 +13,6 @@ import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JPopupMenu;
 
-import org.limewire.io.IpPort;
-import org.limewire.io.NetworkUtils;
-
-import com.limegroup.gnutella.FileDesc;
-import com.limegroup.gnutella.FileEventListener;
-import com.limegroup.gnutella.FileManager;
-import com.limegroup.gnutella.FileManagerEvent;
-import com.limegroup.gnutella.IncompleteFileDesc;
-import com.limegroup.gnutella.RemoteFileDesc;
-import com.limegroup.gnutella.Response;
 import com.limegroup.gnutella.gui.GUIMediator;
 import com.limegroup.gnutella.gui.GuiCoreMediator;
 import com.limegroup.gnutella.gui.I18n;
@@ -36,14 +23,10 @@ import com.limegroup.gnutella.gui.options.OptionsConstructor;
 import com.limegroup.gnutella.gui.options.OptionsMediator;
 import com.limegroup.gnutella.gui.tables.DataLine;
 import com.limegroup.gnutella.gui.util.BackgroundExecutorService;
-import com.limegroup.gnutella.library.SharingUtils;
-import com.limegroup.gnutella.search.HostData;
-import com.limegroup.gnutella.search.HostDataImpl;
-import com.limegroup.gnutella.settings.ChatSettings;
-import com.limegroup.gnutella.settings.ConnectionSettings;
-import com.limegroup.gnutella.settings.SSLSettings;
-import com.limegroup.gnutella.util.LimeWireUtils;
-import com.limegroup.gnutella.xml.LimeXMLDocument;
+import com.limegroup.gnutella.library.FileDesc;
+import com.limegroup.gnutella.library.FileList;
+import com.limegroup.gnutella.library.FileManager;
+import com.limegroup.gnutella.library.LibraryUtils;
 
 /**
  * Shows the files being shared by the users LimeWire in a search results like window
@@ -56,9 +39,7 @@ public class MySharedFilesResultPanel extends ResultPanel {
     
     private JLabel filesLabel;
 
-    private final HostData blankHostData;
-
-	private final FileEventListener listener;
+//	private final EventListener<FileManagerEvent> listener;
     
     
     
@@ -75,32 +56,20 @@ public class MySharedFilesResultPanel extends ResultPanel {
 
         SOUTH_PANEL.setVisible(false);
         
-        blankHostData = new HostDataImpl(GuiCoreMediator.getApplicationServices().getMyGUID(), guid
-                .bytes(), ConnectionSettings.CONNECTION_SPEED.getValue(), !GuiCoreMediator
-                .getNetworkManager().acceptedIncomingConnection(), false, false,
-                ChatSettings.CHAT_ENABLED.getValue(), false, false, NetworkUtils
-                        .ip2string(GuiCoreMediator.getNetworkManager().getAddress()),
-                GuiCoreMediator.getNetworkManager().getPort(), 0, LimeWireUtils.QHD_VENDOR_NAME,
-                GuiCoreMediator.getConnectionManager().getPushProxies(), GuiCoreMediator
-                        .getNetworkManager().canDoFWT(), GuiCoreMediator.getNetworkManager()
-                        .supportsFWTVersion(), SSLSettings.isIncomingTLSEnabled());
-        
-        synchronized (fileManager) {
-            for (int i = 0; fileManager.isValidSharedIndex(i); i++) {
-                FileDesc fd = fileManager.get(i);
-
-                if (fd == null) {
-                    continue;
-                }
-
+        FileList fileList = fileManager.getGnutellaFileList();
+        fileList.getReadLock().lock();
+        try {
+            for(FileDesc fd : fileList) {
                 if (!shouldDisplayAddedFile(fd))
                     continue;
                                 
                 addFile(fd);
             }
+        } finally {
+            fileList.getReadLock().unlock();
         }
         
-        listener = createUpdateListener();
+//        listener = createUpdateListener();
     }
 
     public Action getUnshareAction(int num) {
@@ -111,10 +80,10 @@ public class MySharedFilesResultPanel extends ResultPanel {
      * @return false if this is an incomplete file and should not be added.
      */
     private boolean shouldDisplayAddedFile(FileDesc fd) {
-        if (fd instanceof IncompleteFileDesc)
+        if(GuiCoreMediator.getFileManager().getIncompleteFileList().contains(fd))
             return false;
         
-        if (SharingUtils.isForcedShare(fd)) {
+        if (LibraryUtils.isForcedShare(fd)) {
             return false;
         }
         
@@ -123,39 +92,20 @@ public class MySharedFilesResultPanel extends ResultPanel {
     }
     
     private void addFile(FileDesc fd) {
-        
-        Response response = GuiCoreMediator.getResponseFactory().createResponse(fd);
-        List<LimeXMLDocument> docs = fd.getLimeXMLDocuments();
-        if (docs.size() == 1) {
-            response.setDocument(docs.get(0));
-        }
-        
-        Set<? extends IpPort> alts = Collections.emptySet();
-
-        RemoteFileDesc rfd = response.toRemoteFileDesc(blankHostData, GuiCoreMediator.getRemoteFileDescFactory());
-        SearchResult searchResult = new SharedSearchResult(fd, rfd, alts);
-        add(searchResult);
+        add(new SharedSearchResult(fd, GuiCoreMediator.getCreationTimeCache(),
+                GuiCoreMediator.getNetworkManager()));
     }
     
-    private void removeFile(FileDesc fd) {
-        for ( int i=0 ; i<DATA_MODEL.getRowCount() ; i++ ) {
-            DataLine<SearchResult> line =  getLine(i);
-            SearchResult sr = line.getInitializeObject();
-
-            // workaround fix: somehow GnutellaSearchResults creep in here,
-            // don't forward port
-            if (sr instanceof SharedSearchResult) {
-                if (((SharedSearchResult) sr).getFileDesc().equals(fd)) {
-                    this.remove(sr);
-                }
-            }
-        }
-    }
-    
-    @Override
-    protected void buildListeners() {
-        super.buildListeners();
-    }
+//    private void removeFile(FileDesc fd) {
+//        for ( int i=0 ; i<DATA_MODEL.getRowCount() ; i++ ) {
+//            DataLine<SearchResult> line =  getLine(i);
+//            SearchResult sr = line.getInitializeObject();
+//
+//            if (((SharedSearchResult) sr).getFileDesc().equals(fd)) {
+//                this.remove(sr);
+//            }
+//        }
+//    }
     
     private class UnshareFileAction extends AbstractAction {
 
@@ -177,9 +127,8 @@ public class MySharedFilesResultPanel extends ResultPanel {
 
             BackgroundExecutorService.schedule(new Runnable() {
                 public void run() {
-                    for (int i = 0; i < files.length; i++) {
-                        FileDesc fd = files[i];
-                        GuiCoreMediator.getFileManager().stopSharingFile(fd.getFile());
+                    for (FileDesc fd : files) {
+                        GuiCoreMediator.getFileManager().getGnutellaFileList().remove(fd);
                     }      
                 }
             });
@@ -209,14 +158,6 @@ public class MySharedFilesResultPanel extends ResultPanel {
     }
     
     /**
-     * Sets the default renderers to be used in the table.
-     */
-    @Override
-    protected void setDefaultRenderers() {
-        super.setDefaultRenderers();
-    }
-    
-    /**
      * Setup the data model 
      */
     @Override
@@ -239,9 +180,6 @@ public class MySharedFilesResultPanel extends ResultPanel {
         BUTTON_ROW.setButtonsEnabled(false);
     }
     
-    /**
-     * Forwards the event to DOWNLOAD_LISTENER.
-     */
     @Override
     public void handleActionKey() {
     }
@@ -258,7 +196,7 @@ public class MySharedFilesResultPanel extends ResultPanel {
     private void refreshNumFiles() {
         String info = I18n.tr(
                 "You are sharing {0} files. You can control which files LimeWire shares.",
-                GuiCoreMediator.getFileManager().getNumFiles());
+                GuiCoreMediator.getFileManager().getGnutellaFileList().size());
 
         filesLabel.setText("<html><font color=\"#7B5100\"><b>" + info + "</b></font></html>");
         
@@ -312,37 +250,35 @@ public class MySharedFilesResultPanel extends ResultPanel {
 
     @Override
     public void cleanup() {
-        GuiCoreMediator.getFileManager().removeFileEventListener(listener);
+//        GuiCoreMediator.getFileManager().removeFileEventListener(listener);
     }
     
-    private FileEventListener createUpdateListener() {
-        
-        FileEventListener listener = new FileEventListener() {
-            public void handleFileEvent(final FileManagerEvent evt) {
-                switch (evt.getType()) {
-                    case ADD_FILE:
-                    case REMOVE_FILE:
-
-                        GUIMediator.safeInvokeLater(new Runnable() {
-                            public void run() {
-                               
-                                if (evt.getType() == FileManagerEvent.Type.ADD_FILE) {
-                                    if (shouldDisplayAddedFile(evt.getFileDescs()[0]))
-                                        addFile(evt.getFileDescs()[0]);     
-                                } else {
-                                    removeFile(evt.getFileDescs()[0]);
-                                }
-                               
-                                refreshNumFiles();
-
-                            }
-                        });
-                    }
-            }
-        };
-        
-        GuiCoreMediator.getFileManager().addFileEventListener(listener);
-        
-        return listener;
-    }
+//    private EventListener<FileManagerEvent> createUpdateListener() {
+//        
+//        EventListener<FileManagerEvent> listener = new EventListener<FileManagerEvent>() {
+//            public void handleEvent(final FileManagerEvent evt) {
+//                switch (evt.getType()) {
+//                    case ADD_FILE:
+//                    case REMOVE_FILE:
+//                        GUIMediator.safeInvokeLater(new Runnable() {
+//                            public void run() {
+//                                if (evt.getType() == FileManagerEvent.Type.ADD_FILE) {
+//                                    if (shouldDisplayAddedFile(evt.getNewFileDesc()) &&
+//                                            evt.getFileManager().getGnutellaSharedFileList().contains(evt.getNewFileDesc()))
+//                                        addFile(evt.getNewFileDesc());     
+//                                } else {
+//                                    removeFile(evt.getNewFileDesc());
+//                                }
+//                               
+//                                refreshNumFiles();
+//                            }
+//                        });
+//                    }
+//                }
+//        };
+//        
+//        GuiCoreMediator.getFileManager().addFileEventListener(listener);
+//        
+//        return listener;
+//    }
 }

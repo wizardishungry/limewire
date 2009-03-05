@@ -6,7 +6,10 @@ import java.net.URL;
 import java.util.concurrent.ScheduledExecutorService;
 
 import org.apache.http.HttpException;
+import org.limewire.core.api.download.SaveLocationException;
+import org.limewire.core.api.download.SaveLocationManager;
 import org.limewire.io.InvalidDataException;
+import org.limewire.net.SocketsManager;
 
 import com.google.inject.Inject;
 import com.google.inject.Provider;
@@ -14,15 +17,10 @@ import com.google.inject.name.Named;
 import com.limegroup.gnutella.ApplicationServices;
 import com.limegroup.gnutella.DownloadCallback;
 import com.limegroup.gnutella.DownloadManager;
-import com.limegroup.gnutella.FileManager;
 import com.limegroup.gnutella.MessageRouter;
 import com.limegroup.gnutella.NetworkManager;
 import com.limegroup.gnutella.RemoteFileDesc;
-import com.limegroup.gnutella.SaveLocationException;
-import com.limegroup.gnutella.SaveLocationManager;
-import com.limegroup.gnutella.SavedFileManager;
 import com.limegroup.gnutella.URN;
-import com.limegroup.gnutella.UrnCache;
 import com.limegroup.gnutella.altlocs.AltLocManager;
 import com.limegroup.gnutella.altlocs.AlternateLocationFactory;
 import com.limegroup.gnutella.auth.ContentManager;
@@ -32,6 +30,8 @@ import com.limegroup.gnutella.downloader.serial.MagnetDownloadMemento;
 import com.limegroup.gnutella.downloader.serial.MagnetDownloadMementoImpl;
 import com.limegroup.gnutella.filters.IPFilter;
 import com.limegroup.gnutella.guess.OnDemandUnicaster;
+import com.limegroup.gnutella.library.FileManager;
+import com.limegroup.gnutella.library.UrnCache;
 import com.limegroup.gnutella.messages.QueryRequest;
 import com.limegroup.gnutella.messages.QueryRequestFactory;
 import com.limegroup.gnutella.tigertree.HashTreeCache;
@@ -91,18 +91,19 @@ class MagnetDownloaderImpl extends ManagedDownloaderImpl implements MagnetDownlo
             OnDemandUnicaster onDemandUnicaster, DownloadWorkerFactory downloadWorkerFactory,
             AltLocManager altLocManager, ContentManager contentManager,
             SourceRankerFactory sourceRankerFactory, UrnCache urnCache,
-            SavedFileManager savedFileManager, VerifyingFileFactory verifyingFileFactory,
+            VerifyingFileFactory verifyingFileFactory,
             DiskController diskController, 
             IPFilter ipFilter, @Named("backgroundExecutor")
             ScheduledExecutorService backgroundExecutor, Provider<MessageRouter> messageRouter,
             Provider<HashTreeCache> tigerTreeCache, ApplicationServices applicationServices,
-            RemoteFileDescFactory remoteFileDescFactory, Provider<PushList> pushListProvider) {
+            RemoteFileDescFactory remoteFileDescFactory, Provider<PushList> pushListProvider,
+            SocketsManager socketsManager) {
         super(saveLocationManager, downloadManager, fileManager, incompleteFileManager,
                 downloadCallback, networkManager, alternateLocationFactory, requeryManagerFactory,
                 queryRequestFactory, onDemandUnicaster, downloadWorkerFactory, altLocManager,
-                contentManager, sourceRankerFactory, urnCache, savedFileManager,
+                contentManager, sourceRankerFactory, urnCache, 
                 verifyingFileFactory, diskController, ipFilter, backgroundExecutor, messageRouter,
-                tigerTreeCache, applicationServices, remoteFileDescFactory, pushListProvider);
+                tigerTreeCache, applicationServices, remoteFileDescFactory, pushListProvider, socketsManager);
     }
     
     @Override
@@ -147,11 +148,14 @@ class MagnetDownloaderImpl extends ManagedDownloaderImpl implements MagnetDownlo
 			String[] defaultURLs = magnet.getDefaultURLs();
 			
 			boolean foundSource = false;
+			long fileSize = magnet.getFileSize();
 			for (int i = 0; i < defaultURLs.length; i++) {
 				try {
 				    RemoteFileDesc rfd = createRemoteFileDesc(defaultURLs[i],
-													 getSaveFile().getName(), magnet.getSHA1Urn());
-							
+													 getSaveFile().getName(), magnet.getSHA1Urn(), fileSize);
+				    // update size in case it was -1, to save HEAD requests
+				    // for the following urls
+				    fileSize = rfd.getSize();
 					initPropertiesMap(rfd);
 					addDownloadForced(rfd, true);
 				} catch (IOException badRFD) {} 
@@ -169,7 +173,7 @@ class MagnetDownloaderImpl extends ManagedDownloaderImpl implements MagnetDownlo
     
     /** 
      * Creates a faked-up RemoteFileDesc to pass to ManagedDownloader.  If a URL
-     * is provided, issues a HEAD request to get the file size.  If this fails,
+     * is provided and fileSize is -1, it issues a HEAD request to get the file size.  If this fails,
      * returns null.
      * <p>
      * Protected and non-static so it can be overridden in tests.
@@ -179,11 +183,10 @@ class MagnetDownloaderImpl extends ManagedDownloaderImpl implements MagnetDownlo
      * link to determine the file length. This is a blocking call!
      * </p>
      */
-    @SuppressWarnings("deprecation")
     private RemoteFileDesc createRemoteFileDesc(String defaultURL,
-        String filename, URN urn)
+        String filename, URN urn, long fileSize)
             throws IOException, HttpException, InterruptedException, URISyntaxException {
-        return remoteFileDescFactory.createUrlRemoteFileDesc(new URL(defaultURL), filename, urn, -1L);
+        return remoteFileDescFactory.createUrlRemoteFileDesc(new URL(defaultURL), filename, urn, fileSize);
     } 
 
     ////////////////////////////// Requery Logic ///////////////////////////

@@ -1,12 +1,14 @@
 package com.limegroup.gnutella;
 
-import java.io.File;
 import java.util.Iterator;
 import java.util.Random;
+
+import org.limewire.io.GUID;
 
 import junit.framework.Test;
 
 import com.google.inject.Injector;
+import com.google.inject.Stage;
 import com.limegroup.gnutella.connection.BlockingConnection;
 import com.limegroup.gnutella.helpers.UrnHelper;
 import com.limegroup.gnutella.messages.Message;
@@ -62,7 +64,6 @@ public final class ServerSideLeafGuidedQueriesTest extends ServerSideTestCase {
 	
     @Override
     public void setSettings() throws Exception {
-        LimeTestUtils.setSharedDirectories(new File[0]);
     }
 
     public void quickDrainAll() throws Exception {
@@ -95,7 +96,7 @@ public final class ServerSideLeafGuidedQueriesTest extends ServerSideTestCase {
     
     @Override
     protected void setUp() throws Exception {
-        Injector injector = LimeTestUtils.createInjector();
+        Injector injector = LimeTestUtils.createInjector(Stage.PRODUCTION);
         super.setUp(injector);
         queryRequestFactory = injector.getInstance(QueryRequestFactory.class);
         responseFactory = injector.getInstance(ResponseFactory.class);
@@ -343,7 +344,7 @@ public final class ServerSideLeafGuidedQueriesTest extends ServerSideTestCase {
         throws Exception {
         byte[] ip = new byte[] {(byte)127, (byte)0, (byte)0, (byte)1};
         byte[] clientGUID = GUID.makeGuid();
-        Response[] resp = new Response[] {responseFactory.createResponse(0, 10, "berkeley")};
+        Response[] resp = new Response[] {responseFactory.createResponse(0, 10, "berkeley", UrnHelper.SHA1)};
         QueryReply reply = queryReplyFactory.createQueryReply(guid, (byte)3, 6346,
                 ip, 0, resp, clientGUID, false);
         source.send(reply);

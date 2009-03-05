@@ -37,6 +37,10 @@ public class PromotionMessageContainer implements MessageContainer, Serializable
     private static final String KEY_TERRITORIES = "T";
 
     private static final String KEY_DESCRIPTION = "D";
+    
+    private static final String KEY_TITLE = "t";
+    
+    private static final String KEY_DISPLAY_URL = "u";
 
     private static final String KEY_URL = "U";
 
@@ -144,11 +148,11 @@ public class PromotionMessageContainer implements MessageContainer, Serializable
                 mask[0] = (byte) (mask[0] | 1);
             if (options.isOpenInNewTab())
                 mask[0] = (byte) (mask[0] | 2);
-            if (options.isOpenInClientTab())
+            if (options.isOpenInHomeTab())
                 mask[0] = (byte) (mask[0] | 4);
             if (options.isOpenInStoreTab())
                 mask[0] = (byte) (mask[0] | 8);
-            if (options.isOpenInSpotTab())
+            if (options.isOpenInUnknownTab())
                 mask[0] = (byte) (mask[0] | 16);
         }
 
@@ -164,9 +168,9 @@ public class PromotionMessageContainer implements MessageContainer, Serializable
             byte mask = header[10];
             options.setMatchAllWords((mask & 1) > 0);
             options.setOpenInNewTab((mask & 2) > 0);
-            options.setOpenInClientTab((mask & 4) > 0);
+            options.setOpenInHomeTab((mask & 4) > 0);
             options.setOpenInStoreTab((mask & 8) > 0);
-            options.setOpenInSpotTab((mask & 16) > 0);
+            options.setOpenInUnknownTab((mask & 16) > 0);
         }
         return options;
     }
@@ -213,7 +217,7 @@ public class PromotionMessageContainer implements MessageContainer, Serializable
         List<Locale> territoryList = new ArrayList<Locale>();
         String territories;
         try {
-            territories = StringUtils.toStringFromUTF8Bytes(payload.getBytes(KEY_TERRITORIES));
+            territories = StringUtils.toUTF8String(payload.getBytes(KEY_TERRITORIES));
         } catch (BadGGEPPropertyException ex) {
             throw new RuntimeException("GGEP exception parsing territories.", ex);
         }
@@ -232,6 +236,22 @@ public class PromotionMessageContainer implements MessageContainer, Serializable
 
     public String getDescription() {
         return get(KEY_DESCRIPTION);
+    }
+    
+    public void setTitle(String title) {
+        set(KEY_TITLE, title);
+    }
+
+    public String getTitle() {
+        return get(KEY_TITLE);
+    }
+    
+    public void setDisplayUrl(String displayUrl) {
+        set(KEY_DISPLAY_URL, displayUrl);
+    }
+    
+    public String getDisplayUrl() {
+        return get(KEY_DISPLAY_URL);
     }
 
     /**
@@ -358,7 +378,7 @@ public class PromotionMessageContainer implements MessageContainer, Serializable
     public Map<String, String> getProperties() {
         Map<String, String> properties = new HashMap<String, String>();
         try {
-            String encoded = StringUtils.toStringFromUTF8Bytes(payload.getBytes(KEY_PROPERTIES));
+            String encoded = StringUtils.toUTF8String(payload.getBytes(KEY_PROPERTIES));
             StringTokenizer tokens = new StringTokenizer(encoded, "\t");
             while (tokens.hasMoreTokens()) {
                 String token = tokens.nextToken();
@@ -391,7 +411,7 @@ public class PromotionMessageContainer implements MessageContainer, Serializable
      */
     public List<GeoRestriction> getGeoRestrictions() {
         List<GeoRestriction> list = new ArrayList<GeoRestriction>();
-        if (payload.hasKey(KEY_GEO_RESTRICT)) {
+        if (payload.hasValueFor(KEY_GEO_RESTRICT)) {
             byte[] encoded = payload.get(KEY_GEO_RESTRICT);
             for (int i = 0; i < encoded.length - 6; i += 7) {
                 byte[] geoBytes = new byte[7];
@@ -452,8 +472,8 @@ public class PromotionMessageContainer implements MessageContainer, Serializable
     }
 
     /**
-     * If not set or there is trouble parsing the field, returns today's date,
-     * which will be overridden by the parent container's start date.
+     * If not set or there is trouble parsing the field, returns the earliest
+     * possible date, which will be overridden by the parent container's start date.
      */
     public Date getValidStart() {
         // Date is stored as a 4 byte long, seconds since UNIX epoch.
@@ -482,18 +502,20 @@ public class PromotionMessageContainer implements MessageContainer, Serializable
             long endLong = ByteUtils.beb2long(end, 0, 4);
             return new Date(endLong * 1000);
         } catch (BadGGEPPropertyException ex) {
-            return new Date(MAX_DATE_IN_SECONDS * 1000);
+            return new Date(MAX_DATE_IN_SECONDS * 1000L);
         }
     }
 
     /** Parses out the given key, or returns "" if the key is not present. */
     private String get(String key) {
         try {
-            if (!payload.hasKey(key))
+            if (!payload.hasValueFor(key)) {
                 return "";
-            return StringUtils.toStringFromUTF8Bytes(payload.getBytes(key));
+            } else {
+                return StringUtils.toUTF8String(payload.getBytes(key));
+            }
         } catch (BadGGEPPropertyException ex) {
-            throw new RuntimeException("GGEP exception parsing value." + ex.getMessage());
+            throw new RuntimeException("GGEP exception parsing value.", ex);
         }
     }
 
@@ -664,11 +686,11 @@ public class PromotionMessageContainer implements MessageContainer, Serializable
 
         private boolean openInNewTab = false;
 
-        private boolean openInClientTab = false;
+        private boolean openInHomeTab = false;
 
         private boolean openInStoreTab = false;
 
-        private boolean openInSpotTab = false;
+        private boolean openInUnknownTab = false;
 
         /**
          * @return if true, query should match all words, otherwise any words.
@@ -689,7 +711,7 @@ public class PromotionMessageContainer implements MessageContainer, Serializable
          *         window.
          */
         public boolean isOpenInNewWindow() {
-            return !(openInStoreTab || openInNewTab || openInClientTab || openInSpotTab);
+            return !(openInStoreTab || openInNewTab || openInHomeTab || openInUnknownTab);
         }
 
         /**
@@ -720,24 +742,24 @@ public class PromotionMessageContainer implements MessageContainer, Serializable
          * @return if true and LW supports a "Spot" tab, open this into that
          *         tab, creating it if it's not already open.
          */
-        public boolean isOpenInSpotTab() {
-            return openInSpotTab;
+        public boolean isOpenInUnknownTab() {
+            return openInUnknownTab;
         }
 
-        public void setOpenInSpotTab(boolean openInSpotTab) {
-            this.openInSpotTab = openInSpotTab;
+        public void setOpenInUnknownTab(boolean openInUnknownTab) {
+            this.openInUnknownTab = openInUnknownTab;
         }
 
         /**
          * @return if true and LW supports a "Client" (browser) tab, open this
          *         into that tab, creating it if it's not already open.
          */
-        public boolean isOpenInClientTab() {
-            return openInClientTab;
+        public boolean isOpenInHomeTab() {
+            return openInHomeTab;
         }
 
-        public void setOpenInClientTab(boolean openInClientTab) {
-            this.openInClientTab = openInClientTab;
+        public void setOpenInHomeTab(boolean openInHomeTab) {
+            this.openInHomeTab = openInHomeTab;
         }
     }
 

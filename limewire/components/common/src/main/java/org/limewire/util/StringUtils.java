@@ -1,11 +1,13 @@
 package org.limewire.util;
 
 import java.io.UnsupportedEncodingException;
+import java.lang.reflect.Array;
 import java.lang.reflect.Field;
 import java.text.Collator;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
@@ -54,7 +56,7 @@ public class StringUtils {
      *  StringUtils.contains(&quot;abcd&quot;, &quot;d*a&quot;) ==&gt; false
      *  </pre> 
      */
-    public static final boolean contains(String input, String pattern) {
+    public static boolean contains(String input, String pattern) {
         return contains(input, pattern, false);
     }
 
@@ -62,7 +64,7 @@ public class StringUtils {
      * Exactly like contains(input, pattern), but case is ignored if
      * ignoreCase==true.
      */
-    public static final boolean contains(String input, String pattern, boolean ignoreCase) {
+    public static boolean contains(String input, String pattern, boolean ignoreCase) {
         // More efficient algorithms are possible, e.g. a modified version of
         // the
         //Rabin-Karp algorithm, but they are unlikely to be faster with such
@@ -108,8 +110,8 @@ public class StringUtils {
     public static boolean containsCharacters(String input, char [] chars) {
         char [] inputChars = input.toCharArray();
         Arrays.sort(inputChars);
-        for(int i=0; i<chars.length; i++) {
-            if (Arrays.binarySearch(inputChars, chars[i]) >= 0)
+        for (char c : chars) {
+            if (Arrays.binarySearch(inputChars, c) >= 0)
                 return true;
         }
         return false;
@@ -122,7 +124,7 @@ public class StringUtils {
      *          -1 if no such i exists. If ignoreCase==false, case doesn't
      *          matter when comparing characters.
      */
-    private static final int subset(String little, int littleStart, int littleStop, String big,
+    private static int subset(String little, int littleStart, int littleStop, String big,
             int bigStart, boolean ignoreCase) {
         //Equivalent to
         // return big.indexOf(little.substring(littleStart, littleStop),
@@ -168,7 +170,7 @@ public class StringUtils {
      * Character.toLowerCase(c), Else returns c. Note that this is <b>not
      * internationalized</b>; but it is fast.
      */
-    public static final char toOtherCase(char c) {
+    public static char toOtherCase(char c) {
         int i = c; 
         final int A= 'A';   //65
         final int Z= 'Z';   //90
@@ -217,7 +219,7 @@ public class StringUtils {
         while (tokenizer.hasMoreTokens())
             tokens.add(tokenizer.nextToken());
 
-        return tokens.toArray(new String[0]);
+        return tokens.toArray(new String[tokens.size()]);
     }
 
     /**
@@ -269,7 +271,7 @@ public class StringUtils {
         if (gotDelimiter && !tokens.isEmpty())
             tokens.add("");
 
-        return tokens.toArray(new String[0]);
+        return tokens.toArray(new String[tokens.size()]);
     }
 
     /**
@@ -415,9 +417,9 @@ public class StringUtils {
 	 * <pre>
      *     explode({ &quot;a&quot;, &quot;b&quot; }, &quot; &quot;) == &quot;a b&quot;
      *     explode({ &quot;a&quot;, &quot;b&quot; }, &quot;&quot;) == &quot;ab&quot;
-	 * </pre>
+	 * </pre> 
 	 */
-    public static String explode(String[] array, String delimeter) {
+    public static String explode(Object[] array, String delimeter) {
 		StringBuilder sb = new StringBuilder();
 		if (array.length > 0) {
 			sb.append(array[0]);
@@ -430,24 +432,29 @@ public class StringUtils {
     }
     
     /**
-     * Returns the tokens of a collection concanated to a delimited by the given
-     * delimiter.
+     * Concatenates/joins the elements of <code>iteratble</code> together, 
+     * separated by <code>delimiter</code>
+     * 
+     * <pre>
+     *     explode({ &quot;a&quot;, &quot;b&quot; }, &quot; &quot;) == &quot;a b&quot;
+     *     explode({ &quot;a&quot;, &quot;b&quot; }, &quot;&quot;) == &quot;ab&quot;
+     * </pre>
+     * @return "" if iterable doesn't have elements
      */
-    public static String explode(Collection<String> collection, String delimiter) {
-        StringBuilder sb = new StringBuilder();
-        if (!collection.isEmpty()) {
-            Iterator<String> i = collection.iterator(); 
-            sb.append(i.next());
-            while (i.hasNext()) {
-                sb.append(delimiter);
-                sb.append(i.next());
-            }
+    public static <T> String explode(Iterable<T> iterable, String delimiter) {
+        Iterator<T> iterator = iterable.iterator();
+        if (!iterator.hasNext()) {
+            return "";
         }
-        return sb.toString();
+        StringBuilder builder = new StringBuilder();
+        builder.append(iterator.next());
+        while (iterator.hasNext()) {
+            builder.append(delimiter);
+            builder.append(iterator.next());
+        }
+        return builder.toString();
     }
     
-    //Unit tests: tests/com/limegroup/gnutella/util/StringUtils
-
     /**
      * A wrapped version of {@link String#getBytes(String)} that changes the
      * unlikely encoding exception into a runtime exception. Returns empty array
@@ -462,13 +469,23 @@ public class StringUtils {
             throw new RuntimeException("UTF-8 not supported?", ex);
         }
     }
+    
+    public static byte[] toAsciiBytes(String string) {
+        if (string == null)
+            return new byte[0];
+        try {
+            return string.getBytes("US-ASCII");
+        } catch (UnsupportedEncodingException ex) {
+            throw new RuntimeException("US-ASCII not supported?", ex);
+        }
+    }
 
     /**
      * A wrapped version of {@link String#String(byte[], String)} that changes
      * the unlikely encoding exception into a runtime exception. Returns null if
      * the passed in array is null.
      */
-    public static String toStringFromUTF8Bytes(byte[] bytes) {
+    public static String toUTF8String(byte[] bytes) {
         if (bytes == null)
             return null;
         try {
@@ -481,7 +498,54 @@ public class StringUtils {
     
     private static ThreadLocal<IdentityHashMap<Object, Object>> threadLocal = new ThreadLocal<IdentityHashMap<Object, Object>>();
     
-    public static String toString(Object thiz, Object...args) {
+    /**
+     * Creates a string representation of the object <code>thiz</code>.
+     * 
+     * Can optionally be given a whitelist of fields that should be part of the string
+     * output.
+     * 
+     * Note: Should synchronize calling method if the fields of the instance
+     * can be modified by other threads.
+     * 
+     * Note: Creates a temporary copy of arrays of primitive elements.
+     * 
+     * Calls {@link Object#toString()} on fields.
+     */
+    public static String toString(Object thiz, Object...whitelist) {
+        return toStringBlackAndWhite(thiz, Arrays.asList(whitelist), Collections.emptyList());
+    }
+    
+    /**
+     * Creates a string representation of the object <code>thiz</code>.
+     * 
+     * Can optionally be given a blacklist of fields that should not be part of the string
+     * output.
+     * 
+     * Note: Should synchronize calling method if the fields of the instance
+     * can be modified by other threads.
+     * 
+     * Note: Creates a temporary copy of arrays of primitive elements.
+     * 
+     * Calls {@link Object#toString()} on fields.
+     */
+    public static String toStringBlacklist(Object thiz, Object... blacklist) {
+        return toStringBlackAndWhite(thiz, Collections.emptyList(), Arrays.asList(blacklist));
+    }    
+    
+    /**
+     * Creates a string representation of the object <code>thiz</code>.
+     * 
+     * Can optionally be given a blacklist and whitelist of fields that should not be part of the string
+     * output.
+     * 
+     * Note: Should synchronize calling method if the fields of the instance
+     * can be modified by other threads.
+     * 
+     * Note: Creates a temporary copy of arrays of primitive elements.
+     * 
+     * Calls {@link Object#toString()} on fields.
+     */
+    private static String toStringBlackAndWhite(Object thiz, Collection<? extends Object> whitelist, Collection<? extends Object> blacklist) {
         boolean cleanUp = false;
         try {
             IdentityHashMap<Object, Object> handledObjects = threadLocal.get();
@@ -501,8 +565,26 @@ public class StringUtils {
                     field.setAccessible(true);
                     Object value = field.get(thiz);
                     field.setAccessible(accessible);
-                    if (args.length == 0 || Arrays.asList(args).contains(value)) {
-                        fields.put(field.getName(), String.valueOf(value));
+                    if (!blacklist.contains(value) && (whitelist.isEmpty() || whitelist.contains(value))) {
+                        if (value == null) {
+                            fields.put(field.getName(), String.valueOf(value));
+                        } else {
+                            Class clazz = value.getClass();
+                            if (clazz.isArray()) {
+                                if (!clazz.getComponentType().isPrimitive()) {
+                                    fields.put(field.getName(), String.valueOf(Arrays.asList((Object[])value)));
+                                } else {
+                                    int length = Array.getLength(value);
+                                    List<Object> copy = new ArrayList<Object>(length);
+                                    for (int i = 0; i < length; i++) {
+                                        copy.add(Array.get(value, i));
+                                    }
+                                    fields.put(field.getName(), String.valueOf(copy));
+                                }
+                            } else {
+                                fields.put(field.getName(), String.valueOf(value));
+                            }
+                        }
                     }
                 } catch (IllegalArgumentException e) {
                     e.printStackTrace();
@@ -516,5 +598,12 @@ public class StringUtils {
                 threadLocal.set(null);
             }
         }
+    }        
+    
+    /**
+     * Returns true if the given string is null or empty;
+     */
+    public static boolean isEmpty(String s) {
+        return s == null || s.trim().length() == 0;
     }
 }

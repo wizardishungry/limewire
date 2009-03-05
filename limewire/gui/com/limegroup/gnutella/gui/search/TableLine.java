@@ -16,14 +16,14 @@ import java.util.Set;
 
 import javax.swing.Icon;
 
+import org.limewire.core.settings.SearchSettings;
+import org.limewire.io.GUID;
 import org.limewire.io.IpPort;
 import org.limewire.io.IpPortSet;
-import org.limewire.security.SecureMessage;
+import org.limewire.security.SecureMessage.Status;
 import org.limewire.util.NameValue;
 import org.limewire.util.OSUtils;
 
-import com.limegroup.gnutella.GUID;
-import com.limegroup.gnutella.IncompleteFileDesc;
 import com.limegroup.gnutella.RemoteFileDesc;
 import com.limegroup.gnutella.URN;
 import com.limegroup.gnutella.gui.GUIMediator;
@@ -41,7 +41,6 @@ import com.limegroup.gnutella.gui.xml.XMLUtils;
 import com.limegroup.gnutella.gui.xml.XMLValue;
 import com.limegroup.gnutella.licenses.License;
 import com.limegroup.gnutella.licenses.LicenseFactory;
-import com.limegroup.gnutella.settings.SearchSettings;
 import com.limegroup.gnutella.xml.LimeXMLDocument;
 import com.limegroup.gnutella.xml.LimeXMLSchema;
 import com.limegroup.gnutella.xml.SchemaFieldInfo;
@@ -172,7 +171,7 @@ public final class TableLine extends AbstractDataLine<SearchResult> implements L
             _mediaType = NamedMediaType.getFromExtension(getExtension());
         _speed = new ResultSpeed(sr.getSpeed(), sr.isMeasuredSpeed());
         _quality = sr.getQuality();
-        _secure = sr.getSecureStatus() == SecureMessage.SECURE;
+        _secure = sr.getSecureStatus() == Status.SECURE;
     }
 
     private void initializeEnd() {
@@ -226,7 +225,7 @@ public final class TableLine extends AbstractDataLine<SearchResult> implements L
         
         if (sr instanceof GnutellaSearchResult) {
             GnutellaSearchResult gsr = (GnutellaSearchResult)sr;
-            RemoteFileDesc rfd = gsr.getRemoteFileDesc();
+//            RemoteFileDesc rfd = gsr.getRemoteFileDesc();
             Set<? extends IpPort> alts = gsr.getAlts();
             if(alts != null && !alts.isEmpty()) {
                 if(_alts == null)
@@ -235,7 +234,8 @@ public final class TableLine extends AbstractDataLine<SearchResult> implements L
                 gsr.clearAlts();
                 _location.addHosts(alts);
             }
-            _location.addHost(rfd.getHost(), rfd.getPort());
+            // TODO _location.addHost(rfd.getAddress(), rfd.getPort());
+            throw new UnsupportedOperationException("old UI is broken");
         }
         
         
@@ -250,7 +250,7 @@ public final class TableLine extends AbstractDataLine<SearchResult> implements L
         
         // Set the quality correctly.
         _quality = Math.max(sr.getQuality(), _quality);
-        _secure |= sr.getSecureStatus() == SecureMessage.SECURE;        
+        _secure |= sr.getSecureStatus() == Status.SECURE;        
         
         if (sr instanceof GnutellaSearchResult) {
             GnutellaSearchResult gsr = (GnutellaSearchResult)sr;
@@ -266,9 +266,10 @@ public final class TableLine extends AbstractDataLine<SearchResult> implements L
     		if (_browseHost == null && rfd.isBrowseHostEnabled()) {
     			_browseHost = rfd;
     		}
-    		if (_nonFirewalledHost == null && !rfd.isFirewalled()) {
-    			_nonFirewalledHost = rfd;
-    		}
+//  TODO  		if (_nonFirewalledHost == null && !rfd.isFirewalled()) {
+//  TODO  			_nonFirewalledHost = rfd;
+//  TODO  		}
+            throw new UnsupportedOperationException("old UI is broken");
         }
         
         
@@ -345,24 +346,22 @@ public final class TableLine extends AbstractDataLine<SearchResult> implements L
         // hack for LWC-1099 -- can't check incomplete or else deadlock
         if(RESULT instanceof SharedSearchResult) {
             SharedSearchResult ssr = (SharedSearchResult)RESULT;
-            if(ssr.getFileDesc() instanceof IncompleteFileDesc)
+            if(GuiCoreMediator.getFileManager().getIncompleteFileList().contains(ssr.getFileDesc()))
                 _incompleteFile = true;
             else
                 _savedFile = true;
-        } else {            
+        } else {
             if(_sha1 != null) {
-                _savedFile =
-                    GuiCoreMediator.getFileManager().isUrnShared(_sha1);
-                _incompleteFile =
-                    GuiCoreMediator.getDownloadManager().isIncomplete(_sha1);
+                _savedFile = GuiCoreMediator.getFileManager().getGnutellaFileList().getFileDesc(_sha1) != null;
+                _incompleteFile = GuiCoreMediator.getDownloadManager().isIncomplete(_sha1);
             } else {
                 _savedFile = false;
                 _incompleteFile = false;
             }
-            if(!_savedFile) {
-                _savedFile =
-                    GuiCoreMediator.getSavedFileManager().isSaved(_sha1, getFilename());
-            }
+//            if(!_savedFile) {
+//                _savedFile =
+//                    GuiCoreMediator.getSavedFileManager().isSaved(_sha1, getFilename());
+//            }
         }
     }
     
@@ -814,10 +813,11 @@ public final class TableLine extends AbstractDataLine<SearchResult> implements L
      * Does a chat.
      */
     void doChat() {
-		if (_chatHost != null && _chatHost.getHost() != null 
-				&& _chatHost.getPort() != -1) {
-			GUIMediator.createChat(_chatHost.getHost(), _chatHost.getPort());
-		}
+// TODO		if (_chatHost != null && _chatHost.getAddress() != null 
+// TODO				&& _chatHost.getPort() != -1) {
+// TODO			GUIMediator.createChat(_chatHost.getAddress(), _chatHost.getPort());
+// TODO	}
+        throw new UnsupportedOperationException("old UI is broken");
     }
     
 	/**
@@ -834,21 +834,21 @@ public final class TableLine extends AbstractDataLine<SearchResult> implements L
 	 * Gets the spam rating
 	 */
 	float getSpamRating() {
-        if (_lastRating == -1f) {
-            _lastRating = RESULT.getSpamRating();
-            int num = 1;
-            if (_otherResults != null) {
-                for (Iterator iter = _otherResults.iterator(); iter.hasNext();) {
-                    SearchResult r = (SearchResult)iter.next();
-                    if (!(r instanceof GnutellaSearchResult)) continue;
-                    num++;
-                    _lastRating += ((GnutellaSearchResult)r).getRemoteFileDesc()
-                    .getSpamRating();
+	    if(_lastRating == -1f) {
+	        _lastRating = RESULT.getSpamRating();
+            // If there's more than one result, return the max spam rating
+            if(_otherResults != null) {
+                for(SearchResult r : _otherResults) {
+                    if(r instanceof GnutellaSearchResult) {
+                        GnutellaSearchResult g = (GnutellaSearchResult)r; 
+                        float rating = g.getRemoteFileDesc().getSpamRating();
+                        if(rating > _lastRating)
+                            _lastRating = rating;
+                    }
+                }
             }
-            }
-            _lastRating = _lastRating / num;
-        } 
-		return _lastRating;
+	    } 
+	    return _lastRating;
 	}
     
     /**

@@ -5,22 +5,25 @@ import java.awt.Insets;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
 
 import javax.swing.BorderFactory;
 import javax.swing.JLabel;
 import javax.swing.JMenuItem;
 import javax.swing.JPopupMenu;
 
-import org.limewire.io.IpPort;
+import org.limewire.core.settings.ConnectionSettings;
+import org.limewire.io.GUID;
+import org.limewire.io.NetworkUtils;
+import org.limewire.security.SecureMessage.Status;
 
-import com.limegroup.gnutella.FileDesc;
-import com.limegroup.gnutella.GUID;
-import com.limegroup.gnutella.RemoteFileDesc;
+import com.limegroup.gnutella.NetworkManager;
 import com.limegroup.gnutella.URN;
 import com.limegroup.gnutella.gui.GUIUtils;
 import com.limegroup.gnutella.gui.I18n;
 import com.limegroup.gnutella.gui.themes.ThemeFileHandler;
+import com.limegroup.gnutella.library.CreationTimeCache;
+import com.limegroup.gnutella.library.FileDesc;
+import com.limegroup.gnutella.util.LimeWireUtils;
 import com.limegroup.gnutella.xml.LimeXMLDocument;
 
 /**
@@ -31,74 +34,69 @@ import com.limegroup.gnutella.xml.LimeXMLDocument;
  */
 public class SharedSearchResult extends AbstractSearchResult {
 
-    private FileDesc fileDesc;
-    
-    private RemoteFileDesc rfd;
-    
-    private Set<? extends IpPort> _alts;
-    
-    public SharedSearchResult(FileDesc fileDesc, RemoteFileDesc rfd,  Set<? extends IpPort> alts ){
+    private final FileDesc fileDesc;    
+    private final CreationTimeCache creationTimeCache;
+    private final NetworkManager networkManager;
+
+    public SharedSearchResult(FileDesc fileDesc, CreationTimeCache creationTimeCache, NetworkManager networkManager){
         this.fileDesc = fileDesc;
-        this.rfd = rfd;
-        this._alts = alts;
+        this.creationTimeCache = creationTimeCache;
+        this.networkManager = networkManager;
     }
     
     public FileDesc getFileDesc(){
         return fileDesc;
     }
-    
-    /** Gets the RemoteFileDesc */
-    RemoteFileDesc getRemoteFileDesc() { return rfd; }
-    
-    
-    /** Gets the Alternate Locations */
-    Set<? extends IpPort> getAlts() { return _alts; }
-    
-    /**
-     * Clears the alternate locations for this SearchResult.
-     */
-    void clearAlts() {
-        _alts = null;
-    }
 
     public String getFileName() {
-        return rfd.getFileName();
+        return fileDesc.getFileName();
     }
 
     public long getSize() {
-        return rfd.getSize();
+        return fileDesc.getFileSize();
     }
 
     public URN getSHA1Urn() {
-        return rfd.getSHA1Urn();
+        return fileDesc.getSHA1Urn();
     }
 
     public LimeXMLDocument getXMLDocument() {
-        return rfd.getXMLDocument();
+        // TODO - use fileDesc.getLimeXMLDoc(); note that it has slightly different logic
+        
+        // legacy LW had multiple docs per file.
+        // now only one is allowed.
+        // could potentially pick the one that
+        // corresponds to the files type.
+        List<LimeXMLDocument> docs = fileDesc.getLimeXMLDocuments();
+        if (docs.size() == 1) {
+            return docs.get(0);
+        } else {
+            return null;
+        }
     }
 
     public long getCreationTime() {
-        return rfd.getCreationTime();
+        return creationTimeCache.getCreationTime(getSHA1Urn());
     }
 
     public boolean isDownloading() {
-        return rfd.isDownloading();
+        return false;
     }
 
     public String getVendor() {
-        return rfd.getVendor();
+        return LimeWireUtils.QHD_VENDOR_NAME;
     }
 
     public int getQuality() {
-        return rfd.getQuality();
+        return 0;
     }
 
-    public int getSecureStatus() {
-        return rfd.getSecureStatus();
+    public Status getSecureStatus() {
+        return Status.INSECURE; 
     }
 
     public int getSpeed() {
-        return rfd.getSpeed();
+        return ConnectionSettings.CONNECTION_SPEED.getValue();
     }
 
     public boolean isMeasuredSpeed() {
@@ -106,11 +104,11 @@ public class SharedSearchResult extends AbstractSearchResult {
     }
 
     public float getSpamRating() {
-        return rfd.getSpamRating();
+        return 0.f;
     }
 
     public String getHost() {
-        return rfd.getHost();
+        return NetworkUtils.ip2string(networkManager.getAddress());
     }
 
     public Color getEvenRowColor() {
@@ -161,8 +159,7 @@ public class SharedSearchResult extends AbstractSearchResult {
     }
 
     public void initialize(TableLine line) {
-        line.createEndpointHolder("127.0.0.1", this.rfd.getPort(), false);
-        
-        line.setAddedOn(this.rfd.getCreationTime());
+        line.createEndpointHolder("127.0.0.1", networkManager.getPort(), false);         
+        line.setAddedOn(getCreationTime());
     }
 }

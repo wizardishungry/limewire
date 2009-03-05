@@ -4,12 +4,12 @@ import java.io.IOException;
 
 import javax.swing.JCheckBox;
 
+import org.limewire.core.settings.FilterSettings;
 import org.limewire.i18n.I18nMarker;
 
 import com.limegroup.gnutella.gui.GuiCoreMediator;
 import com.limegroup.gnutella.gui.I18n;
 import com.limegroup.gnutella.gui.search.SearchMediator;
-import com.limegroup.gnutella.settings.FilterSettings;
 
 /**
  * This class defines the panel in the options window that allows the user

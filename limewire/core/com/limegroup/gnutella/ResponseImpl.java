@@ -1,22 +1,23 @@
 package com.limegroup.gnutella;
 
 import static com.limegroup.gnutella.Constants.MAX_FILE_SIZE;
-
-import java.io.IOException;
-import java.io.OutputStream;
-import java.io.UnsupportedEncodingException;
-import java.util.Collections;
-import java.util.Locale;
-import java.util.Set;
-
+import com.limegroup.gnutella.downloader.RemoteFileDescFactory;
+import com.limegroup.gnutella.messages.QueryReply;
+import com.limegroup.gnutella.xml.LimeXMLDocument;
 import org.limewire.collection.IntervalSet;
+import org.limewire.io.Address;
+import org.limewire.io.ConnectableImpl;
 import org.limewire.io.IpPort;
 import org.limewire.service.ErrorService;
 import org.limewire.util.ByteUtils;
 
-import com.limegroup.gnutella.downloader.RemoteFileDescFactory;
-import com.limegroup.gnutella.search.HostData;
-import com.limegroup.gnutella.xml.LimeXMLDocument;
+import java.io.IOException;
+import java.io.OutputStream;
+import java.io.UnsupportedEncodingException;
+import java.net.UnknownHostException;
+import java.util.Collections;
+import java.util.Locale;
+import java.util.Set;
 
 class ResponseImpl implements Response {
 
@@ -233,17 +234,22 @@ class ResponseImpl implements Response {
     public boolean isVerified() {
         return verified;
     }
-    
-    public RemoteFileDesc toRemoteFileDesc(HostData data, RemoteFileDescFactory remoteFileDescFactory){
-        if(cachedRFD != null &&
-           cachedRFD.getPort() == data.getPort() &&
-           cachedRFD.getHost().equals(data.getIP()))
+
+    public RemoteFileDesc toRemoteFileDesc(QueryReply queryReply, Address address, RemoteFileDescFactory remoteFileDescFactory, PushEndpointFactory pushEndpointFactory) throws UnknownHostException {
+        // TODO fberger move this to query reply, since all responses can share a common address
+        if (address == null) {
+            if (queryReply.isFirewalled()) {
+                address = pushEndpointFactory.createPushEndpoint(queryReply.getClientGUID(), queryReply.getPushProxies(), PushEndpoint.PLAIN, queryReply.getFWTransferVersion(), new ConnectableImpl(queryReply.getIP(), queryReply.getPort(), queryReply.isTLSCapable()));
+            } else {
+                address = new ConnectableImpl(queryReply.getIP(), queryReply.getPort(), queryReply.isTLSCapable());
+            }
+        }
+        if (cachedRFD != null && cachedRFD.getAddress().equals(address)) {
             return cachedRFD;
-        else {
-            RemoteFileDesc rfd = remoteFileDescFactory.createRemoteFileDesc(data.getIP(), data.getPort(), getIndex(),
-                    getName(), getSize(), data.getClientGUID(), data.getSpeed(), data.isChatEnabled(), data.getQuality(), data.isBrowseHostEnabled(),
-                    getDocument(), getUrns(), data.isReplyToMulticastQuery(), data.isFirewalled(), data.getVendorCode(), data.getPushProxies(), getCreateTime(),
-                    data.getFWTVersionSupported(), data.isTLSCapable());
+        } else {
+            RemoteFileDesc rfd = remoteFileDescFactory.createRemoteFileDesc(address, getIndex(),
+                    getName(), getSize(), queryReply.getClientGUID(), queryReply.getSpeed(), queryReply.getSupportsChat(), queryReply.calculateQualityOfService(), queryReply.getSupportsBrowseHost(),
+                    getDocument(), getUrns(), queryReply.isReplyToMulticastQuery(), queryReply.getVendor(), getCreateTime());
             cachedRFD = rfd;
             return rfd;
         }
@@ -283,5 +289,4 @@ class ResponseImpl implements Response {
                 "xml document: "+document+"\r\n"+
                 "urns:         "+urns);
     }
-    
 }

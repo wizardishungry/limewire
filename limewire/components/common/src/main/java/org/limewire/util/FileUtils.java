@@ -13,17 +13,24 @@ import java.io.InputStream;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.io.OutputStream;
+import java.math.BigInteger;
 import java.net.URL;
+import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
+import org.limewire.logging.Log;
+import org.limewire.logging.LogFactory;
 import org.limewire.util.SystemUtils.SpecialLocations;
 
 
@@ -35,14 +42,13 @@ public class FileUtils {
     
     private static final Log LOG = LogFactory.getLog(FileUtils.class);
     
+
+    /** A cache of files that may or may not be writable.  Required for workarounds on Windows. */
+    private static final Map<File, Boolean> CAN_WRITE_CACHE = new ConcurrentHashMap<File, Boolean>();
+    
     private static final CopyOnWriteArrayList<FileLocker> fileLockers =
         new CopyOnWriteArrayList<FileLocker>();
     
-
-    public static void writeObject(String fileName, Object obj) 
-    throws IOException{
-        writeObject(new File(fileName),obj);
-    }
     
     /**
      * Writes the passed Object to corresponding file
@@ -54,7 +60,7 @@ public class FileUtils {
         
         try {
             f = getCanonicalFile(f);
-        } catch (IOException tryAnyway){}
+        } catch (IOException ignore){}
         
         ObjectOutputStream out = null;
         try {
@@ -84,7 +90,7 @@ public class FileUtils {
         
         try {
             file = getCanonicalFile(file);
-        } catch (IOException tryAnyway){}
+        } catch (IOException ignore){}
         
         ObjectInputStream in = null;
         try {
@@ -115,6 +121,15 @@ public class FileUtils {
         }
     }
     
+    /** Safely canonicalizes a file, with no IOExceptions. */
+    public static File canonicalize(File f) {
+        try {
+            return getCanonicalFile(f);
+        } catch(IOException iox) {
+            return f;
+        }
+    }
+    
     /** Same as f.getCanonicalFile() in JDK1.3. */
     public static File getCanonicalFile(File f) throws IOException {
         try {
@@ -132,7 +147,7 @@ public class FileUtils {
     /**
      * Determines if file 'a' is an ancestor of file 'b'.
      */
-    public static final boolean isAncestor(File a, File b) {
+    public static boolean isAncestor(File a, File b) {
         while(b != null) {
             if(b.equals(a))
                 return true;
@@ -155,7 +170,7 @@ public class FileUtils {
      * @return false if testParent is not the parent of testChild.
      * @throws IOException if getCanonicalPath throws IOException for either input file
      */
-    public static final boolean isReallyParent(File testParent, File testChild) throws IOException {
+    public static boolean isReallyParent(File testParent, File testChild) throws IOException {
         // Don't check testDirectory.isDirectory... 
         // If it's not a directory, it won't be the parent anyway.
         // This makes the tests more simple.
@@ -173,7 +188,7 @@ public class FileUtils {
      * really is a parent of testPath.
      * @see isReallyParent
      */
-    public static final boolean isReallyInParentPath(File testParent, File testChild) throws IOException {
+    public static boolean isReallyInParentPath(File testParent, File testChild) throws IOException {
 
     	String testParentName = getCanonicalPath(testParent);
         File testChildParentFile = testChild.getAbsoluteFile().getParentFile();
@@ -181,6 +196,18 @@ public class FileUtils {
             testChildParentFile = testChild.getAbsoluteFile();
     	String testChildParentName = getCanonicalPath(testChildParentFile);
     	return testChildParentName.startsWith(testParentName);
+    }
+    
+    /**
+     * Returns the filename without an extension.
+     */
+    public static String getFilenameNoExtension(String fullname) {
+        int i = fullname.lastIndexOf(".");
+        if(i<0) {
+            return fullname;
+        } else {
+            return fullname.substring(0, i);
+        }
     }
     
     /**
@@ -201,21 +228,24 @@ public class FileUtils {
      * 
      * @param name the file name <tt>String</tt> from which the extension
      *  should be extracted
-     * @return the file extension string, or <tt>null</tt> if the extension
+     * @return the file extension string, or <tt>empty string</tt> if the extension
      *   could not be extracted
      */
     public static String getFileExtension(String name) {
         int index = name.lastIndexOf(".");
-        if(index == -1) return null;
-        
+        if (index == -1)
+            return "";
+
         // the file must have a name other than the extension
-        if(index == 0) return null;
-        
+        if (index == 0)
+            return "";
+
         // if the last character of the string is the ".", then there's
         // no extension
-        if(index == (name.length()-1)) return null;
-        
-        return name.substring(index+1);
+        if (index == (name.length() - 1))
+            return "";
+
+        return name.substring(index + 1);
     }
     
     /**
@@ -237,7 +267,7 @@ public class FileUtils {
         // for canWrite when the argument is a directory --
         // writing is based on the 'x' attribute, not the 'w'
         // attribute for directories.
-        if(f.canWrite()) {
+        if(FileUtils.canWrite(f)) {
             if(OSUtils.isWindows())
                 return true;
             else if(!f.isDirectory())
@@ -252,11 +282,12 @@ public class FileUtils {
         }
             
         String cmds[] = null;
-        if( OSUtils.isWindows() || OSUtils.isMacOSX() )
+        if( OSUtils.isWindows() || OSUtils.isMacOSX() ) {
             SystemUtils.setWriteable(fName);
-        else if ( OSUtils.isOS2() )
+            CAN_WRITE_CACHE.remove(f);
+        } else if ( OSUtils.isOS2() ) {
             ;//cmds = null; // Find the right command for OS/2 and fill in
-        else {
+        } else {
             if(f.isDirectory())
                 cmds = new String[] { "chmod", "u+w+x", fName };
             else
@@ -273,7 +304,7 @@ public class FileUtils {
             catch(InterruptedException ignored) { }
         }
         
-		return f.canWrite();
+		return FileUtils.canWrite(f);
     }
     
     /**
@@ -357,6 +388,33 @@ public class FileUtils {
         }
         
         return success;
+    }
+    
+    /**
+     * Forcibly deletes a file, removing any locks that may
+     * be held from any FileLockers that were added.
+     * 
+     * @param file the file to delete
+     * @return true if the deletion succeeded
+     */
+    public static boolean forceDelete(File file) {
+         // First attempt to rename it.
+        boolean success = file.delete();
+        
+        // If that fails, try releasing the locks one by one.
+        if (!success) {
+            for(FileLocker locker : fileLockers) {
+                if(locker.releaseLock(file)) {
+                    success = file.delete();
+                    if(success)
+                        break;
+                }
+            }
+        }
+        if(LOG.isDebugEnabled()) {
+            LOG.debugf("success= {0}, file.exists()? {1}", success, file.exists());
+        }
+        return !file.exists();
     }
     
     /**
@@ -446,7 +504,7 @@ public class FileUtils {
                         shouldAdd = true;
                     else {
                         String ext = FileUtils.getFileExtension(currFile);
-                        for (int j = 0; (j < filter.length) && (ext != null); j++) {
+                        for (int j = 0; (j < filter.length) && (!ext.isEmpty()); j++) {
                             if (ext.equalsIgnoreCase(filter[j]))  {
                                 shouldAdd = true;
                                 
@@ -585,17 +643,17 @@ public class FileUtils {
 			return directory.delete();
 
 		File[] files = directory.listFiles();
-		for (int i = 0; i < files.length; i++) {
-			try {
-				if (!getCanonicalPath(files[i]).startsWith(canonicalParent))
-					continue;
-			} catch (IOException ioe) {
-				return false;
-			}
-            
-			if (!deleteRecursive(files[i]))
-				return false;
-		}
+        for (File file : files) {
+            try {
+                if (!getCanonicalPath(file).startsWith(canonicalParent))
+                    continue;
+            } catch (IOException ioe) {
+                return false;
+            }
+
+            if (!deleteRecursive(file))
+                return false;
+        }
 
 		return directory.delete();
 	}
@@ -610,8 +668,7 @@ public class FileUtils {
     		return true;
     	Set<File> unique = new HashSet<File>();
     	unique.add(a);
-    	for (File recursive: getFilesRecursive(a,null))
-    		unique.add(recursive);
+        unique.addAll(Arrays.asList(getFilesRecursive(a, null)));
     	
     	if (unique.contains(b))
     		return true;
@@ -689,7 +746,8 @@ public class FileUtils {
                 amountToRead-=read;
                 out.write(buf, 0, read);
             }
-        } catch (IOException e) {
+        } catch (IOException ignore) {
+            LOG.error(ignore.getMessage(), ignore);
         } finally {
             close(in);
             flush(out);
@@ -716,6 +774,7 @@ public class FileUtils {
      * This is a workaround for Sun Bug: 6325169: createTempFile occasionally
      * fails (throwing an IOException).
      */
+    @SuppressWarnings("null")
     public static File createTempFile(String prefix, String suffix, File directory) throws IOException {
         IOException iox = null;
         
@@ -736,6 +795,7 @@ public class FileUtils {
      * This is a workaround for Sun Bug: 6325169: createTempFile occasionally
      * fails (throwing an IOException).
      */
+    @SuppressWarnings("null")
     public static File createTempFile(String prefix, String suffix) throws IOException {
         IOException iox = null;
         
@@ -890,6 +950,98 @@ public class FileUtils {
             } else {
                 if (!copy(source, destination))
                     throw new IOException("unable to copy file");
+            }
+        }
+    }
+    
+       
+    /**
+     * Utility method to copy an input stream into the target output stream.
+     */
+    public static void write(InputStream inputStream, OutputStream outputStream) throws IOException {
+        int numRead = 0;
+        byte[] buffer = new byte[1024];
+        while ((numRead = inputStream.read(buffer,0,buffer.length)) != -1) {
+            outputStream.write(buffer,0,numRead);
+        }
+    }
+
+    /**
+     * Utility method to generate an MD5 hash from a target file.
+     */
+    public static String getMD5(File file) throws NoSuchAlgorithmException, IOException {
+        MessageDigest m = MessageDigest.getInstance("MD5");
+        ByteBuffer byteBuffer = ByteBuffer.allocate(16 * 1024);
+        FileInputStream fileInputStream = null;
+        try {
+            fileInputStream = new FileInputStream(file);
+            FileChannel fileChannel = fileInputStream.getChannel();
+            while (fileChannel.read(byteBuffer) != -1) {
+                byteBuffer.flip();
+                m.update(byteBuffer);
+                byteBuffer.clear();
+            }
+
+        } finally {
+            if (fileInputStream != null) {
+                fileInputStream.close();
+            }
+        }
+        byte[] digest = m.digest();
+        String md5 = new BigInteger(1, digest).toString(16);
+        return md5;
+    }
+    
+    /**
+     * Tries to create a symbolic link from the source to the target
+     * destinations. Returning the exit code of the command run.
+     * 
+     * @throws UnsupportedOperationException if this method is run on an os other than linux.
+     */
+    public static int createSymbolicLink(File source, File target) throws IOException,
+            InterruptedException {
+        if(!OSUtils.isLinux()) {
+            throw new UnsupportedOperationException("Creating Symbolic links is only supported on linux.");
+        }
+        String[] command = {"ln","-s",source.getAbsolutePath(),target.getAbsolutePath()};
+        Process process = Runtime.getRuntime().exec(command);
+        process.waitFor();
+        return process.exitValue();
+    }
+    
+    public static void unlockFile(File file) {
+        for (FileLocker locker : fileLockers) {
+            locker.releaseLock(file);
+        }
+    }
+
+    /**
+     * A replacement for {@link File#canWrite()}. Required because Windows
+     * returns the wrong permissions for files that have special icons or other
+     * things set.
+     */
+    public static boolean canWrite(File file) {
+        if(!OSUtils.isWindows() || !file.isDirectory()) {
+            return file.canWrite();
+        } else {
+            if(file.canWrite()) {
+                return true;
+            }
+            // If the file cannot be written, we're kind of stuck
+            // (between a rock & a hard place...)
+            Boolean cached = CAN_WRITE_CACHE.get(file);
+            if(cached != null) {
+                return cached;
+            } else {
+                try {
+                    File f = createTempFile("lw-", "can-write-test", file);
+                    f.delete();
+                    CAN_WRITE_CACHE.put(file, true);
+                    return true;
+                } catch(IOException iox) {
+                    CAN_WRITE_CACHE.put(file, false);
+                    return false;
+                }
             }
         }
     }

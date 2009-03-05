@@ -3,12 +3,15 @@ package com.limegroup.gnutella;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
+import org.limewire.core.settings.PingPongSettings;
+import org.limewire.lifecycle.Service;
+
 import com.google.inject.Inject;
 import com.google.inject.Provider;
 import com.google.inject.Singleton;
 import com.google.inject.name.Named;
+import com.limegroup.gnutella.messages.PingRequest;
 import com.limegroup.gnutella.messages.PingRequestFactory;
-import com.limegroup.gnutella.settings.PingPongSettings;
 
 /**
  * This class continually sends broadcast pings on behalf of an Ultrapeer
@@ -19,7 +22,7 @@ import com.limegroup.gnutella.settings.PingPongSettings;
  * class to obtain fresh host data.
  */
 @Singleton
-public final class Pinger implements Runnable {
+public final class Pinger implements Runnable, Service {
 
     /**
      * Constant for the number of milliseconds to wait between ping 
@@ -44,7 +47,21 @@ public final class Pinger implements Runnable {
         this.messageRouter = messageRouter;
         this.pingRequestFactory = pingRequestFactory;
     }
-
+    
+    @Inject
+    void register(org.limewire.lifecycle.ServiceRegistry registry) {
+        registry.register(this);
+    }
+    
+    public String getServiceName() {
+        return org.limewire.i18n.I18nMarker.marktr("Peer Listener");
+    }
+    
+    public void initialize() {
+    }
+     
+    public void stop() {
+    }
 
     /**
      * Starts the thread that continually sends broadcast pings on behalf of
@@ -59,8 +76,10 @@ public final class Pinger implements Runnable {
      * Broadcasts a ping to all connections.
      */
     public void run() {
-        if (connectionServices.isSupernode() && PingPongSettings.PINGS_ACTIVE.getValue()) {
-            messageRouter.get().broadcastPingRequest(pingRequestFactory.createPingRequest((byte) 3));
+        if(connectionServices.isSupernode()
+           && PingPongSettings.PINGS_ACTIVE.getValue()) {
+            PingRequest ping = pingRequestFactory.createPingRequest((byte)3);
+            messageRouter.get().broadcastPingRequest(ping);
         }
     }
 }

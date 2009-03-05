@@ -1,8 +1,13 @@
 package com.limegroup.bittorrent;
 
 import java.io.File;
+import java.util.List;
 
 import org.limewire.collection.NumericBuffer;
+import org.limewire.core.api.download.SaveLocationException;
+import org.limewire.core.api.download.SaveLocationManager;
+import org.limewire.io.Address;
+import org.limewire.io.GUID;
 import org.limewire.io.InvalidDataException;
 import org.limewire.listener.EventListener;
 import org.limewire.util.FileUtils;
@@ -11,13 +16,9 @@ import com.google.inject.Inject;
 import com.google.inject.Provider;
 import com.limegroup.bittorrent.Torrent.TorrentState;
 import com.limegroup.gnutella.DownloadManager;
-import com.limegroup.gnutella.Downloader;
 import com.limegroup.gnutella.Endpoint;
-import com.limegroup.gnutella.GUID;
 import com.limegroup.gnutella.InsufficientDataException;
 import com.limegroup.gnutella.RemoteFileDesc;
-import com.limegroup.gnutella.SaveLocationException;
-import com.limegroup.gnutella.SaveLocationManager;
 import com.limegroup.gnutella.URN;
 import com.limegroup.gnutella.downloader.AbstractCoreDownloader;
 import com.limegroup.gnutella.downloader.DownloadStatusEvent;
@@ -28,7 +29,7 @@ import com.limegroup.gnutella.downloader.serial.BTDownloadMementoImpl;
 import com.limegroup.gnutella.downloader.serial.DownloadMemento;
 
 /**
- * This class enables the rest of LW to treat this as a regular download.
+ * This class enables the rest of LimeWire to treat a BitTorrent as a regular download.
  */
 public class BTDownloaderImpl extends AbstractCoreDownloader 
                           implements TorrentEventListener, BTDownloader {
@@ -98,7 +99,7 @@ public class BTDownloaderImpl extends AbstractCoreDownloader
 	 * (To stop a seeding torrent it must be stopped from the
 	 * uploads pane)
 	 */
-	public void stop() {
+	public void stop(boolean deleteFile) {
 		if (torrent.isActive() &&
 				torrent.getState() != TorrentState.SEEDING) {
 			torrent.stop();
@@ -144,7 +145,7 @@ public class BTDownloaderImpl extends AbstractCoreDownloader
 	public File getFile() {
 		if (torrent.isComplete())
 			return torrentFileSystem.getCompleteFile();
-		return torrentFileSystem.getBaseFile();
+		return torrentFileSystem.getIncompleteFile();
 	}
 
 	public File getDownloadFragment() {
@@ -155,11 +156,11 @@ public class BTDownloaderImpl extends AbstractCoreDownloader
 		long size = torrentContext.getDiskManager().getLastVerifiedOffset();
         if (size <= 0)
             return null;
-        File file=new File(torrentFileSystem.getBaseFile().getParent(),
+        File file=new File(torrentFileSystem.getIncompleteFile().getParent(),
                 IncompleteFileManager.PREVIEW_PREFIX
-                    +torrentFileSystem.getBaseFile().getName());
+                    +torrentFileSystem.getIncompleteFile().getName());
         // Copy first block, returning if nothing was copied.
-        if (FileUtils.copy(torrentFileSystem.getBaseFile(), size, file) <=0 ) 
+        if (FileUtils.copy(torrentFileSystem.getIncompleteFile(), size, file) <=0 ) 
             return null;
         return file;
 	}
@@ -183,8 +184,12 @@ public class BTDownloaderImpl extends AbstractCoreDownloader
 			return DownloadStatus.RESUMING;
 		case CONNECTING:
 			return DownloadStatus.CONNECTING;
-		case DOWNLOADING:
+		}
+		
+		if(torrent.isDownloading())	{
 			return DownloadStatus.DOWNLOADING;
+		}
+		switch(torrent.getState()) {
 		case SAVING:
 			return DownloadStatus.SAVING;
 		case SEEDING:
@@ -376,6 +381,11 @@ public class BTDownloaderImpl extends AbstractCoreDownloader
 	public int getNumHosts() {
 		return torrent.getNumConnections();
 	}
+	
+	@Override
+	public List<Address> getSourcesAsAddresses() {
+	    return torrent.getSourceAddresses();
+	}
 
 	public void handleTorrentEvent(TorrentEvent evt) {
 		if (evt.getTorrent() != torrent)
@@ -466,6 +476,8 @@ public class BTDownloaderImpl extends AbstractCoreDownloader
 	}
 	
 	public synchronized void finish() {
+	    //when finish is called it is expected that the downloader has already been removed from the download manager.
+        assert downloadManager.contains(this) == false;
         finished = true;
 		torrentManager.get().removeEventListener(this);
 		torrent = new FinishedTorrentDownload(torrent);
@@ -477,14 +489,6 @@ public class BTDownloaderImpl extends AbstractCoreDownloader
 		return "downloader facade for "+torrentFileSystem.getCompleteFile().getName();
 	}
 	
-	@Override
-    public boolean equals(Object o) {
-		if (! (o instanceof Downloader))
-			return false;
-		Downloader other = (Downloader)o;
-		return getSha1Urn().equals(other.getSha1Urn());
-	}
-
 	public int getTriedHostCount() {
 		return torrent.getTriedHostCount();
 	}
@@ -527,6 +531,14 @@ public class BTDownloaderImpl extends AbstractCoreDownloader
     public boolean removeListener(EventListener<DownloadStatusEvent> listener) {
         // TODO implement
         return false;
+    }
+
+    /*
+     * (non-Javadoc)
+     * @see com.limegroup.bittorrent.BTDownloader#getTorrentContext()
+     */
+    public TorrentContext getTorrentContext() {
+        return torrentContext;
     }
 
 }

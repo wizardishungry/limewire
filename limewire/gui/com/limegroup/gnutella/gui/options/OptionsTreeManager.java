@@ -115,7 +115,6 @@ final class OptionsTreeManager {
 	/**
 	 * Sets the selection of the tree to the node with the given key.
 	 */
-	@SuppressWarnings("unchecked")
 	void setSelection(final String key) {
 		if (key == null)
 			return;

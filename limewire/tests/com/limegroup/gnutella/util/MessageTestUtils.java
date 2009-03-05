@@ -4,16 +4,16 @@ import java.util.Collections;
 
 import org.jmock.Expectations;
 import org.jmock.Mockery;
+import org.limewire.core.settings.ApplicationSettings;
 import org.limewire.io.GGEP;
+import org.limewire.io.GUID;
 
-import com.limegroup.gnutella.GUID;
 import com.limegroup.gnutella.messages.GGEPKeys;
 import com.limegroup.gnutella.messages.Message;
 import com.limegroup.gnutella.messages.PingReply;
 import com.limegroup.gnutella.messages.PingReplyFactory;
 import com.limegroup.gnutella.messages.QueryRequest;
 import com.limegroup.gnutella.messages.Message.Network;
-import com.limegroup.gnutella.settings.ApplicationSettings;
 
 /**
  * Utility class for creating common message types for tests.
@@ -78,6 +78,7 @@ public class MessageTestUtils {
             ignoring(qr).isWhatIsNewRequest();
             ignoring(qr).desiresXMLResponses();
             ignoring(qr).desiresOutOfBandReplies();
+            ignoring(qr).shouldIncludeXMLInResponse();
         }};
     }
     

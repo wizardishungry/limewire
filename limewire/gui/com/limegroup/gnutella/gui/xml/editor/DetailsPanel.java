@@ -14,18 +14,10 @@ import javax.swing.SwingConstants;
 
 import org.limewire.util.NameValue;
 
-import com.limegroup.gnutella.FileDesc;
 import com.limegroup.gnutella.gui.GUIUtils;
-import com.limegroup.gnutella.gui.GuiCoreMediator;
 import com.limegroup.gnutella.gui.I18n;
 import com.limegroup.gnutella.gui.MultiLineLabel;
-import com.limegroup.gnutella.xml.LimeXMLDocument;
-import com.limegroup.gnutella.xml.LimeXMLNames;
-import com.limegroup.gnutella.xml.LimeXMLReplyCollection;
-import com.limegroup.gnutella.xml.LimeXMLSchema;
-import com.limegroup.gnutella.xml.LimeXMLSchemaRepository;
-import com.limegroup.gnutella.xml.SchemaFieldInfo;
-import com.limegroup.gnutella.xml.SchemaReplyCollectionMapper;
+import com.limegroup.gnutella.library.FileDesc;
 
 
 public class DetailsPanel extends JPanel {
@@ -53,28 +45,28 @@ public class DetailsPanel extends JPanel {
            add(I18n.tr("Kind:"), kind);
         }
         
-        SchemaReplyCollectionMapper map = GuiCoreMediator.getSchemaReplyCollectionMapper();
-        LimeXMLReplyCollection collection = map.getReplyCollection(schemaUri);
-        LimeXMLDocument doc = collection.getDocForHash(fd.getSHA1Urn());
+//        SchemaReplyCollectionMapper map = GuiCoreMediator.getSchemaReplyCollectionMapper();
+//        LimeXMLReplyCollection collection = map.getReplyCollection(schemaUri);
+//        LimeXMLDocument doc = null; //collection.getDocForFileDesc(fd);
         
-        LimeXMLSchemaRepository rep = GuiCoreMediator.getLimeXMLSchemaRepository();
-        LimeXMLSchema schema = rep.getSchema(schemaUri);
+//        LimeXMLSchemaRepository rep = GuiCoreMediator.getLimeXMLSchemaRepository();
+//        LimeXMLSchema schema = rep.getSchema(schemaUri);
         
-        if (doc != null) {
-            for(SchemaFieldInfo infoField : schema.getCanonicalizedFields()) {
-                String field = infoField.getCanonicalizedFieldName();
-                
-                if (skipField(field))
-                    continue;
-                
-                String value = doc.getValue(field);
-
-                if (value != null && !value.equals("")) {
-                    String name = MetaEditorUtil.getStringResource(field);
-                    add(name, value);
-                }
-            }
-        }
+//        if (doc != null) {
+//            for(SchemaFieldInfo infoField : schema.getCanonicalizedFields()) {
+//                String field = infoField.getCanonicalizedFieldName();
+//                
+//                if (skipField(field))
+//                    continue;
+//                
+//                String value = doc.getValue(field);
+//
+//                if (value != null && !value.equals("")) {
+//                    String name = MetaEditorUtil.getStringResource(field);
+//                    add(name, value);
+//                }
+//            }
+//        }
         
         String name = I18n.tr("Size:");
         String value = GUIUtils.toUnitbytes(fd.getFileSize());
@@ -115,20 +107,20 @@ public class DetailsPanel extends JPanel {
         add(value);
     }
     
-    private static boolean skipField(String field) {
-        if (field.equals(LimeXMLNames.AUDIO_TITLE))
-            return true;
-        else if (field.equals(LimeXMLNames.AUDIO_ARTIST))
-            return true;
-        else if (field.equals(LimeXMLNames.AUDIO_ALBUM))
-            return true;
-        else if (field.equals(LimeXMLNames.AUDIO_SECONDS))
-            return true;
-        else if (field.equals(LimeXMLNames.AUDIO_COMMENTS))
-            return true;
-        else if (!MetaEditorUtil.contains(field))
-            return true;
-        else
-            return false;
-    }
+//    private static boolean skipField(String field) {
+//        if (field.equals(LimeXMLNames.AUDIO_TITLE))
+//            return true;
+//        else if (field.equals(LimeXMLNames.AUDIO_ARTIST))
+//            return true;
+//        else if (field.equals(LimeXMLNames.AUDIO_ALBUM))
+//            return true;
+//        else if (field.equals(LimeXMLNames.AUDIO_SECONDS))
+//            return true;
+//        else if (field.equals(LimeXMLNames.AUDIO_COMMENTS))
+//            return true;
+//        else if (!MetaEditorUtil.contains(field))
+//            return true;
+//        else
+//            return false;
+//    }
 }

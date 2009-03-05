@@ -10,7 +10,8 @@ import javax.swing.event.TableColumnModelEvent;
 import javax.swing.event.TableColumnModelListener;
 import javax.swing.table.TableColumnModel;
 
-import com.limegroup.gnutella.settings.TablesHandler;
+import org.limewire.core.settings.TablesHandler;
+
 
 
 /**

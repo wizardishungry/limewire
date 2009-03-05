@@ -10,6 +10,7 @@ import java.util.ArrayList;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.limewire.listener.EventBroadcaster;
 import org.limewire.nio.AbstractNBSocket;
 import org.limewire.nio.NIODispatcher;
 import org.limewire.nio.channel.InterestReadableByteChannel;
@@ -17,6 +18,8 @@ import org.limewire.nio.channel.InterestWritableByteChannel;
 import org.limewire.nio.observer.Shutdownable;
 import org.limewire.nio.observer.WriteObserver;
 import org.limewire.rudp.messages.DataMessage;
+import org.limewire.rudp.messages.SynMessage;
+import org.limewire.rudp.messages.SynMessage.Role;
 import org.limewire.util.BufferUtils;
 
 
@@ -63,11 +66,17 @@ class UDPSocketChannel extends AbstractNBSocketChannel implements InterestReadab
     
     /** Whether or not we've propogated the shutdown to other writers. */
     private boolean shutdown = false;
+
+    private final Role role;
     
-    UDPSocketChannel(SelectorProvider provider, RUDPContext context) {
+    UDPSocketChannel(SelectorProvider provider,
+                     RUDPContext context,
+                     Role role,
+                     EventBroadcaster<UDPSocketChannelConnectionEvent> connectionStateEventBroadcaster) {
         super(provider);
         this.context = context;
-        this.processor = new UDPConnectionProcessor(this, context);
+        this.role = role;
+        this.processor = new UDPConnectionProcessor(this, context, role, connectionStateEventBroadcaster);
         this.readData = processor.getReadWindow();
         this.chunks = new ArrayList<ByteBuffer>(5);
         this.socket = new UDPConnection(context, this);
@@ -80,8 +89,9 @@ class UDPSocketChannel extends AbstractNBSocketChannel implements InterestReadab
     }
     
     // for testing.
-    UDPSocketChannel(UDPConnectionProcessor processor) {
+    UDPSocketChannel(UDPConnectionProcessor processor, Role role) {
         super(null);
+        this.role = role;
         this.context = new DefaultRUDPContext();
         this.processor = processor;
         this.readData = processor.getReadWindow();
@@ -93,6 +103,21 @@ class UDPSocketChannel extends AbstractNBSocketChannel implements InterestReadab
         } catch(IOException iox) {
             throw new RuntimeException(iox);
         }
+    }
+    
+    public boolean isForMe(InetSocketAddress address, SynMessage message) {
+        if(!getRemoteSocketAddress().equals(address)) {
+            return false;
+        } 
+        if (!role.canConnectTo(message.getRole())) {
+            return false;
+        }
+        byte theirConnectionId = processor.getTheirConnectionID();
+        if (theirConnectionId != UDPMultiplexor.UNASSIGNED_SLOT 
+                && theirConnectionId != message.getSenderConnectionID()) {
+            return false;
+        }
+        return true;
     }
     
     UDPConnectionProcessor getProcessor() {
@@ -392,5 +417,14 @@ class UDPSocketChannel extends AbstractNBSocketChannel implements InterestReadab
     public boolean hasBufferedOutput() {
         return getNumberOfPendingChunks() > 0;
     }
-    
+
+    @Override
+    public String toString() {
+        InetSocketAddress addr = getRemoteSocketAddress();
+        if(addr == null) {
+            return "[disconnected]";
+        } else {
+            return addr.toString();
+        }
+    }
 }

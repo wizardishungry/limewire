@@ -35,6 +35,7 @@ import org.limewire.util.GenericsUtils;
  * Either Collections or Maps.
  * All collections are returned as synchronized on this container.
  */
+@Deprecated
 class Container {
     
     private static final Log LOG = LogFactory.getLog(Container.class);
@@ -99,6 +100,25 @@ class Container {
             STORED.put(name, set);
             return set;
         }
+    }
+    
+    /**
+     * Returns true if a Set by this name exists, false otherwise
+     */
+    synchronized boolean contains(String name) {
+        Collection<File> data = STORED.get(name);
+        if(data == null)
+            return false;
+        else
+            return true;
+    }
+    
+    /**
+     * Removes the set from the container.
+     * @param name - name of Set to remove
+     */
+    synchronized void remove(String name) {
+        STORED.remove(name);
     }
     
     /**

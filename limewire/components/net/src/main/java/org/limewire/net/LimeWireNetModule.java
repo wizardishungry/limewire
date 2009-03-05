@@ -1,8 +1,16 @@
 package org.limewire.net;
 
+import org.limewire.listener.EventBroadcaster;
+import org.limewire.listener.EventMulticaster;
+import org.limewire.listener.EventMulticasterImpl;
+import org.limewire.listener.ListenerSupport;
+import org.limewire.net.address.AddressFactory;
+import org.limewire.net.address.AddressFactoryImpl;
+import org.limewire.net.address.ConnectableSerializer;
 import org.limewire.util.OSUtils;
 
 import com.google.inject.AbstractModule;
+import com.google.inject.TypeLiteral;
 
 /**
  * A Guice-module for binding all net related activity.
@@ -36,6 +44,16 @@ public class LimeWireNetModule extends AbstractModule {
         bind(SocketsManager.class).to(SocketsManagerImpl.class);
         bind(ProxyManager.class).to(ProxyManagerImpl.class);
         bind(WhoIsRequestFactory.class).to(WhoIsRequestFactoryImpl.class);
+        bind(FirewallService.class).to(FirewallServiceImpl.class);
+        bind(AddressFactory.class).to(AddressFactoryImpl.class);
+        bind(ConnectableSerializer.class).asEagerSingleton();
+        bind(new TypeLiteral<ListenerSupport<ConnectivityChangeEvent>>(){}).to(SocketsManager.class);
+        bind(new TypeLiteral<EventBroadcaster<ConnectivityChangeEvent>>(){}).to(SocketsManagerImpl.class);
+        
+        EventMulticaster<ConnectBackRequestedEvent> connectRequestEventMulticaster = new EventMulticasterImpl<ConnectBackRequestedEvent>();
+        bind(new TypeLiteral<EventMulticaster<ConnectBackRequestedEvent>>(){}).toInstance(connectRequestEventMulticaster);
+        bind(new TypeLiteral<EventBroadcaster<ConnectBackRequestedEvent>>(){}).toInstance(connectRequestEventMulticaster);
+        bind(new TypeLiteral<ListenerSupport<ConnectBackRequestedEvent>>(){}).toInstance(connectRequestEventMulticaster);
         
         if(OSUtils.isSocketChallengedWindows())
             bind(SocketController.class).to(LimitedSocketController.class);

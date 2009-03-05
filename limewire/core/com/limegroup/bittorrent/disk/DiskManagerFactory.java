@@ -1,11 +1,15 @@
 package com.limegroup.bittorrent.disk;
 
+import org.limewire.core.settings.BittorrentSettings;
+
 import com.google.inject.Singleton;
 import com.limegroup.bittorrent.TorrentContext;
 import com.limegroup.bittorrent.TorrentFile;
-import com.limegroup.bittorrent.settings.BittorrentSettings;
 import com.limegroup.gnutella.downloader.serial.BTDiskManagerMemento;
 
+/**
+ * Returns either a memory map or a random access file disk manager.
+ */
 @Singleton
 public class DiskManagerFactory {
 	

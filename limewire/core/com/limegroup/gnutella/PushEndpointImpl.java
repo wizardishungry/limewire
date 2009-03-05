@@ -5,6 +5,7 @@ import java.net.InetSocketAddress;
 import java.util.Collections;
 import java.util.Set;
 
+import org.limewire.io.GUID;
 import org.limewire.io.IpPort;
 import org.limewire.io.IpPortSet;
 import org.limewire.io.NetworkInstanceUtils;
@@ -159,6 +160,12 @@ public class PushEndpointImpl extends AbstractPushEndpoint {
     public InetSocketAddress getInetSocketAddress() {
         IpPort addr = getIpPort();
         return addr != null ? addr.getInetSocketAddress() : null;
+    }
+    
+    @Override
+    public String getAddressDescription() {
+        IpPort addr = getIpPort();
+        return addr != null ? addr.getAddress() : null;
     }
     
     public boolean isLocal() {

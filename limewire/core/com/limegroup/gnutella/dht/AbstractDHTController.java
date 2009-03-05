@@ -4,10 +4,8 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
-import java.security.InvalidKeyException;
 import java.security.KeyPair;
 import java.security.PublicKey;
-import java.security.SignatureException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -24,6 +22,7 @@ import org.limewire.collection.Buffer;
 import org.limewire.collection.FixedSizeLIFOSet;
 import org.limewire.collection.FixedSizeLIFOSet.EjectionPolicy;
 import org.limewire.concurrent.ManagedThread;
+import org.limewire.core.settings.DHTSettings;
 import org.limewire.io.IpPort;
 import org.limewire.mojito.KUID;
 import org.limewire.mojito.MojitoDHT;
@@ -34,8 +33,8 @@ import org.limewire.mojito.routing.RouteTable.RouteTableEvent;
 import org.limewire.mojito.routing.RouteTable.RouteTableListener;
 import org.limewire.mojito.statistics.DHTStatsManager;
 import org.limewire.mojito.util.ContactUtils;
-import org.limewire.mojito.util.CryptoUtils;
 import org.limewire.mojito.util.HostFilter;
+import org.limewire.security.SignatureVerifier;
 import org.limewire.service.ErrorService;
 
 import com.limegroup.gnutella.connection.ConnectionLifecycleEvent;
@@ -45,7 +44,6 @@ import com.limegroup.gnutella.dht.DHTManager.DHTMode;
 import com.limegroup.gnutella.dht.db.AbstractAltLocValue;
 import com.limegroup.gnutella.dht.db.AbstractPushProxiesValue;
 import com.limegroup.gnutella.messages.vendor.DHTContactsMessage;
-import com.limegroup.gnutella.settings.DHTSettings;
 import com.limegroup.gnutella.util.EventDispatcher;
 
 /**
@@ -161,18 +159,10 @@ public abstract class AbstractDHTController implements DHTController {
         dht.getDHTValueFactoryManager().addValueFactory(
                 AbstractPushProxiesValue.PUSH_PROXIES, dhtControllerFacade.getPushProxyValueFactory());
         
-        try {
-            PublicKey publicKey = CryptoUtils.loadPublicKey(PUBLIC_KEY);
-            KeyPair keyPair = new KeyPair(publicKey, null);
-            dht.setKeyPair(keyPair);
-        } catch (InvalidKeyException e) {
-            LOG.error("InvalidKeyException", e);
-        } catch (SignatureException e) {
-            LOG.error("SignatureException", e);
-        } catch (IOException e) {
-            LOG.error("IOException", e);
-        }
-
+        PublicKey publicKey = SignatureVerifier.readKey(PUBLIC_KEY, "DSA");
+        KeyPair keyPair = new KeyPair(publicKey, null);
+        dht.setKeyPair(keyPair);
+        
         dht.getStorableModelManager().addStorableModel(
                 AbstractAltLocValue.ALT_LOC, dhtControllerFacade.getAltLocModel());
         

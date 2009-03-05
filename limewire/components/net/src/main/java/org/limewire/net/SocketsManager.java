@@ -5,6 +5,11 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 
+import org.limewire.io.Address;
+import org.limewire.listener.ListenerSupport;
+import org.limewire.net.address.AddressConnector;
+import org.limewire.net.address.AddressResolutionObserver;
+import org.limewire.net.address.AddressResolver;
 import org.limewire.nio.NBSocket;
 import org.limewire.nio.NBSocketFactory;
 import org.limewire.nio.NIOSocketFactory;
@@ -12,7 +17,7 @@ import org.limewire.nio.observer.ConnectObserver;
 import org.limewire.nio.ssl.TLSSocketFactory;
 
 /** Factory for creating Sockets. */
-public interface SocketsManager {
+public interface SocketsManager extends ListenerSupport<ConnectivityChangeEvent> {
     
     /** The different ways a connection can be attempted. */
     public static enum ConnectType {    
@@ -181,7 +186,30 @@ public interface SocketsManager {
      * @throws <tt>IllegalArgumentException</tt> if the port is invalid
      */
     public Socket connect(InetSocketAddress addr, int timeout, ConnectObserver observer, ConnectType type) throws IOException;
+
+    /**
+     * Asynchronously connects to <code>address</code> resolving the address if 
+     * possible/necessary and notifying <code>observer</code> of the success or
+     * failure.
+     * 
+     * @param timeout timeout in milliseconds
+     * 
+     * @return the observer for fluent access
+     */
+    public <T extends ConnectObserver> T connect(Address address, T observer);
     
+    /**
+     * Asynchronously resolves <code>address</code> to other addresses if 
+     * possible and notifying <code>observer</code> of the success or
+     * failure.
+     * <p>
+     * If there is no resolver for address, the observer is notified of a address
+     * resolution with the exact same address.
+     * 
+     * @return observer for fluent access
+     */
+    public <T extends AddressResolutionObserver> T resolve(Address address, T observer);
+
     /**
      * Removes the given ConnectObserver from wanting to make a request.
      * This returns true if it was able to remove the observer because the request had
@@ -196,4 +224,39 @@ public interface SocketsManager {
     
     /** Returns the number of Sockets that are waiting for the controller to process them. */
     public int getNumWaitingSockets();
+
+    /**
+     * Registers an {@link AddressConnector} to handle connects for certain types
+     * of address.
+     * 
+     * When {@link #connect(Address, int, ConnectObserver)} is called the sockets
+     * manager will iterate over all registered {@link AddressConnector address connectors}
+     * and see which one can connect to the given address. 
+     *
+     * See {@link AddressConnector}.
+     */
+    public void registerConnector(AddressConnector connector);
+    
+    /**
+     * Registers an {@link AddressResolver} to handle address resolution for
+     * certain types of addresses. 
+     * 
+     * When {@link #resolve(Address, int, AddressResolutionObserver)} is called the sockets
+     * manager will iterate over all registered {@link AddressResolver address resolvers}
+     * and see which one can resolve the given address. 
+     *
+     * See {@link AddressResolver}.
+     */
+    public void registerResolver(AddressResolver resolver);
+    
+    /**
+     * Returns true if there is a connector that can connect to the address.
+     */
+    public boolean canConnect(Address address);
+
+    /**
+     * Returns true if there is a resolver that can resolve the address. 
+     */
+    public boolean canResolve(Address address);
+    
 }

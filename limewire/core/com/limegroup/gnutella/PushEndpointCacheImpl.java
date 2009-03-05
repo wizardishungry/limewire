@@ -13,6 +13,7 @@ import java.util.concurrent.TimeUnit;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.limewire.io.Connectable;
+import org.limewire.io.GUID;
 import org.limewire.io.IpPort;
 import org.limewire.io.IpPortSet;
 import org.limewire.io.NetworkInstanceUtils;
@@ -296,6 +297,12 @@ class PushEndpointCacheImpl implements PushEndpointCache {
         public synchronized String getAddress() {
             IpPort address = _externalAddr;
             return address != null ? _externalAddr.getAddress() : RemoteFileDesc.BOGUS_IP;
+        }
+        
+        @Override
+        public String getAddressDescription() {
+            IpPort addr = getValidExternalAddress();
+            return addr == null ? null : addr.getAddress();
         }
 
         public InetAddress getInetAddress() {

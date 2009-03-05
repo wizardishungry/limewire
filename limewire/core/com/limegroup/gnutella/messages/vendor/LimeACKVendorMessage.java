@@ -8,11 +8,11 @@ import java.util.Arrays;
 import org.limewire.io.BadGGEPBlockException;
 import org.limewire.io.BadGGEPPropertyException;
 import org.limewire.io.GGEP;
+import org.limewire.io.GUID;
 import org.limewire.security.SecurityToken;
 import org.limewire.service.ErrorService;
 import org.limewire.util.ByteUtils;
 
-import com.limegroup.gnutella.GUID;
 import com.limegroup.gnutella.messages.BadPacketException;
 import com.limegroup.gnutella.messages.GGEPKeys;
 
@@ -108,7 +108,7 @@ public final class LimeACKVendorMessage extends AbstractVendorMessage {
         if (getVersion() > OLD_VERSION) {
             try {
                 GGEP ggep = new GGEP(getPayload(), 1);
-                if (ggep.hasKey(GGEPKeys.GGEP_HEADER_SECURE_OOB)) {
+                if (ggep.hasValueFor(GGEPKeys.GGEP_HEADER_SECURE_OOB)) {
                     // we return a oob query key, but cannot verify it when it is not from us
                     return new UnknownSecurityToken(ggep.getBytes(GGEPKeys.GGEP_HEADER_SECURE_OOB));
                 }

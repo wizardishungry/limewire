@@ -4,17 +4,24 @@ import java.io.File;
 import java.net.DatagramSocket;
 import java.net.ServerSocket;
 import java.util.Iterator;
+import java.util.concurrent.TimeUnit;
 
 import junit.framework.Test;
 
-import org.limewire.util.FileUtils;
+import org.limewire.core.settings.ConnectionSettings;
+import org.limewire.core.settings.FilterSettings;
+import org.limewire.core.settings.NetworkSettings;
+import org.limewire.core.settings.UltrapeerSettings;
+import org.limewire.io.GUID;
 import org.limewire.util.TestUtils;
 
 import com.google.inject.Injector;
+import com.google.inject.Stage;
 import com.limegroup.gnutella.connection.BlockingConnection;
 import com.limegroup.gnutella.connection.BlockingConnectionFactory;
 import com.limegroup.gnutella.handshaking.HeadersFactory;
 import com.limegroup.gnutella.helpers.UrnHelper;
+import com.limegroup.gnutella.library.FileManager;
 import com.limegroup.gnutella.messages.FeatureSearchData;
 import com.limegroup.gnutella.messages.QueryRequest;
 import com.limegroup.gnutella.messages.QueryRequestFactory;
@@ -22,27 +29,10 @@ import com.limegroup.gnutella.messages.Message.Network;
 import com.limegroup.gnutella.messages.vendor.CapabilitiesVMFactory;
 import com.limegroup.gnutella.routing.QueryRouteTable;
 import com.limegroup.gnutella.routing.RouteTableMessage;
-import com.limegroup.gnutella.settings.ConnectionSettings;
-import com.limegroup.gnutella.settings.FilterSettings;
-import com.limegroup.gnutella.settings.NetworkSettings;
-import com.limegroup.gnutella.settings.SharingSettings;
-import com.limegroup.gnutella.settings.UltrapeerSettings;
 import com.limegroup.gnutella.util.EmptyResponder;
 import com.limegroup.gnutella.util.LimeTestCase;
 
-/**
- *  Tests that an Ultrapeer correctly handles connect back redirect messages.
- *
- *  ULTRAPEER_1  ----  CENTRAL TEST ULTRAPEER  ----  ULTRAPEER_2
- *                              |
- *                              |
- *                              |
- *                             LEAF
- *
- *  This test only covers Ultrapeer behavior - leaves don't participate in
- *  server side connect back stuff.
- */
-@SuppressWarnings( { "unchecked", "cast" } )
+
 public final class ServerSideWhatIsRoutingTest extends LimeTestCase {
 
 	/**
@@ -118,15 +108,6 @@ public final class ServerSideWhatIsRoutingTest extends LimeTestCase {
         FilterSettings.WHITE_LISTED_IP_ADDRESSES.setValue(
             new String[] {"127.*.*.*"});
         NetworkSettings.PORT.setValue(PORT);
-        SharingSettings.EXTENSIONS_TO_SHARE.setValue("txt;");
-        // get the resource file for com/limegroup/gnutella
-        File berkeley = 
-            TestUtils.getResourceFile("com/limegroup/gnutella/berkeley.txt");
-        File susheel = 
-            TestUtils.getResourceFile("com/limegroup/gnutella/susheel.txt");
-        // now move them to the share dir        
-        FileUtils.copy(berkeley, new File(_sharedDir, "berkeley.txt"));
-        FileUtils.copy(susheel, new File(_sharedDir, "susheel.txt"));
 		ConnectionSettings.CONNECT_ON_STARTUP.setValue(false);
 		UltrapeerSettings.EVER_ULTRAPEER_CAPABLE.setValue(true);
 		UltrapeerSettings.DISABLE_ULTRAPEER_MODE.setValue(false);
@@ -142,16 +123,24 @@ public final class ServerSideWhatIsRoutingTest extends LimeTestCase {
         setSettings();
         assertEquals("unexpected port", PORT, NetworkSettings.PORT.getValue());
 
-        Injector injector = LimeTestUtils.createInjector();
+        Injector injector = LimeTestUtils.createInjector(Stage.PRODUCTION);
         lifecycleManager = injector.getInstance(LifecycleManager.class);
         connectionServices = injector.getInstance(ConnectionServices.class);
         blockingConnectionFactory = injector.getInstance(BlockingConnectionFactory.class);
         headersFactory = injector.getInstance(HeadersFactory.class);
         queryRequestFactory = injector.getInstance(QueryRequestFactory.class);
         capabilitiesVMFactory = injector.getInstance(CapabilitiesVMFactory.class);
+        FileManager fileManager = injector.getInstance(FileManager.class);
         
         lifecycleManager.start();
         connectionServices.connect();	
+        
+        // get the resource file for com/limegroup/gnutella
+        File berkeley = TestUtils.getResourceFile("com/limegroup/gnutella/berkeley.txt");
+        File susheel = TestUtils.getResourceFile("com/limegroup/gnutella/susheel.txt");
+        assertNotNull(fileManager.getGnutellaFileList().add(berkeley).get(1, TimeUnit.SECONDS));
+        assertNotNull(fileManager.getGnutellaFileList().add(susheel).get(1, TimeUnit.SECONDS));
+        
 		connect();
         assertEquals("unexpected port", PORT, NetworkSettings.PORT.getValue());
 	}
@@ -245,7 +234,7 @@ public final class ServerSideWhatIsRoutingTest extends LimeTestCase {
         Thread.sleep(1000);
 
         // the Leaf should NOT get this query
-        QueryRequest rQuery = (QueryRequest) BlockingConnectionUtils.getFirstInstanceOfMessageType(LEAF,
+        QueryRequest rQuery = BlockingConnectionUtils.getFirstInstanceOfMessageType(LEAF,
                                                             QueryRequest.class);
         assertNull(rQuery);
     }
@@ -269,7 +258,7 @@ public final class ServerSideWhatIsRoutingTest extends LimeTestCase {
         Thread.sleep(1000);
 
         // the Leaf should get this query
-        QueryRequest rQuery = (QueryRequest) BlockingConnectionUtils.getFirstInstanceOfMessageType(LEAF,
+        QueryRequest rQuery = BlockingConnectionUtils.getFirstInstanceOfMessageType(LEAF,
                                                             QueryRequest.class);
         assertNotNull(rQuery);
         assertEquals(new GUID(rQuery.getGUID()), 
@@ -287,7 +276,7 @@ public final class ServerSideWhatIsRoutingTest extends LimeTestCase {
         Thread.sleep(1000);
 
         // the Leaf should get this query
-        rQuery = (QueryRequest) BlockingConnectionUtils.getFirstInstanceOfMessageType(LEAF,
+        rQuery =  BlockingConnectionUtils.getFirstInstanceOfMessageType(LEAF,
                                                             QueryRequest.class);
         assertNotNull(rQuery);
         assertEquals(new GUID(rQuery.getGUID()), 
@@ -313,7 +302,7 @@ public final class ServerSideWhatIsRoutingTest extends LimeTestCase {
 
         // the UP should NOT get this query
         QueryRequest rQuery = 
-            (QueryRequest) BlockingConnectionUtils.getFirstInstanceOfMessageType(ULTRAPEER_1,
+           BlockingConnectionUtils.getFirstInstanceOfMessageType(ULTRAPEER_1,
                                                          QueryRequest.class);
         assertNull(rQuery);
     }
@@ -338,7 +327,7 @@ public final class ServerSideWhatIsRoutingTest extends LimeTestCase {
 
         // the UP should get this query
         QueryRequest rQuery = 
-            (QueryRequest) BlockingConnectionUtils.getFirstInstanceOfMessageType(ULTRAPEER_1,
+             BlockingConnectionUtils.getFirstInstanceOfMessageType(ULTRAPEER_1,
                                                          QueryRequest.class);
         assertNotNull(rQuery);
         assertEquals(new GUID(rQuery.getGUID()), 
@@ -366,13 +355,13 @@ public final class ServerSideWhatIsRoutingTest extends LimeTestCase {
 
         // UP 1 should get this query
         QueryRequest rQuery = 
-            (QueryRequest) BlockingConnectionUtils.getFirstInstanceOfMessageType(ULTRAPEER_1,
+           BlockingConnectionUtils.getFirstInstanceOfMessageType(ULTRAPEER_1,
                                                          QueryRequest.class);
         assertNotNull(rQuery);
         assertEquals(new GUID(rQuery.getGUID()), 
                      new GUID(whatIsNewQuery.getGUID()));
         // UP 2 should NOT get this query
-        rQuery = (QueryRequest) BlockingConnectionUtils.getFirstInstanceOfMessageType(ULTRAPEER_2,
+        rQuery = BlockingConnectionUtils.getFirstInstanceOfMessageType(ULTRAPEER_2,
                                                               QueryRequest.class);
         assertNull(rQuery);
     }
@@ -397,13 +386,13 @@ public final class ServerSideWhatIsRoutingTest extends LimeTestCase {
         Thread.sleep(4000);
 
         // the Leaf should NOT get this query
-        QueryRequest rQuery = (QueryRequest) BlockingConnectionUtils.getFirstInstanceOfMessageType(LEAF,
+        QueryRequest rQuery =  BlockingConnectionUtils.getFirstInstanceOfMessageType(LEAF,
                                                             QueryRequest.class);
         assertNull(rQuery);
 
         // Ultrapeer 1 should get it though
         rQuery = 
-            (QueryRequest) BlockingConnectionUtils.getFirstInstanceOfMessageType(ULTRAPEER_1,
+           BlockingConnectionUtils.getFirstInstanceOfMessageType(ULTRAPEER_1,
                                                          QueryRequest.class);
         assertNotNull(rQuery);
         assertEquals(new GUID(rQuery.getGUID()), 
@@ -430,13 +419,13 @@ public final class ServerSideWhatIsRoutingTest extends LimeTestCase {
         Thread.sleep(4000);
 
         // the Leaf should NOT get this query
-        QueryRequest rQuery = (QueryRequest) BlockingConnectionUtils.getFirstInstanceOfMessageType(LEAF,
+        QueryRequest rQuery =  BlockingConnectionUtils.getFirstInstanceOfMessageType(LEAF,
                                                             QueryRequest.class);
         assertNull(rQuery);
 
         // Ultrapeer 1 should get it though
         rQuery = 
-            (QueryRequest) BlockingConnectionUtils.getFirstInstanceOfMessageType(ULTRAPEER_1,
+           BlockingConnectionUtils.getFirstInstanceOfMessageType(ULTRAPEER_1,
                                                          QueryRequest.class);
         assertNotNull(rQuery);
         assertEquals(new GUID(rQuery.getGUID()), 

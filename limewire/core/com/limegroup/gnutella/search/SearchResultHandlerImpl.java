@@ -1,5 +1,6 @@
 package com.limegroup.gnutella.search;
 
+import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -13,11 +14,14 @@ import java.util.Vector;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.limewire.collection.FixedsizeForgetfulHashMap;
+import org.limewire.core.settings.SearchSettings;
+import org.limewire.core.settings.ApplicationSettings;
 import org.limewire.inspection.Inspectable;
 import org.limewire.inspection.InspectionPoint;
+import org.limewire.io.GUID;
 import org.limewire.io.IpPort;
 import org.limewire.io.NetworkInstanceUtils;
-import org.limewire.security.SecureMessage;
+import org.limewire.security.SecureMessage.Status;
 import org.limewire.util.ByteUtils;
 
 import com.google.inject.Inject;
@@ -26,22 +30,21 @@ import com.google.inject.Singleton;
 import com.limegroup.gnutella.ActivityCallback;
 import com.limegroup.gnutella.ConnectionManager;
 import com.limegroup.gnutella.ConnectionServices;
-import com.limegroup.gnutella.GUID;
 import com.limegroup.gnutella.NetworkManager;
+import com.limegroup.gnutella.PushEndpointFactory;
 import com.limegroup.gnutella.RemoteFileDesc;
 import com.limegroup.gnutella.Response;
-import com.limegroup.gnutella.SearchServices;
 import com.limegroup.gnutella.URN;
+import com.limegroup.gnutella.xml.LimeXMLDocument;
 import com.limegroup.gnutella.downloader.RemoteFileDescFactory;
+import com.limegroup.gnutella.filters.response.ResponseFilter;
+import com.limegroup.gnutella.filters.response.ResponseFilterFactory;
 import com.limegroup.gnutella.messages.BadPacketException;
 import com.limegroup.gnutella.messages.QueryReply;
 import com.limegroup.gnutella.messages.QueryRequest;
 import com.limegroup.gnutella.messages.vendor.QueryStatusResponse;
-import com.limegroup.gnutella.settings.ApplicationSettings;
-import com.limegroup.gnutella.settings.SearchSettings;
 import com.limegroup.gnutella.spam.SpamManager;
 import com.limegroup.gnutella.util.ClassCNetworks;
-import com.limegroup.gnutella.xml.LimeXMLDocument;
 
 /**
  * Handles incoming search results from the network.  This class parses the 
@@ -85,43 +88,49 @@ final class SearchResultHandlerImpl implements SearchResultHandler {
         Collections.synchronizedMap(new FixedsizeForgetfulHashMap<GUID, Map<URN,ClassCNetworks[]>>(10));
     
     private final NetworkManager networkManager;
-    private final SearchServices searchServices;
     private final Provider<ActivityCallback> activityCallback;
     private final Provider<ConnectionManager> connectionManager;
     private final ConnectionServices connectionServices;
     private final Provider<SpamManager> spamManager;
     private final RemoteFileDescFactory remoteFileDescFactory;
     private final NetworkInstanceUtils networkInstanceUtils;
+    
+    private volatile ResponseFilter responseFilter;
+
+    private final PushEndpointFactory pushEndpointFactory;
 
     @Inject
     public SearchResultHandlerImpl(NetworkManager networkManager,
-            SearchServices searchServices,
             Provider<ActivityCallback> activityCallback,
             Provider<ConnectionManager> connectionManager,
             ConnectionServices connectionServices,
             Provider<SpamManager> spamManager,
             RemoteFileDescFactory remoteFileDescFactory,
-            NetworkInstanceUtils networkInstanceUtils) {
+            NetworkInstanceUtils networkInstanceUtils,
+            PushEndpointFactory pushEndpointFactory,
+            ResponseFilterFactory responseFilterFactory) {
         this.networkManager = networkManager;
-        this.searchServices = searchServices;
         this.activityCallback = activityCallback;
         this.connectionManager = connectionManager;
         this.connectionServices = connectionServices;
         this.spamManager = spamManager;
         this.remoteFileDescFactory = remoteFileDescFactory;
         this.networkInstanceUtils = networkInstanceUtils;
+        this.pushEndpointFactory = pushEndpointFactory;
+        this.responseFilter = responseFilterFactory.createResponseFilter();
     }
 
-    /*---------------------------------------------------    
-      PUBLIC INTERFACE METHODS
-     ----------------------------------------------------*/
+    @Override
+    public void setResponseFilter(ResponseFilter responseFilter) {
+        this.responseFilter = responseFilter;
+    }
 
     /**
-     * Adds the Query to the list of queries kept track of.  You should do this
-     * EVERY TIME you start a query so we can leaf guide it when possible.
-     * Also adds the query to the Spam Manager to adjust percentages.
-     *
-     * @param qr The query that has been started.  We really just acces the guid.
+     * Adds the Query to the list of queries kept track of. You should do this
+     * EVERY TIME you start a query so we can leaf guide it when possible. Also
+     * adds the query to the Spam Manager to adjust percentages.
+     * 
+     * @param qr The query that has been started. We really just acces the guid.
      */ 
     public void addQuery(QueryRequest qr) {
         LOG.trace("entered SearchResultHandler.addQuery(QueryRequest)");
@@ -197,9 +206,6 @@ final class SearchResultHandlerImpl implements SearchResultHandler {
             return -1;
     }
     
-    /**
-     * Determines whether or not the specified 
-    
     /*---------------------------------------------------    
       END OF PUBLIC INTERFACE METHODS
      ----------------------------------------------------*/
@@ -216,40 +222,58 @@ final class SearchResultHandlerImpl implements SearchResultHandler {
      *  otherwise <tt>false</tt> 
      */
     public void handleQueryReply(final QueryReply qr) {
-        HostData data;
         try {
-            data = qr.getHostData();
+            qr.validate();
         } catch(BadPacketException bpe) {
-            LOG.debug("bad packet reading qr", bpe);
+            LOG.debug("Ignoring corrupt query reply", bpe);
             return;
         }
 
         // always handle reply to multicast queries.
-        if( !data.isReplyToMulticastQuery() && !qr.isBrowseHostReply() ) {
+        if(!qr.isReplyToMulticastQuery() && !qr.isBrowseHostReply()) {
             // note that the minimum search quality will always be greater
             // than -1, so -1 qualities (the impossible case) are never
             // displayed
-            if(data.getQuality() < SearchSettings.MINIMUM_SEARCH_QUALITY.getValue()) {
-                LOG.debug("Ignoring because low quality");
+            if(qr.calculateQualityOfService()
+                    < SearchSettings.MINIMUM_SEARCH_QUALITY.getValue()) {
+                LOG.debug("Ignoring reply with low quality");
                 return;
             }
-            if(data.getSpeed() < SearchSettings.MINIMUM_SEARCH_SPEED.getValue()) {
-                LOG.debug("Ignoring because low speed");
+            if(qr.getSpeed()
+                    < SearchSettings.MINIMUM_SEARCH_SPEED.getValue()) {
+                LOG.debug("Ignoring reply with low speed");
                 return;
             }
             // if the other side is firewalled AND
             // we're not on close IPs AND
             // (we are firewalled OR we are a private IP) AND 
             // no chance for FW transfer then drop the reply.
-            if(data.isFirewalled() && 
-               !networkInstanceUtils.isVeryCloseIP(qr.getIPBytes()) &&               
-               (!networkManager.acceptedIncomingConnection() ||
-                       networkInstanceUtils.isPrivateAddress(networkManager.getAddress())) &&
-               !(networkManager.canDoFWT() && 
-                 qr.getSupportsFWTransfer())
-               )  {
-               LOG.debug("Ignoring from firewall funkiness");
-               return;
+            if(qr.isFirewalled()) {
+                LOG.debug("The responder is firewalled");
+                if(!networkInstanceUtils.isVeryCloseIP(qr.getIPBytes())) {
+                    LOG.debug("...and the responder isn't on a very close IP");
+                    boolean weAreFirewalled =
+                        !networkManager.acceptedIncomingConnection();
+                    if(weAreFirewalled)
+                        LOG.debug("...and we're firewalled");
+                    byte[] ourAddress = networkManager.getAddress();
+                    boolean weArePrivate =
+                        networkInstanceUtils.isPrivateAddress(ourAddress);
+                    if(weArePrivate)
+                        LOG.debug("...and we have a private IP");
+                    if(weAreFirewalled || weArePrivate) {
+                        boolean weCanDoFWT = networkManager.canDoFWT();
+                        if(!weCanDoFWT)
+                            LOG.debug("...and we can't do FWT");
+                        boolean theyCanDoFWT = qr.getSupportsFWTransfer();
+                        if(!theyCanDoFWT)
+                            LOG.debug("...and the responder can't do FWT");
+                        if(!(weCanDoFWT && theyCanDoFWT)) {
+                            LOG.debug("...so we're ignoring the reply");
+                            return;
+                        }
+                    }
+                }
             }
         }
 
@@ -257,58 +281,67 @@ final class SearchResultHandlerImpl implements SearchResultHandler {
         try {
             results = qr.getResultsAsList();
         } catch (BadPacketException e) {
-            LOG.debug("Error gettig results", e);
+            LOG.debug("Error getting results", e);
             return;
         }
 
         // throw away results that aren't secure.
-        int secureStatus = qr.getSecureStatus();
-        if(secureStatus == SecureMessage.FAILED) {
+        Status secureStatus = qr.getSecureStatus();
+        if(secureStatus == Status.FAILED) {
+            LOG.debug("Ignoring secure result that failed verification");
             return;
         }
         
         boolean skipSpam = isWhatIsNew(qr) || qr.isBrowseHostReply();
         int numGoodSentToFrontEnd = 0;
-        double numBadSentToFrontEnd = 0;
             
+        float spamThreshold = 1;
+        if(SearchSettings.ENABLE_SPAM_FILTER.getValue())
+            spamThreshold = SearchSettings.FILTER_SPAM_RESULTS.getValue();
+        
         for(Response response : results) {
-            if (!qr.isBrowseHostReply() && secureStatus != SecureMessage.SECURE) {
-                if (!searchServices.matchesType(data.getMessageGUID(), response)) {
-                    continue;
-                }
-
-                if (!searchServices.matchesQuery(data.getMessageGUID(), response)) {
-                    continue;
-                }
+            if(!responseFilter.allow(qr, response)) {
+                LOG.debug("Ignoring result because of response filter");
+                continue;
             }
-
-            // Throw away results from Mandragore Worm
-            if (searchServices.isMandragoreWorm(data.getMessageGUID(), response)) {
+            
+            // Filter responses with no URNs, unless they're secure results
+            if(secureStatus != Status.SECURE && response.getUrns().isEmpty()) {
+                LOG.debug("Ignoring insecure result with no URNs");
                 continue;
             }
             
             // If there was an action, only allow it if it's a secure message.
-            LimeXMLDocument doc = response.getDocument();
-            if(ApplicationSettings.USE_SECURE_RESULTS.getValue() &&
-               doc != null && !"".equals(doc.getAction()) && secureStatus != SecureMessage.SECURE) {
-                continue;
+            if(secureStatus != Status.SECURE
+                    && ApplicationSettings.USE_SECURE_RESULTS.getValue()) {
+                LimeXMLDocument doc = response.getDocument();
+                if(doc != null && !"".equals(doc.getAction())) {
+                    LOG.debug("Ignoring insecure result with XML action");
+                    continue;
+                }
             }
             
             // we'll be showing the result to the user, count it
             countClassC(qr,response);
-            RemoteFileDesc rfd = response.toRemoteFileDesc(data, remoteFileDescFactory);
+            RemoteFileDesc rfd;
+            try {
+                rfd = response.toRemoteFileDesc(qr, null, remoteFileDescFactory, pushEndpointFactory);
+            } catch (UnknownHostException e) {
+                throw new RuntimeException("should not have happened", e);
+            }
             rfd.setSecureStatus(secureStatus);
             Set<? extends IpPort> alts = response.getLocations();
-            activityCallback.get().handleQueryResult(rfd, data, alts);
+            activityCallback.get().handleQueryResult(rfd, qr, alts);
             
-            if (skipSpam || !spamManager.get().isSpam(rfd))
+            // Set the spam rating for the RemoteFileDesc
+            float spamRating = spamManager.get().calculateSpamRating(rfd);
+            
+            // Count non-spam results for dynamic querying
+            if(skipSpam || spamRating < spamThreshold)
                 numGoodSentToFrontEnd++;
-            else 
-                numBadSentToFrontEnd++;
-        } //end of response loop
+        }
         
-        numBadSentToFrontEnd = Math.ceil(numBadSentToFrontEnd * SearchSettings.SPAM_RESULT_RATIO.getValue());
-        accountAndUpdateDynamicQueriers(qr, numGoodSentToFrontEnd + (int)numBadSentToFrontEnd);
+        accountAndUpdateDynamicQueriers(qr, numGoodSentToFrontEnd);
     }
 
     private void countClassC(QueryReply qr, Response r) {
@@ -334,10 +367,7 @@ final class SearchResultHandlerImpl implements SearchResultHandler {
     private void accountAndUpdateDynamicQueriers(final QueryReply qr,
                                                  final int numGoodSentToFrontEnd) {
 
-        LOG.trace("SRH.accountAndUpdateDynamicQueriers(): entered.");
         // we should execute if results were consumed
-        // technically Ultrapeers don't use this info, but we are keeping it
-        // around for further use
         if (numGoodSentToFrontEnd > 0) {
             // get the correct GuidCount
             GuidCount gc = retrieveGuidCount(new GUID(qr.getGUID()));
@@ -348,14 +378,12 @@ final class SearchResultHandlerImpl implements SearchResultHandler {
                 return;
             
             // update the object
-            LOG.trace("SRH.accountAndUpdateDynamicQueriers(): incrementing.");
             gc.increment(numGoodSentToFrontEnd);
 
             // inform proxying Ultrapeers....
             if (connectionServices.isShieldedLeaf()) {
                 if (!gc.isFinished() && 
                     (gc.getNumResults() > gc.getNextReportNum())) {
-                    LOG.trace("SRH.accountAndUpdateDynamicQueriers(): telling UPs.");
                     gc.tallyReport();
                     if (gc.getNumResults() > QueryHandler.ULTRAPEER_RESULTS)
                         gc.markAsFinished();
@@ -372,7 +400,6 @@ final class SearchResultHandlerImpl implements SearchResultHandler {
 
             }
         }
-        LOG.trace("SRH.accountAndUpdateDynamicQueriers(): returning.");
     }
 
 
@@ -489,4 +516,3 @@ final class SearchResultHandlerImpl implements SearchResultHandler {
     };
 
 }
-

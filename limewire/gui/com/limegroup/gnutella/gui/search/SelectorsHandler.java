@@ -3,11 +3,11 @@ package com.limegroup.gnutella.gui.search;
 import java.util.HashMap;
 import java.util.Map;
 
+import org.limewire.core.settings.LimeWireSettings;
 import org.limewire.setting.SettingsFactory;
 import org.limewire.setting.StringSetting;
 
 import com.limegroup.gnutella.gui.search.Selector.PropertyType;
-import com.limegroup.gnutella.settings.LimeWireSettings;
 
 
 /**

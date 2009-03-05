@@ -1,17 +1,25 @@
 package com.limegroup.gnutella.stubs;
 
 import java.io.IOException;
+import java.net.UnknownHostException;
+import java.util.Set;
 
+import org.limewire.io.Connectable;
+import org.limewire.io.ConnectableImpl;
+import org.limewire.io.GUID;
 import org.limewire.io.NetworkUtils;
 import org.limewire.io.SimpleNetworkInstanceUtils;
 import org.limewire.listener.EventListener;
+import org.limewire.listener.EventListenerList;
+import org.limewire.listener.ListenerSupport;
+import org.limewire.net.address.AddressEvent;
+import org.limewire.net.TLSManager;
 
 import com.google.inject.AbstractModule;
 import com.google.inject.Module;
 import com.google.inject.Singleton;
-import com.limegroup.gnutella.GUID;
+import com.google.inject.TypeLiteral;
 import com.limegroup.gnutella.NetworkManager;
-import com.limegroup.gnutella.NetworkManagerEvent;
 
 @Singleton
 public class NetworkManagerStub implements NetworkManager {
@@ -19,6 +27,8 @@ public class NetworkManagerStub implements NetworkManager {
     public static final Module MODULE = new AbstractModule() {
         protected void configure() {
             bind(NetworkManager.class).to(NetworkManagerStub.class);
+            bind(TLSManager.class).to(NetworkManagerStub.class);
+            bind(new TypeLiteral<ListenerSupport<AddressEvent>>(){}).to(NetworkManagerStub.class);
         }
     };
     
@@ -38,6 +48,8 @@ public class NetworkManagerStub implements NetworkManager {
     private boolean incomingTLS;
     private boolean outgoingTLS;
     private boolean tls;
+
+    private EventListenerList<AddressEvent> listeners = new EventListenerList<AddressEvent>();
 
     public boolean acceptedIncomingConnection() {
         return acceptedIncomingConnection;
@@ -89,8 +101,7 @@ public class NetworkManagerStub implements NetworkManager {
     }
 
     public byte[] getNonForcedAddress() {
-        // TODO Auto-generated method stub
-        return null;
+        return getAddress();
     }
 
     public int getNonForcedPort() {
@@ -199,6 +210,23 @@ public class NetworkManagerStub implements NetworkManager {
     public void stop(){}
     public void initialize() {}
     
+    
+    public void addListener(EventListener<AddressEvent> listener) {
+        listeners.addListener(listener);
+    }
+
+    public boolean removeListener(EventListener<AddressEvent> listener) {
+        return listeners.removeListener(listener);
+    }
+    
+    public void fireEvent(AddressEvent event) {
+        listeners.broadcast(event);
+    }
+    
+    public ListenerSupport<AddressEvent> getListenerSupport() {
+        return listeners;
+    }
+    
     public String getServiceName() {
         // TODO Auto-generated method stub
         return null;
@@ -232,15 +260,17 @@ public class NetworkManagerStub implements NetworkManager {
         
     }
 
-    public void acceptedIncomingConnectionChanged() {
-        
+    @Override
+    public void newPushProxies(Set<Connectable> pushProxies) {
     }
 
-    public void addListener(EventListener<NetworkManagerEvent> listener) {
-    }
-
-    public boolean removeListener(EventListener<NetworkManagerEvent> listener) {
-        return false;
+    @Override
+    public Connectable getPublicAddress() {
+        try {
+            return new ConnectableImpl(NetworkUtils.ip2string(getExternalAddress()), getPort(), isIncomingTLSEnabled());
+        } catch (UnknownHostException e) {
+            throw new RuntimeException(e);
+        }
     }
 
 }

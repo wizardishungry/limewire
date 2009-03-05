@@ -2,12 +2,9 @@ package com.limegroup.gnutella.gui.sharing;
 
 import java.io.File;
 
-import com.limegroup.gnutella.gui.DialogOption;
 import com.limegroup.gnutella.gui.GUIMediator;
-import com.limegroup.gnutella.gui.GUIUtils;
-import com.limegroup.gnutella.gui.GuiCoreMediator;
 import com.limegroup.gnutella.gui.I18n;
-import com.limegroup.gnutella.library.SharingUtils;
+import com.limegroup.gnutella.library.LibraryUtils;
 
 /**
  * Utility to contain all share-related classes.
@@ -31,13 +28,13 @@ public class ShareManager {
         }
         
         // Ensure not banned.
-        if (!GuiCoreMediator.getFileManager().isFolderShareable(folder, false)) {
-            GUIMediator.showError(I18n.tr("<html><table width=400>You selected: <i>{0}</i><br>LimeWire cannot share this folder for security reasons.<br><br>Please select another folder to share.</table></html>", folder));
-            return false;
-        }
+//        if (!GuiCoreMediator.getFileManager().isFolderShareable(folder, false)) {
+//            GUIMediator.showError(I18n.tr("<html><table width=400>You selected: <i>{0}</i><br>LimeWire cannot share this folder for security reasons.<br><br>Please select another folder to share.</table></html>", folder));
+//            return false;
+//        }
         
         // Double-check sensitive directories. 
-        if (SharingUtils.isSensitiveDirectory(folder) && !warnAboutSensitiveDirectory(folder)) {
+        if (LibraryUtils.isSensitiveDirectory(folder) && !warnAboutSensitiveDirectory(folder)) {
             return false;
         }
         
@@ -45,19 +42,20 @@ public class ShareManager {
     }
 
     public static boolean warnAboutSensitiveDirectory(File folder) {
+        return true;
         //  Use unicode char for non-breaking space so that
         //  directory name is listed all on one line.
-        String dirName = GUIUtils.convertToNonBreakingSpaces(0, folder.getAbsolutePath());
-        DialogOption retval = GUIMediator.showYesNoMessage(
-                I18n.tr("<html><table width=400>The folder <i>{0}</i><br>is likely to contain sensitive or personal information.<br><br>LimeWire recommends that you <b>DO NOT</b> share this folder.<br><br>Are you sure you want to share it?</table></html>", dirName),
-                DialogOption.NO);
-        if (retval == DialogOption.YES) {
-            GuiCoreMediator.getFileManager().validateSensitiveFile(folder);
-            return true;
-        } else {
-            GuiCoreMediator.getFileManager().invalidateSensitiveFile(folder);
-            return false;
-        }
+//        String dirName = GUIUtils.convertToNonBreakingSpaces(0, folder.getAbsolutePath());
+//        DialogOption retval = GUIMediator.showYesNoMessage(
+//                I18n.tr("<html><table width=400>The folder <i>{0}</i><br>is likely to contain sensitive or personal information.<br><br>LimeWire recommends that you <b>DO NOT</b> share this folder.<br><br>Are you sure you want to share it?</table></html>", dirName),
+//                DialogOption.NO);
+//        if (retval == DialogOption.YES) {
+//            GuiCoreMediator.getFileManager().validateSensitiveFile(folder);
+//            return true;
+//        } else {
+//            GuiCoreMediator.getFileManager().invalidateSensitiveFile(folder);
+//            return false;
+//        }
     }
 
 }

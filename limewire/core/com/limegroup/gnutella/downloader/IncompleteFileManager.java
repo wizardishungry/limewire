@@ -1,8 +1,11 @@
 package com.limegroup.gnutella.downloader;
 
 import java.io.File;
+import java.io.FileFilter;
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -12,6 +15,7 @@ import java.util.TreeMap;
 
 import org.limewire.collection.Comparators;
 import org.limewire.collection.Range;
+import org.limewire.core.settings.SharingSettings;
 import org.limewire.io.InvalidDataException;
 import org.limewire.util.Base32;
 import org.limewire.util.CommonUtils;
@@ -21,11 +25,10 @@ import org.limewire.util.OSUtils;
 import com.google.inject.Inject;
 import com.google.inject.Provider;
 import com.google.inject.Singleton;
-import com.limegroup.gnutella.FileManager;
 import com.limegroup.gnutella.RemoteFileDesc;
 import com.limegroup.gnutella.URN;
 import com.limegroup.gnutella.UrnSet;
-import com.limegroup.gnutella.settings.SharingSettings;
+import com.limegroup.gnutella.library.FileManager;
 import com.limegroup.gnutella.tigertree.HashTreeCache;
 
 /** 
@@ -99,7 +102,7 @@ public class IncompleteFileManager  {
             File file = iter.next();
             if (!file.exists() ) {
                 ret=true;
-                fileManager.get().removeFileIfSharedOrStore(file);
+                fileManager.get().getManagedFileList().remove(file);
                 file.delete();  //always safe to call; return value ignored
                 iter.remove();
             }
@@ -126,7 +129,7 @@ public class IncompleteFileManager  {
             }
             if (!file.exists() || (isOld(file) && !activeFiles.contains(file))) {
                 ret=true;
-                fileManager.get().removeFileIfSharedOrStore(file);
+                fileManager.get().getManagedFileList().remove(file);
                 file.delete();
                 iter.remove();
             }
@@ -360,7 +363,7 @@ public class IncompleteFileManager  {
         }
         
         //Remove the entry from FileManager
-        fileManager.get().removeFileIfSharedOrStore(incompleteFile);
+        fileManager.get().getManagedFileList().remove(incompleteFile);
     }
     
     /**
@@ -458,7 +461,7 @@ public class IncompleteFileManager  {
         Set<URN> completeHashes = getAllCompletedHashes(incompleteFile);
         if( completeHashes.size() == 0 ) return;
         
-        fileManager.get().addIncompleteFile(
+        fileManager.get().getIncompleteFileList().addIncompleteFile(
             incompleteFile,
             completeHashes,
             getCompletedName(incompleteFile),
@@ -616,6 +619,46 @@ public class IncompleteFileManager  {
 
     public synchronized String dumpHashes () {
         return hashes.toString();
+    }
+
+    public Collection<File> getUnregisteredIncompleteFilesInDirectory(File value) {
+        if(value == null) {
+            return Collections.emptyList();
+        }
+        
+        File[] files = value.listFiles(new FileFilter() {
+            @Override
+            public boolean accept(File incompleteFile) {
+                if(!incompleteFile.isFile()) {
+                    return false;
+                }
+                
+                String name = incompleteFile.getName();
+                int i = name.indexOf(SEPARATOR);
+                if (i < 0 || i == name.length() - 1) {
+                    return false;
+                }
+                int j = name.indexOf(SEPARATOR, i + 1);
+                if (j < 0 || j == name.length() - 1) {
+                    return false;
+                }                
+                try {
+                    Long.parseLong(name.substring(i + 1, j));
+                } catch (NumberFormatException e) {
+                    return false;
+                }
+                
+                synchronized(IncompleteFileManager.this) {
+                    return !blocks.containsKey(FileUtils.canonicalize(incompleteFile));
+                }
+            }
+        });
+        
+        if(files == null) {
+            return Collections.emptyList(); 
+        } else {
+            return Arrays.asList(files);
+        }
     }
     
 }
