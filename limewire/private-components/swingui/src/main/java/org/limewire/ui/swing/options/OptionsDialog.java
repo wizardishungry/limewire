@@ -103,7 +103,7 @@ public class OptionsDialog extends LimeJDialog implements OptionsTabNavigator {
         this.miscOptionPanel = miscOptionPanel;
         this.advancedOptionPanel = advancedOptionPanel;
 
-        if (!OSUtils.isAnyMac()) {
+        if (!OSUtils.isMacOSX()) {
             setSize(700, 656);
             setPreferredSize(getSize());
         } else {
@@ -138,7 +138,7 @@ public class OptionsDialog extends LimeJDialog implements OptionsTabNavigator {
     }
     
     private void createComponents(BarPainterFactory barPainterFactory) {
-        setLayout(new MigLayout("gap 0, insets 0 0 0 0, fill", "fill", "[63!][fill][40!, fill]"));
+        setLayout(new MigLayout("gap 0, insets 0 0 0 0, fill", "fill", "[][fill][40!, fill]"));
         
         cardLayout = new CardLayout();
         cardPanel = new JPanel();
@@ -270,7 +270,10 @@ public class OptionsDialog extends LimeJDialog implements OptionsTabNavigator {
         panel.setBackground(backgroundColor);
         panels.put(selectedItem.getId(), panel);
         cardPanel.add(panels.get(selectedItem.getId()), selectedItem.getId());
-        panel.initOptions();
+        // Library is always shown so it will always be initialized prior to being shown
+        // no need to do it now.
+        if(!selectedItem.getId().equals(LIBRARY)) 
+            panel.initOptions();
     }
     
     private class OptionsTabItemImpl implements OptionTabItem {

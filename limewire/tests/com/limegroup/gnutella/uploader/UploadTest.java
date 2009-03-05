@@ -204,6 +204,9 @@ public class UploadTest extends LimeTestCase {
     public void tearDown() throws Exception {
         stopServices();
         LimeTestUtils.waitForNIO();
+        injector = null;
+        fileManager = null;
+        uploadManager = null;
     }
 
     private void doSettings() throws UnknownHostException {
@@ -253,6 +256,8 @@ public class UploadTest extends LimeTestCase {
         Acceptor acceptor = injector.getInstance(Acceptor.class);
         acceptor.setListeningPort(0);
         acceptor.shutdown();
+        
+        uploadManager.stop();
     }    
     
     public void testHTTP10Download() throws Exception {
@@ -1008,7 +1013,7 @@ public class UploadTest extends LimeTestCase {
             } else {
                 result = null;
             }
-            assertEquals("ABCDEFGHIJKLMNOPQRSTUVWXYZ" + System.getProperty("line.separator"), result);
+            assertEquals("ABCDEFGHIJKLMNOPQRSTUVWXYZ\n", result);
         } finally {
             HttpClientUtils.releaseConnection(response);
         }
@@ -1307,26 +1312,26 @@ public class UploadTest extends LimeTestCase {
         }
     }
 
-    public void testChatFeatureHeader() throws Exception {
-//        ChatSettings.CHAT_ENABLED.setValue(true);
+    /**
+     * LimeWire doesn't send chat support feature header since version 5.0. 
+     */
+    public void testChatFeatureHeaderNotSent() throws Exception {
         HttpGet method = new HttpGet(fileNameUrl);
         HttpResponse response = null;
-//        try {
-//            response = client.execute(method);
-//            assertEquals(HttpStatus.SC_OK, response.getStatusLine().getStatusCode());
-//            assertNotNull(response.getFirstHeader("X-Features"));
-//            String header = response.getFirstHeader("X-Features").getValue();
-//            assertTrue(header.contains("fwalt/0.1"));
-//            assertTrue(header.contains("browse/1.0"));
-//            assertTrue(header.contains("chat/0.1"));
-//        } finally {
-//            HttpClientUtils.releaseConnection(response);
-//        }
+        try {
+            response = client.execute(method);
+            assertEquals(HttpStatus.SC_OK, response.getStatusLine().getStatusCode());
+            assertNotNull(response.getFirstHeader("X-Features"));
+            String header = response.getFirstHeader("X-Features").getValue();
+            assertTrue(header.contains("fwalt/0.1"));
+            assertTrue(header.contains("browse/1.0"));
+            assertFalse(header.contains("chat/0.1"));
+        } finally {
+            HttpClientUtils.releaseConnection(response);
+        }
 
         assertConnectionIsOpen(true, method);
 
-        // feature headers are only sent with the first response
-//        ChatSettings.CHAT_ENABLED.setValue(false);
         method = new HttpGet(fileNameUrl);
         method.addHeader("Connection", "close");
         try {

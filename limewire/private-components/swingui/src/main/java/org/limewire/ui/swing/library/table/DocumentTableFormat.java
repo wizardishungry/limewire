@@ -9,6 +9,7 @@ import org.jdesktop.swingx.decorator.SortKey;
 import org.jdesktop.swingx.decorator.SortOrder;
 import org.limewire.core.api.FilePropertyKey;
 import org.limewire.core.api.library.LocalFileItem;
+import org.limewire.ui.swing.settings.TablesHandler;
 import org.limewire.ui.swing.table.ColumnStateInfo;
 import org.limewire.ui.swing.util.I18n;
 import org.limewire.ui.swing.util.IconManager;
@@ -17,22 +18,24 @@ import org.limewire.ui.swing.util.IconManager;
  * Table format for the Document Table when it is in My Library
  */
 public class DocumentTableFormat<T extends LocalFileItem> extends AbstractMyLibraryFormat<T> {
-    static final int NAME_INDEX = 0;
-    static final int TYPE_INDEX = 1;
-    static final int CREATED_INDEX = 2;
-    static final int SIZE_INDEX = 3;
-    static final int AUTHOR_INDEX = 4;
-    static final int DESCRIPTION_INDEX = 5;
-    static final int HIT_INDEX = 6;
-    static final int UPLOADS_INDEX = 7;
-    static final int UPLOAD_ATTEMPTS_INDEX = 8;
-    static final int ACTION_INDEX = 9;
+    static final int ACTION_INDEX = 0;
+    static final int NAME_INDEX = 1;
+    static final int TYPE_INDEX = 2;
+    static final int CREATED_INDEX = 3;
+    static final int SIZE_INDEX = 4;
+    static final int AUTHOR_INDEX = 5;
+    static final int DESCRIPTION_INDEX = 6;
+    static final int HIT_INDEX = 7;
+    static final int UPLOADS_INDEX = 8;
+    static final int UPLOAD_ATTEMPTS_INDEX = 9;
+    static final int PATH_INDEX = 10;
 
 	/** Icon manager used to find native file type information. */
 	private IconManager iconManager;
 	
 	public DocumentTableFormat(IconManager iconManager) {
-	    super(ACTION_INDEX, new ColumnStateInfo[] {
+	    super(ACTION_INDEX, "LIBRARY_DOCUMENT_TABLE", NAME_INDEX, true, new ColumnStateInfo[] {
+                new ColumnStateInfo(ACTION_INDEX, "LIBRARY_DOCUMENT_ACTION", I18n.tr("Sharing"), 61, true, false),
                 new ColumnStateInfo(NAME_INDEX, "LIBRARY_DOCUMENT_NAME", "Name", 493, true, true), 
                 new ColumnStateInfo(TYPE_INDEX, "LIBRARY_DOCUMENT_TYPE", I18n.tr("Type"), 180, true, true),     
                 new ColumnStateInfo(CREATED_INDEX, "LIBRARY_DOCUMENT_CREATED", I18n.tr("Date Created"), 100, false, true), 
@@ -42,7 +45,7 @@ public class DocumentTableFormat<T extends LocalFileItem> extends AbstractMyLibr
                 new ColumnStateInfo(HIT_INDEX, "LIBRARY_DOCUMENT_HITS", I18n.tr("Hits"), 100, false, true), 
                 new ColumnStateInfo(UPLOADS_INDEX, "LIBRARY_DOCUMENT_UPLOADS", I18n.tr("Uploads"), 100, false, true), 
                 new ColumnStateInfo(UPLOAD_ATTEMPTS_INDEX, "LIBRARY_DOCUMENT_UPLOAD_ATTEMPTS", I18n.tr("Upload attempts"), 200, false, true),
-                new ColumnStateInfo(ACTION_INDEX, "LIBRARY_DOCUMENT_ACTION", I18n.tr("Sharing"), 61, true, false)
+                new ColumnStateInfo(PATH_INDEX, "LIBRARY_DOCUMENT_PATH", I18n.tr("Location"), 200, false, true)
         });
 	    
         this.iconManager = iconManager;
@@ -67,16 +70,21 @@ public class DocumentTableFormat<T extends LocalFileItem> extends AbstractMyLibr
          case HIT_INDEX: return baseObject.getNumHits();
          case UPLOAD_ATTEMPTS_INDEX: return baseObject.getNumUploadAttempts();
          case UPLOADS_INDEX: return baseObject.getNumUploads();
+         case PATH_INDEX: return baseObject.getProperty(FilePropertyKey.LOCATION);
          }
          throw new IllegalArgumentException("Unknown column:" + column);
     }
 
     @Override
     public List<SortKey> getDefaultSortKeys() {
-        return Arrays.asList(
-                new SortKey(SortOrder.ASCENDING, NAME_INDEX),
-                new SortKey(SortOrder.ASCENDING, TYPE_INDEX),
-                new SortKey(SortOrder.ASCENDING, SIZE_INDEX));
+        if(TablesHandler.getSortedColumn(getSortOrderID(), getSortedColumn()).getValue() == getSortedColumn() &&
+                TablesHandler.getSortedOrder(getSortOrderID(), getSortOrder()).getValue() == getSortOrder())
+            return Arrays.asList(
+                    new SortKey(SortOrder.ASCENDING, NAME_INDEX),
+                    new SortKey(SortOrder.ASCENDING, TYPE_INDEX),
+                    new SortKey(SortOrder.ASCENDING, SIZE_INDEX));
+        else
+            return super.getDefaultSortKeys();
     }
 
     @Override

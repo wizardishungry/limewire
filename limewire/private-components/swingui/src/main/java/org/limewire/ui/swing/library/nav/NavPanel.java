@@ -8,6 +8,7 @@ import java.awt.GradientPaint;
 import java.awt.Insets;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseListener;
 import java.beans.PropertyChangeEvent;
@@ -58,7 +59,6 @@ public class NavPanel extends JXPanel {
     @Resource private Color selectedBackgroundGradientTop = PainterUtils.TRASPARENT;
     @Resource private Color selectedBackgroundGradientBottom = PainterUtils.TRASPARENT;
     
-    @Resource private Font selectedTextFont;
     @Resource private Color selectedTextColor;
     @Resource private Font failedTextFont;
     @Resource private Font textFont;
@@ -66,6 +66,7 @@ public class NavPanel extends JXPanel {
     
     private final RemoteLibraryManager remoteLibraryManager;
     private final FriendLibraryMediator libraryPanel;
+    private final LibraryNavigator libraryNavigator;
     
     private final Friend friend;
     private FriendLibrary friendLibrary;
@@ -80,6 +81,8 @@ public class NavPanel extends JXPanel {
     
     private boolean failed;
     
+    private LibraryState lastLibraryState;
+    
     private final Provider<ChatAction> chatActionProvider;
 
     @AssistedInject
@@ -87,6 +90,7 @@ public class NavPanel extends JXPanel {
              @Assisted Friend friend,
              @Assisted FriendLibraryMediator libraryPanel,
             RemoteLibraryManager remoteLibraryManager,
+            LibraryNavigator libraryNavigator,
             Provider<ChatAction> chatActionProvider) {
         super(new MigLayout("insets 0, gap 0, fill"));
         
@@ -99,6 +103,7 @@ public class NavPanel extends JXPanel {
         this.friend = friend;           
         this.libraryPanel = libraryPanel;
         this.remoteLibraryManager = remoteLibraryManager;        
+        this.libraryNavigator = libraryNavigator;
         
         selectedPainter = new GenericBarPainter<JXPanel>(new GradientPaint(0,0, selectedBackgroundGradientTop,
                 0,1, selectedBackgroundGradientBottom));
@@ -124,6 +129,29 @@ public class NavPanel extends JXPanel {
         add(statusIcon, "alignx right, gapafter 4, hidemode 3, wrap");
         unbusy(false);
         
+        // Make it so when you hover over an anonymous browse,
+        // you can cancel it early.
+        if(friend != null && friend.isAnonymous()) {
+            MouseListener listener = new MouseAdapter() {
+                @Override
+                public void mouseEntered(MouseEvent e) {
+                    if(lastLibraryState == LibraryState.LOADING) {
+                        showRemoveIcon();
+                    }
+                }
+                
+                @Override
+                public void mouseExited(MouseEvent e) {
+                    if(lastLibraryState == LibraryState.LOADING) {
+                        showBusyIcon();
+                    }
+                }
+            };
+            addMouseListener(listener);
+            categoryLabel.addMouseListener(listener);
+            statusIcon.addMouseListener(listener);
+        }
+        
         action.addPropertyChangeListener(new PropertyChangeListener() {
             @Override
             public void propertyChange(PropertyChangeEvent evt) {
@@ -132,7 +160,7 @@ public class NavPanel extends JXPanel {
                         requestFocus();
                         setBackgroundPainter(selectedPainter);
                         categoryLabel.setForeground(selectedTextColor);
-                        categoryLabel.setFont(selectedTextFont);
+                        categoryLabel.setFont(textFont);
                         setOpaque(true);
                         repaint();
                     } else {
@@ -150,7 +178,7 @@ public class NavPanel extends JXPanel {
     private String getToolTipText(Friend friend) {
         StringBuffer toolTipText = new StringBuffer();
         String name = friend.getName();
-        String id = friend.getId();
+        String id = friend.isAnonymous() ? "" : friend.getId();
         
         if(!StringUtils.isEmpty(name) && !StringUtils.isEmpty(id) && !name.equals(id)) {
             toolTipText.append("<html>").append(name).append("<br>").append(id).append("</html>");
@@ -193,13 +221,6 @@ public class NavPanel extends JXPanel {
         }
     }
     
-    public void setSelectedFont(Font font) {
-        this.selectedTextFont = font;
-        if(Boolean.TRUE.equals(action.getValue(Action.SELECTED_KEY))) {
-            categoryLabel.setFont(font);
-        }
-    }
-    
     public void setFontColor(Color color) {
         this.textColor = color;
         if(!Boolean.TRUE.equals(action.getValue(Action.SELECTED_KEY))) {
@@ -226,8 +247,8 @@ public class NavPanel extends JXPanel {
         categoryLabel.addActionListener(listener);
     }
     
-    private void busy() {
-        removeEjectListener();
+    private void showBusyIcon() {
+        removeEjectListener();        
         BusyPainter painter = statusIcon.getBusyPainter();
         statusIcon.setIcon(new EmptyIcon(12, 12));
         statusIcon.setBusyPainter(painter);
@@ -235,22 +256,30 @@ public class NavPanel extends JXPanel {
         statusIcon.setBusy(true);
     }
     
+    private void showRemoveIcon() {
+        addEjectListener();
+        statusIcon.setVisible(true);
+        statusIcon.setBusy(false);
+        if (failed) {
+           statusIcon.setIcon(failedRemoveLibraryIcon);
+        } else {
+            statusIcon.setIcon(removeLibraryIcon);
+        }       
+    }
+    
+    private void showBlankIcon() {
+        removeEjectListener();
+        statusIcon.setVisible(false);
+        statusIcon.setBusy(false);
+        statusIcon.setIcon(new EmptyIcon(12, 12));
+    }
+    
     private void unbusy(boolean failed) {
         this.failed = failed;
         if(friend != null && friend.isAnonymous()) {
-            statusIcon.setVisible(true);
-            statusIcon.setBusy(false);
-            if (failed) {
-               statusIcon.setIcon(failedRemoveLibraryIcon);
-            } else {
-                statusIcon.setIcon(removeLibraryIcon);
-            }            
-            addEjectListener();
+            showRemoveIcon();     
         } else {
-            removeEjectListener();
-            statusIcon.setVisible(false);
-            statusIcon.setBusy(false);
-            statusIcon.setIcon(new EmptyIcon(12, 12));
+            showBlankIcon();
         }
     }
     
@@ -294,6 +323,7 @@ public class NavPanel extends JXPanel {
     }
     
     public void updateLibraryState(LibraryState libraryState) {
+        this.lastLibraryState = libraryState;
         switch(libraryState) {
         case FAILED_TO_LOAD:
             categoryLabel.setFont(failedTextFont);
@@ -305,7 +335,7 @@ public class NavPanel extends JXPanel {
             break;
         case LOADING:
             categoryLabel.setFont(textFont);
-            busy();
+            showBusyIcon();
             break;
         }
     }
@@ -322,10 +352,6 @@ public class NavPanel extends JXPanel {
     
     public void select() { 
         action.actionPerformed(null);
-    }
-    
-    public void showSharingCard() {
-        libraryPanel.showSharingCard();
     }
     
     public void showLibraryCard() {
@@ -350,11 +376,10 @@ public class NavPanel extends JXPanel {
         @Override
         public void handlePopupMouseEvent(MouseEvent e) {
             JPopupMenu menu = new JPopupMenu();
-            menu.add(new JMenuItem(new AbstractAction(I18n.tr("Share")) {
+            menu.add(new JMenuItem(new AbstractAction(I18n.tr("What I'm Sharing")) {
                 @Override
                 public void actionPerformed(ActionEvent e) {
-                    select();
-                    showSharingCard();
+                    libraryNavigator.selectFriendShareList(friend);
                 }                
             }));
             

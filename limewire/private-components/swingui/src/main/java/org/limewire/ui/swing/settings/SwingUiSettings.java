@@ -6,10 +6,10 @@ import org.limewire.core.settings.LimeProps;
 import org.limewire.i18n.I18nMarker;
 import org.limewire.inspection.InspectablePrimitive;
 import org.limewire.setting.BooleanSetting;
+import org.limewire.setting.FileArraySetting;
 import org.limewire.setting.FileSetting;
 import org.limewire.setting.IntSetting;
 import org.limewire.setting.StringArraySetting;
-import org.limewire.setting.StringSetSetting;
 import org.limewire.setting.StringSetting;
 import org.limewire.util.CommonUtils;
 import org.limewire.util.OSUtils;
@@ -20,7 +20,11 @@ import org.limewire.util.OSUtils;
  */ 
 public final class SwingUiSettings extends LimeProps {
     
-    private SwingUiSettings() {}    
+    private SwingUiSettings() {}
+    
+    /** The directories that have been warned as bad Vista directories. */
+    public static final FileArraySetting VISTA_WARN_DIRECTORIES =
+        FACTORY.createFileArraySetting("VISTA_WARN_DIRECTORIES", new File[0]);
     
     /**
      * This setting is used to track whether or not the user wants to show offline buddies in the left panel.
@@ -212,20 +216,9 @@ public final class SwingUiSettings extends LimeProps {
     public static final BooleanSetting PLAY_NOTIFICATION_SOUND =
         FACTORY.createBooleanSetting("PLAY_NOTIFICATION_SOUND", false);
 
-    /**
-     * Out-of-the-box list of well known jabber servers
-     */
-    public static final StringSetSetting XMPP_SERVERS =
-        FACTORY.createStringSetSetting("XMPP_SERVERS",
-                "false,true,gmail.com,Gmail;" +
-                "false,false,livejournal.com,LiveJournal;" +
-        "");
-
-    /**
-     * User-defined custom jabber server
-     */
-    public static final StringSetting USER_DEFINED_XMPP_SERVER =
-        (StringSetting)FACTORY.createStringSetting("XMPP_SERVER", "").setPrivate(true);
+    /** User-defined custom jabber server */
+    public static final StringSetting USER_DEFINED_JABBER_SERVICENAME =
+        (StringSetting)FACTORY.createStringSetting("CUSTOM_JABBER_SERVICENAME", "").setPrivate(true);
 
     public static final StringSetting XMPP_AUTO_LOGIN =
     (StringSetting)FACTORY.createStringSetting("XMPP_AUTO_LOGIN", "").setPrivate(true);
@@ -239,12 +232,17 @@ public final class SwingUiSettings extends LimeProps {
         FACTORY.createBooleanSetting("ONLINE_CONTACTS_COLLAPSED", false);
     
     /** If the LimeWire media player is enabled. */
+    @InspectablePrimitive("player enabled")
     public static final BooleanSetting PLAYER_ENABLED =
         FACTORY.createBooleanSetting("PLAYER_ENABLED", true);
     
     /** Shows an overlay on My Library first time logging in */
     public static final BooleanSetting SHOW_FRIEND_OVERLAY_MESSAGE =
         FACTORY.createBooleanSetting("SHOW_FRIEND_OVERLAY_MESSAGE", true);
+    
+    /** Shows an overlay on My Library first time going to My Library  */
+    public static final BooleanSetting SHOW_FIRST_TIME_LIBRARY_OVERLAY_MESSAGE =
+        FACTORY.createBooleanSetting("SHOW_FIRST_TIME_LIBRARY_OVERLAY_MESSAGE", true);
     
     /** True if the user has logged into chat and viewed their library after, false otherwise */
     public static final BooleanSetting HAS_LOGGED_IN_AND_SHOWN_LIBRARY =

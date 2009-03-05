@@ -13,9 +13,11 @@ import java.text.SimpleDateFormat;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
+import javax.swing.BorderFactory;
 import javax.swing.JButton;
 import javax.swing.JComboBox;
 import javax.swing.JComponent;
+import javax.swing.JEditorPane;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
@@ -31,6 +33,7 @@ import org.limewire.core.api.Category;
 import org.limewire.core.api.FilePropertyKey;
 import org.limewire.core.api.URN;
 import org.limewire.core.api.library.PropertiableFile;
+import org.limewire.i18n.I18nMarker;
 import org.limewire.ui.swing.action.AbstractAction;
 import org.limewire.ui.swing.components.HyperlinkButton;
 import org.limewire.ui.swing.components.LimeJDialog;
@@ -42,20 +45,20 @@ import org.limewire.util.StringUtils;
 
 public abstract class Dialog extends LimeJDialog {
     private final SimpleDateFormat DATE_FORMAT = new SimpleDateFormat("M/d/yyyy");
-    private static final String AUTHOR = "Author";
-    private static final String COMPANY = "Company";
-    private static final String PLATFORM = "Platform";
-    private static final String TRACK = "Track";
-    private static final String ALBUM = "Album";
-    private static final String ARTIST = "Artist";
-    private static final String DESCRIPTION = "Description";
-    private static final String YEAR = "Year";
-    private static final String RATING = "Rating";
-    private static final String GENRE = "Genre";
-    private static final String TITLE = "Title";
-    private static final String HASH = "Hash";
+    private static final String AUTHOR = I18nMarker.marktr("Author");
+    private static final String COMPANY = I18nMarker.marktr("Company");
+    private static final String PLATFORM = I18nMarker.marktr("Platform");
+    private static final String TRACK = I18nMarker.marktr("Track");
+    private static final String ALBUM = I18nMarker.marktr("Album");
+    private static final String ARTIST = I18nMarker.marktr("Artist");
+    private static final String DESCRIPTION = I18nMarker.marktr("Description");
+    private static final String YEAR = I18nMarker.marktr("Year");
+    private static final String RATING = I18nMarker.marktr("Rating");
+    private static final String GENRE = I18nMarker.marktr("Genre");
+    private static final String TITLE = I18nMarker.marktr("Title");
+    private static final String HASH = I18nMarker.marktr("Hash");
     protected final JLabel icon = new JLabel();
-    protected final JLabel heading = newLabel();
+    protected final JEditorPane heading = new JEditorPane();
     protected final JLabel filename = newLabel();
     protected final JLabel fileSize = new JLabel();
     protected final JLabel metadata = newLabel();
@@ -74,7 +77,7 @@ public abstract class Dialog extends LimeJDialog {
     protected final JComboBox platform = new JComboBox();
     protected final JTextField company = new JTextField();
     protected final DefaultTableModel readOnlyInfoModel = new ReadOnlyTableModel();
-    protected final JLabel fileLocation = newLabel();
+    protected final JEditorPane fileLocation = new JEditorPane();
     protected final HyperlinkButton locateOnDisk;
     protected final HyperlinkButton locateInLibrary;
     protected final HyperlinkButton copyToClipboard;
@@ -112,6 +115,9 @@ public abstract class Dialog extends LimeJDialog {
         setFont(smallFont, metadata, copyToClipboard, moreFileInfo, locateOnDisk, locateInLibrary,
                 title, genre, unEditableGenre, rating, year, description, artist, album, track, author, platform,
                 company, fileLocation);
+        decorateEditorPane(heading);
+        decorateEditorPane(fileLocation);
+        
         //Use the same border that a textfield uses - JTextAreas by default are not given a border
         //This makes the look consistent with JTextField
         descriptionScrollPane.setBorder(artist.getBorder());
@@ -122,7 +128,7 @@ public abstract class Dialog extends LimeJDialog {
         buttons.add(new JButton(new CancelAction()));
         mainPanel.add(buttons, "alignx right, cell 1 4");
         
-        overview = newPanel(new MigLayout("fillx", "[][]push[]", "[top]3[top]"));
+        overview = newPanel(new MigLayout("gap 0, fillx", "[][grow]push[]", "[top]2[top]"));
 
         JPanel linksPanel = new JPanel(new BorderLayout());
         linksPanel.setOpaque(false);
@@ -130,7 +136,7 @@ public abstract class Dialog extends LimeJDialog {
         linksPanel.add(moreFileInfo, BorderLayout.SOUTH);
         
         overview.add(icon, "spany");
-        overview.add(heading, "grow");
+        overview.add(heading, "growx");
         overview.add(linksPanel, "spany, wrap");
         overview.add(metadata, "cell 1 1");
 
@@ -164,6 +170,13 @@ public abstract class Dialog extends LimeJDialog {
         }
     }
 
+    private void decorateEditorPane(JEditorPane editor) {
+        editor.setOpaque(false);
+        editor.setBorder(BorderFactory.createEmptyBorder());
+        editor.setEditable(false);
+        editor.setPreferredSize(new Dimension(100,20));
+    }
+    
     private JLabel newLabel() {
         //Creating a JLabel that wraps all text in HTML so that multiline word
         //wrapping will behave correctly.  The JXLabel.setMultiline() causes the

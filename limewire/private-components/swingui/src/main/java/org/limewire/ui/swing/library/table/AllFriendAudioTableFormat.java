@@ -11,12 +11,12 @@ public class AllFriendAudioTableFormat<T extends RemoteFileItem> extends RemoteA
     static final int FROM_INDEX = 13;
     
     public AllFriendAudioTableFormat() {
-        super( new ColumnStateInfo[] {
+        super("ALL_LIBRARY_AUDIO_TABLE", ARTIST_INDEX, true, new ColumnStateInfo[] {
                 new ColumnStateInfo(NAME_INDEX, "ALL_LIBRARY_AUDIO_TITLE", I18n.tr("Name"), 278, true, true),     
                 new ColumnStateInfo(ARTIST_INDEX, "ALL_LIBRARY_AUDIO_ARTIST", I18n.tr("Artist"), 166, true, true), 
                 new ColumnStateInfo(ALBUM_INDEX, "ALL_LIBRARY_AUDIO_ALBUM", I18n.tr("Album"), 147, true, true), 
                 new ColumnStateInfo(LENGTH_INDEX, "ALL_LIBRARY_AUDIO_LENGTH", I18n.tr("Length"), 58, true, true), 
-                new ColumnStateInfo(QUALITY_INDEX, "ALL_LIBRARY_AUDIO_QUALITY", I18n.tr("Quality"), 67, true, true), 
+                new ColumnStateInfo(QUALITY_INDEX, "ALL_LIBRARY_AUDIO_QUALITY", I18n.tr("Quality"), 105, true, true), 
                 new ColumnStateInfo(GENRE_INDEX, "ALL_LIBRARY_AUDIO_GENRE", I18n.tr("Genre"), 60, false, true),
                 new ColumnStateInfo(BITRATE_INDEX, "ALL_LIBRARY_AUDIO_BITRATE", I18n.tr("Bitrate"), 50, false, true), 
                 new ColumnStateInfo(SIZE_INDEX, "ALL_LIBRARY_AUDIO_SIZE", I18n.tr("Size"), 60, false, true),

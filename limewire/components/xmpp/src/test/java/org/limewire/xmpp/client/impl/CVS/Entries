@@ -1,14 +1,14 @@
-/AddressEventTestBroadcaster.java/1.1/Thu Nov 20 20:16:15 2008//Tprod-5-0-9-java16
-/EmptyJabberSettings.java/1.1/Thu Dec  4 00:23:51 2008//Tprod-5-0-9-java16
-/FileOfferHandlerMock.java/1.1/Thu Nov 20 20:16:15 2008//Tprod-5-0-9-java16
-/IncomingChatListenerMock.java/1.1/Thu Nov 20 20:16:15 2008//Tprod-5-0-9-java16
-/LimeWireXMPPTestModule.java/1.1/Thu Dec  4 00:23:51 2008//Tprod-5-0-9-java16
-/MessageReaderMock.java/1.1/Thu Nov 20 20:16:15 2008//Tprod-5-0-9-java16
-/PasswordTest.java/1.2/Thu Nov 20 23:28:32 2008//Tprod-5-0-9-java16
-/RosterListenerMock.java/1.2/Wed Dec 10 18:43:40 2008//Tprod-5-0-9-java16
-/XMPPAddressRegistryTest.java/1.1/Tue Jan 13 21:17:53 2009//Tprod-5-0-9-java16
-/XMPPAddressSerializerTest.java/1.1/Mon Dec  8 20:48:06 2008//Tprod-5-0-9-java16
-/XMPPConnectionConfigurationMock.java/1.5/Mon Dec  8 23:14:59 2008//Tprod-5-0-9-java16
-/XMPPConnectionListenerMock.java/1.1/Thu Nov 20 20:16:15 2008//Tprod-5-0-9-java16
-/XMPPServiceTest.java/1.10/Wed Dec 10 18:43:40 2008//Tprod-5-0-9-java16
+/AddressEventTestBroadcaster.java/1.1/Thu Nov 20 20:16:15 2008//Tprod-5-1-1-java16
+/EmptyJabberSettings.java/1.1/Thu Dec  4 00:23:51 2008//Tprod-5-1-1-java16
+/FileOfferHandlerMock.java/1.1/Thu Nov 20 20:16:15 2008//Tprod-5-1-1-java16
+/IncomingChatListenerMock.java/1.1/Thu Nov 20 20:16:15 2008//Tprod-5-1-1-java16
+/LimeWireXMPPTestModule.java/1.1/Thu Dec  4 00:23:51 2008//Tprod-5-1-1-java16
+/MessageReaderMock.java/1.1/Thu Nov 20 20:16:15 2008//Tprod-5-1-1-java16
+/PasswordTest.java/1.2/Thu Nov 20 23:28:32 2008//Tprod-5-1-1-java16
+/RosterListenerMock.java/1.2.2.1/Mon Mar  2 20:48:47 2009//Tprod-5-1-1-java16
+/XMPPAddressRegistryTest.java/1.1/Tue Jan 13 21:17:53 2009//Tprod-5-1-1-java16
+/XMPPAddressSerializerTest.java/1.1/Mon Dec  8 20:48:06 2008//Tprod-5-1-1-java16
+/XMPPConnectionConfigurationMock.java/1.5/Mon Dec  8 23:14:59 2008//Tprod-5-1-1-java16
+/XMPPConnectionListenerMock.java/1.1/Thu Nov 20 20:16:15 2008//Tprod-5-1-1-java16
+/XMPPServiceTest.java/1.10.2.1/Wed Feb  4 20:40:15 2009//Tprod-5-1-1-java16
 D

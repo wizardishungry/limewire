@@ -140,7 +140,7 @@ class GlueActivityCallback implements ActivityCallback, QueryReplyListenerList,
     }
 
     @Override
-    public void handleTorrent(File torrentFile) {
+    public void handleTorrent(final File torrentFile) {
         if(torrentFile != null && torrentFile.exists() && torrentFile.length() > 0) {
             try {
                 downloadManager.downloadTorrent(torrentFile, false);
@@ -148,7 +148,7 @@ class GlueActivityCallback implements ActivityCallback, QueryReplyListenerList,
                 handleSaveLocationException(new DownloadAction() {
                   @Override
                     public void download(File saveFile, boolean overwrite) throws SaveLocationException {
-                          downloadManager.downloadTorrent(saveFile, overwrite);
+                          downloadManager.downloadTorrent(torrentFile, overwrite);
                     }  
                 },e,false);
             }
@@ -227,13 +227,6 @@ class GlueActivityCallback implements ActivityCallback, QueryReplyListenerList,
     public void downloadCompleted(Downloader d) {
         for (DownloadListener listener : downloadListeners) {
             listener.downloadRemoved(d);
-        }
-    }
-    
-    @Override
-    public void showDownloads() {
-        if(guiCallback != null) {
-            guiCallback.showDownloads();
         }
     }
     

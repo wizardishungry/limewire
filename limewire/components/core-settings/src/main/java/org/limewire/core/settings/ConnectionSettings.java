@@ -327,6 +327,13 @@ public final class ConnectionSettings extends LimeProps {
      */
     public static final BooleanSetting DO_NOT_MULTICAST_BOOTSTRAP =
         FACTORY.createBooleanSetting("DO_NOT_MULTICAST_BOOTSTRAP", false);
+    
+    /**
+     * How long to try hosts from gnutella.net before bootstrapping (ms)
+     */
+    public static final IntSetting BOOTSTRAP_DELAY =
+        FACTORY.createRemoteIntSetting("BOOTSTRAP_DELAY", 20000,
+                "ConnectionSettings.BootstrapDelay", 10000, 600000);
         
     /**
      * Time in milliseconds to delay prior to flushing data on peer -> peer connections
@@ -377,6 +384,6 @@ public final class ConnectionSettings extends LimeProps {
      * 
      */
     public static final IntSetting STABLE_TOTAL_MESSAGES_THRESHOLD 
-        = FACTORY.createIntSetting("STABLE_TOTAL_MESSAGES_THRESHOLD", 45);
+        = FACTORY.createIntSetting("STABLE_TOTAL_MESSAGES_THRESHOLD", 45);    
 }
 

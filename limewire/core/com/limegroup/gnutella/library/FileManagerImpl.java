@@ -13,7 +13,6 @@ import org.limewire.collection.CollectionUtils;
 import org.limewire.collection.Comparators;
 import org.limewire.core.settings.LibrarySettings;
 import org.limewire.core.settings.MessageSettings;
-
 import org.limewire.inspection.Inspectable;
 import org.limewire.inspection.InspectableContainer;
 import org.limewire.inspection.InspectionPoint;
@@ -21,12 +20,12 @@ import org.limewire.lifecycle.Service;
 import org.limewire.statistic.StatsUtils;
 import org.limewire.util.RPNParser;
 
-
 import com.google.inject.Inject;
 import com.google.inject.Singleton;
 import com.google.inject.name.Named;
 import com.limegroup.gnutella.routing.HashFunction;
 import com.limegroup.gnutella.routing.QueryRouteTable;
+import com.limegroup.gnutella.tigertree.HashTreeCache;
 
 /**
  * The list of all known files. This creates and maintains a list of 
@@ -54,15 +53,19 @@ class FileManagerImpl implements FileManager, Service {
     
     /** The background executor. */
     private final ScheduledExecutorService backgroundExecutor;
+    
+    /** The treeCache. */
+    private final HashTreeCache treeCache;
 
 	/**
 	 * Creates a new <tt>FileManager</tt> instance.
 	 */
     @Inject
-    public FileManagerImpl(ManagedFileListImpl managedFileList, @Named("backgroundExecutor") ScheduledExecutorService backgroundExecutor) {
+    public FileManagerImpl(ManagedFileListImpl managedFileList, @Named("backgroundExecutor") ScheduledExecutorService backgroundExecutor, HashTreeCache treeCache) {
         this.backgroundExecutor = backgroundExecutor;
+        this.treeCache = treeCache;
         this.managedFileList = managedFileList;
-        this.sharedFileList = new GnutellaFileListImpl(managedFileList.getLibraryData(), managedFileList);
+        this.sharedFileList = new GnutellaFileListImpl(managedFileList.getLibraryData(), managedFileList, treeCache);
         this.incompleteFileList = new IncompleteFileListImpl(managedFileList);
     }
 
@@ -127,7 +130,7 @@ class FileManagerImpl implements FileManager, Service {
         FriendFileListImpl fileList = friendFileLists.get(name);
         if(fileList == null) {
             LibrarySettings.addFriendListName(name);
-            fileList = new FriendFileListImpl(managedFileList.getLibraryData(), managedFileList, name);
+            fileList = new FriendFileListImpl(managedFileList.getLibraryData(), managedFileList, name, treeCache);
             friendFileLists.put(name, fileList);
         }
         return fileList;
@@ -210,6 +213,22 @@ class FileManagerImpl implements FileManager, Service {
                 ret.put("match",matched);
                 ret.put("total",total);
                 return ret;
+            }
+        };
+        
+        @InspectionPoint("friend file lists")
+        public final Inspectable FRIEND = new Inspectable() {
+            @Override
+            public Object inspect() {
+                Map<String, Object> data = new HashMap<String, Object>();
+                synchronized (FileManagerImpl.this) {
+                    List<Integer> sizes = new ArrayList<Integer>(friendFileLists.size());
+                    for (FriendFileList friendFileList : friendFileLists.values()) {
+                        sizes.add(friendFileList.size());
+                    }
+                    data.put("sizes", sizes);
+                }
+                return data;
             }
         };
     }

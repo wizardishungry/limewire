@@ -123,7 +123,10 @@ public class XMPPConnectionImpl implements org.limewire.xmpp.api.client.XMPPConn
     }
 
     public void setMode(Presence.Mode mode) {
-        connection.sendPacket(getPresenceForMode(mode));
+        XMPPConnection localCopy = connection;
+        if (localCopy != null) { 
+            localCopy.sendPacket(getPresenceForMode(mode));
+        }
     }
 
     private Packet getPresenceForMode(Presence.Mode mode) {
@@ -205,6 +208,19 @@ public class XMPPConnectionImpl implements org.limewire.xmpp.api.client.XMPPConn
     private ConnectionConfiguration getConnectionConfig() {
         String host = configuration.getServiceName(); // Fallback
         int port = 5222; // Default XMPP client port
+        int colonIdx = host.indexOf(':');
+        if(colonIdx != -1) {
+            if(colonIdx <host.length() -1) {
+                String portS = host.substring(colonIdx+1);
+                try {
+                    int tempP = Integer.parseInt(portS);
+                    if(tempP > 0) {
+                        port = tempP;
+                    }
+                } catch(NumberFormatException nfe) {}
+            }
+            host = host.substring(0, colonIdx);
+        }
         String serviceName = configuration.getServiceName();
         try {
             String domain = "_xmpp-client._tcp." + serviceName;

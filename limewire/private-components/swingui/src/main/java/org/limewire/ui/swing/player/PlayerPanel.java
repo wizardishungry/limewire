@@ -31,11 +31,12 @@ import org.jdesktop.swingx.JXPanel;
 import org.jdesktop.swingx.painter.CompoundPainter;
 import org.jdesktop.swingx.painter.Painter;
 import org.jdesktop.swingx.painter.RectanglePainter;
-import org.limewire.core.api.Category;
 import org.limewire.player.api.AudioPlayer;
 import org.limewire.player.api.AudioPlayerEvent;
 import org.limewire.player.api.AudioPlayerListener;
 import org.limewire.player.api.PlayerState;
+import org.limewire.setting.evt.SettingEvent;
+import org.limewire.setting.evt.SettingListener;
 import org.limewire.ui.swing.components.IconButton;
 import org.limewire.ui.swing.components.LimeSliderBarFactory;
 import org.limewire.ui.swing.components.MarqueeButton;
@@ -43,6 +44,7 @@ import org.limewire.ui.swing.event.EventAnnotationProcessor;
 import org.limewire.ui.swing.library.nav.LibraryNavigator;
 import org.limewire.ui.swing.painter.BorderPainter;
 import org.limewire.ui.swing.painter.BorderPainter.AccentType;
+import org.limewire.ui.swing.settings.SwingUiSettings;
 import org.limewire.ui.swing.util.GuiUtils;
 import org.limewire.ui.swing.util.I18n;
 import org.limewire.ui.swing.util.ResizeUtils;
@@ -226,6 +228,19 @@ public class PlayerPanel extends JXPanel {
             public void popupMenuWillBecomeVisible(PopupMenuEvent e) {
             }
         });
+        
+        //stop player and hide player if setting disabled
+        SwingUiSettings.PLAYER_ENABLED.addSettingListener(new SettingListener(){
+            @Override
+            public void settingChanged(SettingEvent evt) {
+                SwingUtilities.invokeLater(new Runnable(){
+                    public void run() {
+                        PlayerPanel.this.player.stop();
+                        PlayerPanel.this.innerPanel.setVisible(false);
+                    }
+                });
+            }
+        });
     }
     
     private void initProgressControl() {
@@ -280,7 +295,7 @@ public class PlayerPanel extends JXPanel {
     private void previousSong() {
         if (file != null) {
             player.stop();
-            file = libraryNavigator.getPreviousInLibrary(file, Category.AUDIO);
+            file = libraryNavigator.getPreviousInLibrary(file);
             if (file != null) {
                 player.loadSong(file);
                 player.playSong();
@@ -295,7 +310,7 @@ public class PlayerPanel extends JXPanel {
     private void nextSong() {
         if (file != null) {
             player.stop();
-            file = libraryNavigator.getNextInLibrary(file, Category.AUDIO);
+            file = libraryNavigator.getNextInLibrary(file);
             if (file != null) {
                 player.loadSong(file);
                 player.playSong();
@@ -464,8 +479,10 @@ public class PlayerPanel extends JXPanel {
            titleLabel.setText(songText);
            titleLabel.setToolTipText(songText);
            titleLabel.start();
-        
-           innerPanel.setVisible(true);
+           
+           if(!innerPanel.isVisible()) {
+               innerPanel.setVisible(true);
+           }
         }
 
         @Override

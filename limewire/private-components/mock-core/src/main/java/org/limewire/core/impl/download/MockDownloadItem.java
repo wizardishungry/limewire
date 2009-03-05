@@ -13,6 +13,7 @@ import org.limewire.core.api.FilePropertyKey;
 import org.limewire.core.api.URN;
 import org.limewire.core.api.download.DownloadItem;
 import org.limewire.core.api.download.DownloadState;
+import org.limewire.core.api.download.SaveLocationException;
 import org.limewire.io.Address;
 
 
@@ -45,6 +46,11 @@ public class MockDownloadItem implements DownloadItem {
 		}
 	}
 	
+	@Override
+	public boolean isSearchAgainEnabled() {
+	    return false;
+	}
+	
 	public void addPropertyChangeListener(PropertyChangeListener listener){
 		support.addPropertyChangeListener(listener);
 	}
@@ -66,7 +72,7 @@ public class MockDownloadItem implements DownloadItem {
 		return currentSize;
 	}
 
-	private void setCurrentSize(long newSize) {
+	public void setCurrentSize(long newSize) {
 		double oldSize = this.currentSize;
 		this.currentSize = newSize > getTotalSize() ? getTotalSize() : newSize;
 		if (currentSize == getTotalSize()) {
@@ -116,7 +122,7 @@ public class MockDownloadItem implements DownloadItem {
 			public void run() {
 				while (isRunning() && getCurrentSize() < getTotalSize()) {
 					setCurrentSize(getCurrentSize() + 5);
-					setRemainingQueueTime(getRemainingQueueTime() - 1);
+					setRemainingQueueTime(getRemainingTimeInState() - 1);
 					try {
 						sleep(500);
 					} catch (InterruptedException e) {
@@ -170,7 +176,7 @@ public class MockDownloadItem implements DownloadItem {
     }
 
     @Override
-    public int getQueuePosition() {
+    public int getRemoteQueuePosition() {
         return queuePostion;
     }
     
@@ -189,7 +195,7 @@ public class MockDownloadItem implements DownloadItem {
     }
 
     @Override
-    public long getRemainingQueueTime() {
+    public long getRemainingTimeInState() {
         return remainingQueueTime;
     }
 
@@ -226,6 +232,11 @@ public class MockDownloadItem implements DownloadItem {
     @Override
     public String getFileName() {
         return title;
+    }
+    
+    @Override
+    public void setSaveFile(File saveFile, boolean overwrite) throws SaveLocationException {
+        // Do nothing
     }
 
     @Override
